@@ -1,5 +1,5 @@
 // Teste de fumaça no navegador (Chromium via Playwright). Requer `npm run build` antes.
-// Sobe o `vite preview`, abre o jogo com ?test e verifica: carregamento, escala inteira,
+// Sobe o `vite preview`, entra no modo offline, abre o jogo com ?test e verifica: carregamento, escala inteira,
 // movimento, normalização da diagonal e colisão com o muro. Uso: npm run smoke
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,6 +37,8 @@ try {
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
   await page.goto(URL);
+  // Sem backend configurado no build, o menu oferece o modo offline.
+  await page.getByRole('button', { name: /Jogar offline/ }).click({ timeout: 10000 });
   await page.waitForFunction(() => window.__navor?.ready, null, { timeout: 15000 });
   await page.click('canvas');
   const p = () => page.evaluate(() => window.__navor.player());

@@ -2,8 +2,9 @@ import * as Phaser from 'phaser';
 import { content } from '../content.ts';
 import { PreloadScene } from './scenes/PreloadScene.ts';
 import { TestScene } from './scenes/TestScene.ts';
+import type { PlaySession } from '../menu/menu.ts';
 
-export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
+export function createGameConfig(parent: string, session: PlaySession): Phaser.Types.Core.GameConfig {
   const { width, height } = content.balance.viewport;
   return {
     type: Phaser.AUTO,
@@ -24,5 +25,7 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
       arcade: { gravity: { x: 0, y: 0 }, debug: false },
     },
     scene: [PreloadScene, TestScene],
+    // A sessão (personagem escolhido ou modo offline) fica no registry, visível a todas as cenas.
+    callbacks: { preBoot: (game) => game.registry.set('session', session) },
   };
 }
