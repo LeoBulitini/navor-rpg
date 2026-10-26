@@ -1,0 +1,16 @@
+{
+  "$comment": "Chave lógica -> arquivo. Para trocar a arte, coloque o PNG em public/assets/final/ e mude só o 'path' (e 'placeholder' para false).",
+  "tileset": {
+    "path": "assets/placeholder/tileset.png",
+    "placeholder": true
+  },
+  "mage": {
+    "path": "assets/placeholder/mage.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "rows": ["down", "left", "right", "up"],
+    "frames": { "idle": 0, "walk": [1, 0, 2, 0] },
+    "walkFrameRate": 8,
+    "placeholder": true
+  }
+}

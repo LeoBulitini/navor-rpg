@@ -1,0 +1,13 @@
+{
+  "name": "@navor/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lógica pura (sem Phaser) compartilhada entre cliente e, no futuro, Edge Functions",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "$comment": "Tipos de tile. 'index' = posição no tileset (coluna, da esquerda para a direita). 'char' = caractere usado nos mapas ASCII.",
+  "tiles": [
+    { "id": "grass", "char": ".", "index": 0, "solid": false, "name": "Grama" },
+    { "id": "path",  "char": ",", "index": 1, "solid": false, "name": "Caminho de terra" },
+    { "id": "wall",  "char": "#", "index": 2, "solid": true,  "name": "Muro de pedra" },
+    { "id": "tree",  "char": "T", "index": 3, "solid": true,  "name": "Árvore" },
+    { "id": "rock",  "char": "R", "index": 4, "solid": true,  "name": "Rocha" },
+    { "id": "water", "char": "~", "index": 5, "solid": true,  "name": "Água" }
+  ]
+}

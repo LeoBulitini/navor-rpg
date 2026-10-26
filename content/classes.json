@@ -1,0 +1,36 @@
+{
+  "$comment": "Caminhos e etapas de classe (GDD 4). Atributos, fórmulas, requisitos de evolução: A DEFINIR — não preencher sem aprovação.",
+  "maxLevel": 75,
+  "paths": [
+    {
+      "id": "magic",
+      "name": "Magia",
+      "stages": [
+        { "level": 0,  "classId": "mage",          "name": "Mago" },
+        { "level": 25, "classId": "sorcerer",      "name": "Feiticeiro" },
+        { "level": 50, "classId": "elementalist",  "name": "Elementarista" },
+        { "level": 75, "classId": "necromancer",   "name": "Necromante" }
+      ]
+    },
+    {
+      "id": "melee",
+      "name": "Combate corpo a corpo",
+      "stages": [
+        { "level": 0,  "classId": "warrior",   "name": "Guerreiro" },
+        { "level": 25, "classId": "swordsman", "name": "Espadachim" },
+        { "level": 50, "classId": "paladin",   "name": "Paladino" },
+        { "level": 75, "classId": "berserker", "name": "Berserker" }
+      ]
+    },
+    {
+      "id": "ranged",
+      "name": "Ataque à distância/agilidade",
+      "stages": [
+        { "level": 0,  "classId": "archer",   "name": "Arqueiro" },
+        { "level": 25, "classId": "hunter",   "name": "Caçador" },
+        { "level": 50, "classId": "thief",    "name": "Ladrão" },
+        { "level": 75, "classId": "assassin", "name": "Assassino" }
+      ]
+    }
+  ]
+}

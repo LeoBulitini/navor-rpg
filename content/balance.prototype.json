@@ -1,0 +1,9 @@
+{
+  "$comment": "Valores PROVISÓRIOS de protótipo (aprovados em 2026-10-26 como padrão revisável). Não são balanceamento final.",
+  "tileSize": 32,
+  "viewport": { "width": 640, "height": 360 },
+  "player": {
+    "moveSpeedTilesPerSecond": 4,
+    "hitbox": { "width": 18, "height": 12, "offsetX": 7, "offsetY": 19 }
+  }
+}

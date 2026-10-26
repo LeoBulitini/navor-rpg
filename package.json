@@ -1,0 +1,31 @@
+{
+  "name": "navor-rpg",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Navor RPG — RPG medieval online 2D em pixel art 32x32",
+  "type": "module",
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @navor/web",
+    "build": "npm run content:check && npm run build -w @navor/web",
+    "preview": "npm run preview -w @navor/web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/web",
+    "content:check": "node --experimental-strip-types scripts/validate-content.ts",
+    "placeholders": "node scripts/gen-placeholders.mjs",
+    "smoke": "node scripts/smoke-test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

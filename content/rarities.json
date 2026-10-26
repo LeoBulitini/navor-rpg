@@ -1,0 +1,11 @@
+{
+  "$comment": "Raridades globais e cores de interface (GDD 9.1). A ordem define o nível de raridade.",
+  "rarities": [
+    { "id": "common",    "name": "Comum",    "color": "#9ca3af" },
+    { "id": "uncommon",  "name": "Incomum",  "color": "#22c55e" },
+    { "id": "rare",      "name": "Raro",     "color": "#3b82f6" },
+    { "id": "epic",      "name": "Épico",    "color": "#a855f7" },
+    { "id": "legendary", "name": "Lendário", "color": "#f97316" },
+    { "id": "shadow",    "name": "Sombrio",  "color": "#111111" }
+  ]
+}
