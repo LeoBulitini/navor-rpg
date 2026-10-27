@@ -85,6 +85,15 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | Lojas, dormitório e câmbio só funcionam na cidade: o servidor recusa com uma exploração aberta. Voltar pela saída de uma área agora encerra a entrada | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Compra de até 99 unidades por vez; as janelas dos serviços são HTML por cima do jogo, com botões (sem campo de texto) | Decidida por Claude (autorização de 2026-10-27), provisória |
 
+| 2026-10-27 | Equipamentos: 11 espaços (arma, escudo, cabeça, peito, mãos, pernas, pés, anel, amuleto, picareta, machado de coleta); cada peça é única, com nível de melhoria próprio; limite de 60 peças por personagem | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Conjunto inicial de 19 peças e 14 receitas do Ferreiro, só com materiais da Gruta e da Floresta; nenhuma receita pede pergaminho. Armas e escudo são por caminho de classe; armaduras e acessórios servem para todos | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Melhoria até +5, sempre dá certo: cada nível soma 15% dos atributos da peça (arredondando para cima) e custa 20/40/80/150/300 de cobre, mais 1 e 2 de ouro nos níveis +4 e +5, e 1 a 5 unidades do material da peça | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Sem durabilidade nem reparo por enquanto | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Ferramentas: depósitos de minério, cristal e madeira Raros pedem ferramenta nível 1 (Picareta de Ferro ou Machado de Lenhador, 25 de cobre), Épicos nível 2 (Picareta de Prata ou Machado Reforçado, fabricados), Lendários 3 e Sombrios 4 (ainda sem ferramenta). Comum e Incomum não pedem ferramenta | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | O Ferreiro paga pela peça o preço de venda × (1 + 0,25 × nível de melhoria); testes garantem que fabricar ou melhorar e vender nunca dá lucro | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | O teto de dano por segundo do servidor soma 5 por ponto de ataque dos equipamentos; um teste garante que fica acima do dano possível com o melhor equipamento +5 | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Equipar e tirar funciona em qualquer lugar (tecla C); comprar, fabricar, melhorar e vender só na cidade | Decidida por Claude (autorização de 2026-10-27), provisória |
+
 ## Pendentes (não decidir sem o dono do projeto)
 
 Ver a seção "Decisões em aberto" do GDD. Próximas a decidir, por fase:

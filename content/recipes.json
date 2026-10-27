@@ -1,0 +1,19 @@
+{
+  "$comment": "Receitas do Ferreiro (GDD 7.1 e 10). Conjunto inicial PROVISÓRIO, decidido por Claude em 2026-10-27, só com materiais que já saem da Gruta e da Floresta. Nenhuma receita pede pergaminho. Para adicionar uma receita, basta uma entrada nova aqui (e o item em items.json); o servidor recebe tudo pela content_sync.",
+  "recipes": [
+    { "id": "pickaxe-silver", "shop": "blacksmith", "item": "pickaxe-silver", "materials": [{ "item": "silver", "quantity": 3 }, { "item": "iron", "quantity": 2 }, { "item": "wood-sturdy", "quantity": 1 }], "copper": 60 },
+    { "id": "axe-steel", "shop": "blacksmith", "item": "axe-steel", "materials": [{ "item": "iron", "quantity": 4 }, { "item": "coal", "quantity": 2 }, { "item": "wood-sturdy", "quantity": 2 }], "copper": 60 },
+    { "id": "staff-crystal", "shop": "blacksmith", "item": "staff-crystal", "materials": [{ "item": "crystal-blue", "quantity": 2 }, { "item": "wood-sturdy", "quantity": 2 }, { "item": "mushroom-medicinal", "quantity": 2 }], "copper": 80 },
+    { "id": "sword-iron", "shop": "blacksmith", "item": "sword-iron", "materials": [{ "item": "iron", "quantity": 5 }, { "item": "coal", "quantity": 3 }, { "item": "leather-simple", "quantity": 1 }], "copper": 80 },
+    { "id": "bow-sturdy", "shop": "blacksmith", "item": "bow-sturdy", "materials": [{ "item": "wood-sturdy", "quantity": 4 }, { "item": "spider-silk", "quantity": 2 }, { "item": "leather-simple", "quantity": 1 }], "copper": 80 },
+    { "id": "shield-wood", "shop": "blacksmith", "item": "shield-wood", "materials": [{ "item": "wood-common", "quantity": 4 }, { "item": "iron", "quantity": 2 }], "copper": 20 },
+    { "id": "helmet-leather", "shop": "blacksmith", "item": "helmet-leather", "materials": [{ "item": "leather-simple", "quantity": 2 }, { "item": "rat-pelt", "quantity": 1 }], "copper": 10 },
+    { "id": "chest-leather", "shop": "blacksmith", "item": "chest-leather", "materials": [{ "item": "leather-simple", "quantity": 4 }, { "item": "rabbit-pelt", "quantity": 2 }], "copper": 20 },
+    { "id": "gloves-leather", "shop": "blacksmith", "item": "gloves-leather", "materials": [{ "item": "leather-simple", "quantity": 2 }], "copper": 10 },
+    { "id": "pants-leather", "shop": "blacksmith", "item": "pants-leather", "materials": [{ "item": "leather-simple", "quantity": 3 }, { "item": "rat-pelt", "quantity": 1 }], "copper": 15 },
+    { "id": "boots-leather", "shop": "blacksmith", "item": "boots-leather", "materials": [{ "item": "leather-simple", "quantity": 2 }], "copper": 10 },
+    { "id": "chest-iron", "shop": "blacksmith", "item": "chest-iron", "materials": [{ "item": "iron", "quantity": 8 }, { "item": "coal", "quantity": 4 }, { "item": "leather-simple", "quantity": 2 }], "copper": 100 },
+    { "id": "ring-silver", "shop": "blacksmith", "item": "ring-silver", "materials": [{ "item": "silver", "quantity": 3 }, { "item": "aluminum", "quantity": 1 }], "copper": 60 },
+    { "id": "amulet-fangs", "shop": "blacksmith", "item": "amulet-fangs", "materials": [{ "item": "goblin-fangs", "quantity": 3 }, { "item": "wolf-fangs", "quantity": 2 }, { "item": "spider-silk", "quantity": 1 }], "copper": 60 }
+  ]
+}

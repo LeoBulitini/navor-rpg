@@ -24,6 +24,10 @@ const WEB = join(import.meta.dirname, '..', 'apps', 'web');
 const readContent = (file) => JSON.parse(readFileSync(join(import.meta.dirname, '..', 'content', file), 'utf8'));
 const CREATURES = readContent('creatures.json').creatures;
 const FOREST = readContent('procedural.json').areas.find((a) => a.id === 'forest');
+const ITEMS = new Map(readContent('items.json').items.map((i) => [i.id, i]));
+const GATHER_TIERS = readContent('equipment.json').gatherTiers;
+/** depósito raro: só sai com picareta ou machado equipado (Fase 11) */
+const needsTool = (itemId) => Boolean(ITEMS.get(itemId)?.gather && GATHER_TIERS[ITEMS.get(itemId).rarity]);
 let server;
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -133,7 +137,13 @@ try {
   // Pontos de coleta e inventário (no modo offline o sorteio roda no navegador e nada é salvo)
   const nodes = await nav(() => window.__navor.nodes());
   check('a Gruta tem de 8 a 12 pontos de coleta', nodes.length >= 8 && nodes.length <= 12, String(nodes.length));
-  const first = nodes[0];
+  const gated = nodes.find((n) => needsTool(n.itemId));
+  if (gated) {
+    await nav(([x, y]) => window.__navor.teleport(x, y), [gated.x, gated.y]);
+    await page.waitForTimeout(200);
+    check('depósito raro sem picareta pede a ferramenta', /precisa de picareta/.test(await nav(() => window.__navor.collectPrompt()) ?? ''));
+  }
+  const first = nodes.find((n) => !needsTool(n.itemId));
   await nav(([x, y]) => window.__navor.teleport(x, y), [first.x, first.y]);
   await page.waitForTimeout(200);
   const prompt = await nav(() => window.__navor.collectPrompt());
@@ -141,7 +151,7 @@ try {
   await page.screenshot({ path: join(OUT, 'gruta-coleta.png') });
   await page.keyboard.press('e');
   await page.waitForTimeout(300);
-  const afterCollect = await nav(() => ({ node: window.__navor.nodes()[0], inv: window.__navor.inventory() }));
+  const afterCollect = await nav((i) => ({ node: window.__navor.nodes().find((n) => n.index === i), inv: window.__navor.inventory() }), first.index);
   check('o ponto some depois da coleta', afterCollect.node.state === 'done');
   check('o item entra no inventário com a quantidade do ponto', afterCollect.inv[first.itemId] === first.quantity, JSON.stringify(afterCollect.inv));
   await page.keyboard.press('e');
@@ -258,6 +268,58 @@ try {
   await page.waitForTimeout(200);
   const w1 = await wallet();
   check('100 de cobre viram 1 de ouro', w1.gold === w0.gold + 1 && w1.copper === w0.copper - 139, JSON.stringify(w1));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+
+  // Equipamentos (Fase 11): comprar, fabricar e melhorar no Ferreiro; equipar na tecla C; vender peça
+  await nav(() => window.__navor.grant(500));
+  await nav(() => window.__navor.grantItem('leather-simple', 5));
+  await nav(() => window.__navor.grantItem('rat-pelt', 1));
+  const w2 = await wallet();
+  const gearOf = async (itemId) => (await nav(() => window.__navor.gear())).filter((g) => g.itemId === itemId);
+  check('E na porta do Ferreiro abre o Ferreiro', await enter('blacksmith'));
+  check('o Ferreiro mostra o nome do NPC', await page.getByRole('heading', { name: 'Ferreiro' }).isVisible());
+  await button('Comprar: Cajado de Aprendiz').click();
+  await page.waitForTimeout(200);
+  await button('Comprar: Picareta de Ferro').click();
+  await page.waitForTimeout(200);
+  check('comprar cajado (30) e picareta (25) cria duas peças', (await gearOf('staff-apprentice')).length === 1
+    && (await gearOf('pickaxe-iron')).length === 1 && (await wallet()).copper === w2.copper - 55);
+  await button('Fabricar: Capuz de Couro').click();
+  await page.waitForTimeout(200);
+  check('fabricar o capuz gasta 2 couros, 1 pele e 10 de cobre', (await gearOf('helmet-leather')).length === 1
+    && (await nav(() => window.__navor.inventory()))['leather-simple'] === 3 && (await wallet()).copper === w2.copper - 65);
+  await button('Melhorar para +1: Capuz de Couro').click();
+  await page.waitForTimeout(200);
+  check('melhorar leva o capuz a +1 por 20 de cobre e 1 couro', (await gearOf('helmet-leather'))[0]?.upgrade === 1
+    && (await nav(() => window.__navor.inventory()))['leather-simple'] === 2 && (await wallet()).copper === w2.copper - 85);
+  await page.screenshot({ path: join(OUT, 'loja-ferreiro.png') });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  const before = await nav(() => window.__navor.stats());
+  await page.keyboard.press('c');
+  await page.waitForTimeout(200);
+  check('a tecla C abre o equipamento', await page.getByRole('heading', { name: 'Equipamento' }).isVisible());
+  await button('Equipar: Cajado de Aprendiz').click();
+  await page.waitForTimeout(200);
+  await button('Equipar: Capuz de Couro +1').click();
+  await page.waitForTimeout(200);
+  await button('Equipar: Picareta de Ferro').click();
+  await page.waitForTimeout(200);
+  const after = await nav(() => window.__navor.stats());
+  check('o cajado soma 3 de ataque mágico', after.magAttack === before.magAttack + 3, `${before.magAttack} -> ${after.magAttack}`);
+  check('o capuz +1 soma 3 de defesa física', after.physDefense === before.physDefense + 3, `${before.physDefense} -> ${after.physDefense}`);
+  check('as três peças ficam equipadas', (await nav(() => window.__navor.gear())).every((g) => g.slot));
+  await page.screenshot({ path: join(OUT, 'equipamento.png') });
+  await button('Tirar: Cabeça: Capuz de Couro +1').click();
+  await page.waitForTimeout(200);
+  check('tirar o capuz devolve a defesa', (await nav(() => window.__navor.stats())).physDefense === before.physDefense);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  await enter('blacksmith');
+  await button('Vender: Capuz de Couro +1').click();
+  await page.waitForTimeout(200);
+  check('o Ferreiro compra o capuz +1 por 10 de cobre', (await gearOf('helmet-leather')).length === 0 && (await wallet()).copper === w2.copper - 75);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
 

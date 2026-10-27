@@ -13,7 +13,7 @@ import {
 } from '../../assets/index.ts';
 import { creatureAnimKey } from '../entities/Monster.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, Inventory } from '../backend.ts';
+import { GearBag, getBackend, Inventory } from '../backend.ts';
 import { content } from '../../content.ts';
 import { sessionClassId } from '../session.ts';
 
@@ -64,14 +64,15 @@ export class PreloadScene extends Phaser.Scene {
     this.createCharacterAnimations(classId);
     this.createCreatureAnimations();
     const label = this.label.setText('Carregando inventário...');
-    getBackend(this)
-      .loadInventory()
-      .then((counts) => {
+    const backend = getBackend(this);
+    Promise.all([backend.loadInventory(), backend.loadGear()])
+      .then(([counts, gear]) => {
         this.registry.set('inventory', new Inventory(counts));
+        this.registry.set('gear', new GearBag(gear));
         this.scene.start('World', { mapId: content.world.startMap });
       })
       .catch((err: unknown) => {
-        label.setText(`Não foi possível carregar o inventário.\n${friendlyError(err)}\nRecarregue a página.`).setColor('#fca5a5').setAlign('center');
+        label.setText(`Não foi possível carregar o inventário e os equipamentos.\n${friendlyError(err)}\nRecarregue a página.`).setColor('#fca5a5').setAlign('center');
       });
   }
 

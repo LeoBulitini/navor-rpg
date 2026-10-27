@@ -8,23 +8,65 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
  * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
- * e o que soltam, monstros de cada área, lojas, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
 export function contentSql(content: Content): string {
   const items = content.items.items
-    .map((i) => `  (${q(i.id)}, ${q(i.name)}, ${q(i.rarity)}, ${q(i.category)}, ${itemValue(i, content.rarities)}, ${i.use?.hp ?? 0}, ${i.use?.mana ?? 0})`)
+    .map(
+      (i) =>
+        `  (${q(i.id)}, ${q(i.name)}, ${q(i.rarity)}, ${q(i.category)}, ${itemValue(i, content.rarities)}, ${i.use?.hp ?? 0}, ${i.use?.mana ?? 0}, ${i.gather ? q(i.gather) : 'null'})`,
+    )
     .join(',\n');
   const areas = content.procedural.areas.filter((a) => a.resources);
   const lines = [
     '-- GERADO por scripts/db-content.ts a partir de content/. Não edite à mão: rode `npm run db:content`.',
     '',
-    'insert into public.items (id, name, rarity, category, value, use_hp, use_mana) values',
+    'insert into public.items (id, name, rarity, category, value, use_hp, use_mana, gather_tool) values',
     `${items}`,
     'on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, category = excluded.category,',
-    '  value = excluded.value, use_hp = excluded.use_hp, use_mana = excluded.use_mana;',
+    '  value = excluded.value, use_hp = excluded.use_hp, use_mana = excluded.use_mana, gather_tool = excluded.gather_tool;',
   ];
+  const gear = content.items.items.filter((i) => i.equip);
+  if (gear.length > 0) {
+    lines.push(
+      '',
+      'insert into public.item_equip (item_id, slot, paths, tool_tier, upgrade_item_id, hp, mana, phys_attack, mag_attack, phys_defense, mag_defense, precision_bonus) values',
+      gear
+        .map((i) => {
+          const e = i.equip!;
+          const st = e.stats;
+          const paths = e.paths ? `array[${e.paths.map(q).join(', ')}]` : 'null';
+          return `  (${q(i.id)}, ${q(e.slot)}, ${paths}, ${e.toolTier ?? 'null'}, ${e.upgradeMaterial ? q(e.upgradeMaterial) : 'null'}, ${st.hp}, ${st.mana}, ${st.physAttack}, ${st.magAttack}, ${st.physDefense}, ${st.magDefense}, ${st.precision})`;
+        })
+        .join(',\n'),
+      'on conflict (item_id) do update set slot = excluded.slot, paths = excluded.paths, tool_tier = excluded.tool_tier,',
+      '  upgrade_item_id = excluded.upgrade_item_id, hp = excluded.hp, mana = excluded.mana, phys_attack = excluded.phys_attack,',
+      '  mag_attack = excluded.mag_attack, phys_defense = excluded.phys_defense, mag_defense = excluded.mag_defense, precision_bonus = excluded.precision_bonus;',
+    );
+  }
+  const eq = content.equipment;
+  lines.push(
+    '',
+    'insert into public.equipment_rules (id, stat_percent_per_level, max_pieces, sell_bonus_per_upgrade) values',
+    `  (1, ${eq.upgrade.statPercentPerLevel}, ${eq.maxPieces}, ${eq.sellBonusPerUpgrade})`,
+    'on conflict (id) do update set stat_percent_per_level = excluded.stat_percent_per_level, max_pieces = excluded.max_pieces,',
+    '  sell_bonus_per_upgrade = excluded.sell_bonus_per_upgrade;',
+    '',
+    'insert into public.upgrade_costs (level, copper, gold, materials) values',
+    eq.upgrade.costs.map((c, i) => `  (${i + 1}, ${c.copper}, ${c.gold}, ${c.materials})`).join(',\n'),
+    'on conflict (level) do update set copper = excluded.copper, gold = excluded.gold, materials = excluded.materials;',
+  );
+  const tiers = Object.entries(eq.gatherTiers);
+  if (tiers.length > 0) {
+    lines.push(
+      '',
+      'insert into public.gather_tiers (rarity, tier) values',
+      tiers.map(([r, t]) => `  (${q(r)}, ${t})`).join(',\n'),
+      'on conflict (rarity) do update set tier = excluded.tier;',
+    );
+  }
   if (areas.length > 0) {
     const areaRows = areas
       .map((a) => {
@@ -115,9 +157,9 @@ export function contentSql(content: Content): string {
   const buys = shops.shops.flatMap((sh) => content.items.items.filter((i) => shopBuys(sh, i)).map((i) => `  (${q(sh.id)}, ${q(i.id)})`));
   lines.push(
     '',
-    'insert into public.shops (id, name, rest_price, exchange) values',
-    shops.shops.map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange})`).join(',\n'),
-    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange;',
+    'insert into public.shops (id, name, rest_price, exchange, upgrades) values',
+    shops.shops.map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades})`).join(',\n'),
+    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;',
     '',
     'insert into public.economy_rules (id, sell_rate, copper_per_gold) values',
     `  (1, ${shops.sellRate}, ${shops.copperPerGold})`,
@@ -134,15 +176,29 @@ export function contentSql(content: Content): string {
   if (buys.length > 0) {
     lines.push('', 'insert into public.shop_buys (shop_id, item_id) values', buys.join(',\n'), 'on conflict (shop_id, item_id) do nothing;');
   }
+  const recipes = content.recipes.recipes;
+  if (recipes.length > 0) {
+    lines.push(
+      '',
+      'insert into public.recipes (id, shop_id, item_id, copper, gold) values',
+      recipes.map((r) => `  (${q(r.id)}, ${q(r.shop)}, ${q(r.item)}, ${r.copper}, ${r.gold})`).join(',\n'),
+      'on conflict (id) do update set shop_id = excluded.shop_id, item_id = excluded.item_id, copper = excluded.copper, gold = excluded.gold;',
+      '',
+      'insert into public.recipe_materials (recipe_id, item_id, quantity) values',
+      recipes.flatMap((r) => r.materials.map((m) => `  (${q(r.id)}, ${q(m.item)}, ${m.quantity})`)).join(',\n'),
+      'on conflict (recipe_id, item_id) do update set quantity = excluded.quantity;',
+    );
+  }
   lines.push(
     '',
     'insert into public.level_thresholds (level, total_xp) values',
     thresholds.map((xp, level) => `  (${level}, ${xp})`).join(',\n'),
     'on conflict (level) do update set total_xp = excluded.total_xp;',
     '',
-    'insert into public.combat_rules (id, max_dps_base, max_dps_per_level) values',
-    `  (1, ${dps.base}, ${dps.perLevel})`,
-    'on conflict (id) do update set max_dps_base = excluded.max_dps_base, max_dps_per_level = excluded.max_dps_per_level;',
+    'insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack) values',
+    `  (1, ${dps.base}, ${dps.perLevel}, ${dps.perAttackBonus})`,
+    'on conflict (id) do update set max_dps_base = excluded.max_dps_base, max_dps_per_level = excluded.max_dps_per_level,',
+    '  max_dps_per_attack = excluded.max_dps_per_attack;',
   );
   return `${lines.join('\n')}\n`;
 }

@@ -21,6 +21,9 @@ import {
   rollKillRewards,
   rollMonsters,
   serverMaxDps,
+  canEquip,
+  maxUpgrade,
+  pieceStats,
   statsForLevel,
   totalXpForLevel,
 } from '../src/index.ts';
@@ -102,6 +105,27 @@ describe('dano', () => {
         const maxHit = attackFor(stats, attack.damageType) * (1 + combat.damageVariance) * stats.critDamage;
         const maxDps = maxHit * (1000 / attack.cooldownMs);
         expect(serverMaxDps(combat, level), `${ps.pathId} nível ${level}`).toBeGreaterThan(maxDps);
+      }
+    }
+  });
+
+  it('com o melhor equipamento +máximo de cada espaço, o teto ainda fica acima do dano possível', () => {
+    const { equipment } = content;
+    const top = maxUpgrade(equipment);
+    for (const ps of progression.pathStats) {
+      const attack = combat.basicAttacks[ps.pathId]!;
+      const usable = content.items.items.filter((i) => canEquip(i, ps.pathId));
+      const best = equipment.slots.map((slot) => {
+        const options = usable.filter((i) => i.equip!.slot === slot.id).map((i) => pieceStats(i, top, equipment));
+        return options.length ? options.reduce((a, b) => (Math.max(a.physAttack, a.magAttack) >= Math.max(b.physAttack, b.magAttack) ? a : b)) : null;
+      });
+      const bonus = best.reduce((sum, s) => sum + (s ? Math.max(s.physAttack, s.magAttack) : 0), 0);
+      const typed = best.reduce((sum, s) => sum + (s ? (attack.damageType === 'physical' ? s.physAttack : s.magAttack) : 0), 0);
+      for (let level = 0; level <= content.classes.maxLevel; level++) {
+        const stats = statsForLevel(ps, level);
+        const maxHit = (attackFor(stats, attack.damageType) + typed) * (1 + combat.damageVariance) * stats.critDamage;
+        const maxDps = maxHit * (1000 / attack.cooldownMs);
+        expect(serverMaxDps(combat, level, bonus), `${ps.pathId} nível ${level}`).toBeGreaterThan(maxDps);
       }
     }
   });

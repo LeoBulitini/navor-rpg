@@ -2,13 +2,17 @@ import { sellPrice, shopBuys, type ItemDef, type ShopDef } from '@navor/shared';
 import { content } from '../../content.ts';
 import { itemIconPath, itemIconFor } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import type { GameBackend, Inventory, Progress, Wallet } from '../backend.ts';
+import type { GameBackend, GearBag, Inventory, Progress, Wallet } from '../backend.ts';
 import type { PanelContent, PanelRow, PanelSection, ServicePanel } from './ServicePanel.ts';
+import { craftSection, gearDetail, gearSellRows, upgradeSection } from './gearContent.ts';
 
 export interface ServiceContext {
   backend: GameBackend;
   inventory: Inventory;
+  gear: GearBag;
   progress: Progress;
+  /** caminho da classe (as armas conferem) */
+  pathId: string;
   panel: ServicePanel;
   /** dormiu na Taverna: o jogo enche vida e mana */
   onRested: () => void;
@@ -33,12 +37,12 @@ export function effectText(item: ItemDef): string {
 }
 
 /** Atualiza moedas e inventário com o que o servidor devolveu. */
-export function applyWallet(ctx: ServiceContext, w: Wallet): void {
+export function applyWallet(ctx: Pick<ServiceContext, 'progress'>, w: Wallet): void {
   ctx.progress.set({ ...ctx.progress.state, copper: w.copper, gold: w.gold });
 }
 
 /** Roda uma ação do servidor e mostra o resultado (ou o erro) na janela. */
-export async function attempt(ctx: ServiceContext, action: () => Promise<string>): Promise<void> {
+export async function attempt(ctx: Pick<ServiceContext, 'panel'>, action: () => Promise<string>): Promise<void> {
   try {
     ctx.panel.say(await action(), 'ok');
   } catch (err) {
@@ -54,7 +58,8 @@ export function shopContent(shop: ShopDef, ctx: ServiceContext): () => PanelCont
   const buy = (item: ItemDef, qty: number) =>
     attempt(ctx, async () => {
       const r = await ctx.backend.buy(shop.id, item.id, qty);
-      ctx.inventory.set(r.itemId, r.total);
+      if (r.gear) ctx.gear.put(r.gear);
+      else ctx.inventory.set(r.itemId, r.total);
       applyWallet(ctx, r);
       return `Comprou ${qty}× ${item.name}.`;
     });
@@ -75,6 +80,13 @@ export function shopContent(shop: ShopDef, ctx: ServiceContext): () => PanelCont
         rows: shop.sells.map((offer) => {
           const item = itemById.get(offer.item)!;
           const funds = w[offer.currency];
+          if (item.equip) {
+            return {
+              ...itemRowBase(item),
+              detail: `${offer.price} de ${coin(offer.currency)} · ${gearDetail(item, 0, ctx.pathId)}`,
+              actions: [{ label: 'Comprar', run: () => buy(item, 1), disabled: funds < offer.price }],
+            };
+          }
           const effect = effectText(item);
           return {
             ...itemRowBase(item),
@@ -84,6 +96,7 @@ export function shopContent(shop: ShopDef, ctx: ServiceContext): () => PanelCont
         }),
       });
     }
+    for (const extra of [craftSection(shop, ctx), upgradeSection(shop, ctx)]) if (extra) sections.push(extra);
     if (shop.rest) {
       const price = shop.rest.price;
       sections.push({
@@ -135,19 +148,19 @@ export function shopContent(shop: ShopDef, ctx: ServiceContext): () => PanelCont
     const sellable = ctx.inventory
       .entries()
       .map(([id, qty]) => ({ item: itemById.get(id), qty }))
-      .filter((x): x is { item: ItemDef; qty: number } => Boolean(x.item) && shopBuys(shop, x.item!));
+      .filter((x): x is { item: ItemDef; qty: number } => Boolean(x.item) && !x.item!.equip && shopBuys(shop, x.item!));
     if (shop.buys.items.length > 0 || shop.buys.categories.length > 0) {
       sections.push({
         title: 'Vender',
         empty: 'Você não tem nada que este NPC compre.',
-        rows: sellable.map(({ item, qty }) => ({
+        rows: [...gearSellRows(shop, ctx), ...sellable.map(({ item, qty }) => ({
           ...itemRowBase(item),
           detail: `paga ${sellPrice(item, content.rarities, content.shops)} de cobre cada · você tem ${qty}`,
           actions: [
             { label: 'Vender 1', run: () => sell(item, 1) },
             { label: 'Vender tudo', run: () => sell(item, qty) },
           ],
-        })),
+        }))],
       });
     }
     return { title: shop.name, subtitle: walletText(w), sections };

@@ -40,7 +40,8 @@ export function defenseFor(stats: { physDefense: number; magDefense: number }, t
   return type === 'physical' ? stats.physDefense : stats.magDefense;
 }
 
-/** Teto de dano por segundo que o servidor aceita para um personagem desse nível. */
-export function serverMaxDps(combat: Combat, level: number): number {
-  return combat.server.maxDamagePerSecond.base + combat.server.maxDamagePerSecond.perLevel * level;
+/** Teto de dano por segundo que o servidor aceita para um personagem desse nível e com esse bônus de ataque dos equipamentos. */
+export function serverMaxDps(combat: Combat, level: number, gearAttack = 0): number {
+  const m = combat.server.maxDamagePerSecond;
+  return m.base + m.perLevel * level + m.perAttackBonus * gearAttack;
 }

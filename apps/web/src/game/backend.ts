@@ -5,6 +5,13 @@ import {
   levelForXp,
   levelThresholds,
   exchange,
+  canEquip,
+  canUpgrade,
+  gatherBlock,
+  gearSellPrice,
+  maxUpgrade,
+  pathOfClass,
+  upgradeCost,
   rollChestContents,
   rollChestCount,
   rollKillRewards,
@@ -12,12 +19,14 @@ import {
   rollResourceNodes,
   sellPrice,
   shopBuys,
+  type GearPiece,
   type MonsterSpawn,
   type NodeContent,
 } from '@navor/shared';
 import { content } from '../content.ts';
 import type { PlaySession } from '../menu/menu.ts';
 import { exchangeCurrency, shopBuy, shopSell, tavernRest, useItem } from '../services/economy.ts';
+import { craftItem, equipGear, listGear, sellGear, unequipGear, upgradeGear, type GearRow } from '../services/gear.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -70,6 +79,32 @@ export interface TradeResult extends Wallet {
   total: number;
   /** cobre recebido (só na venda) */
   earned?: number;
+  /** equipamento comprado: a peça nova */
+  gear?: GearPiece;
+}
+
+export interface CraftResult extends Wallet {
+  itemId: string;
+  /** total do item no inventário (0 quando o resultado é uma peça) */
+  total: number;
+  gear?: GearPiece;
+  materials: { itemId: string; total: number }[];
+}
+
+export interface UpgradeResult extends Wallet {
+  gear: GearPiece;
+  material: { itemId: string; total: number };
+}
+
+export interface GearSaleResult extends Wallet {
+  gearId: string;
+  earned: number;
+}
+
+export interface EquipResult {
+  gear: GearPiece;
+  /** peça que saiu do espaço, se havia */
+  unequipped: string | null;
 }
 
 export interface UseResult {
@@ -105,7 +140,15 @@ export interface GameBackend {
   rest(shopId: string): Promise<Wallet>;
   exchange(shopId: string, to: 'gold' | 'copper', amount: number): Promise<Wallet>;
   loadInventory(): Promise<Map<string, number>>;
+  loadGear(): Promise<GearPiece[]>;
+  craft(recipeId: string): Promise<CraftResult>;
+  upgrade(shopId: string, gearId: string): Promise<UpgradeResult>;
+  sellGear(shopId: string, gearId: string): Promise<GearSaleResult>;
+  equip(gearId: string): Promise<EquipResult>;
+  unequip(gearId: string): Promise<GearPiece>;
 }
+
+const fromRow = (r: GearRow): GearPiece => ({ id: r.id, itemId: r.item_id, upgrade: r.upgrade, slot: r.slot });
 
 class OnlineBackend implements GameBackend {
   readonly saves = true;
@@ -161,7 +204,7 @@ class OnlineBackend implements GameBackend {
 
   async buy(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
     const r = await shopBuy(this.characterId, shopId, itemId, quantity);
-    return { itemId: r.item_id, total: Number(r.total), copper: Number(r.copper), gold: Number(r.gold) };
+    return { itemId: r.item_id, total: Number(r.total), copper: Number(r.copper), gold: Number(r.gold), gear: r.gear ? fromRow(r.gear) : undefined };
   }
 
   async sell(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
@@ -188,11 +231,52 @@ class OnlineBackend implements GameBackend {
     const rows = await listInventory(this.characterId);
     return new Map(rows.map((r) => [r.item_id, Number(r.quantity)]));
   }
+
+  async loadGear(): Promise<GearPiece[]> {
+    return (await listGear(this.characterId)).map(fromRow);
+  }
+
+  async craft(recipeId: string): Promise<CraftResult> {
+    const r = await craftItem(this.characterId, recipeId);
+    return {
+      itemId: r.item_id,
+      total: Number(r.total),
+      gear: r.gear ? fromRow(r.gear) : undefined,
+      materials: r.materials.map((m) => ({ itemId: m.item_id, total: Number(m.total) })),
+      copper: Number(r.copper),
+      gold: Number(r.gold),
+    };
+  }
+
+  async upgrade(shopId: string, gearId: string): Promise<UpgradeResult> {
+    const r = await upgradeGear(this.characterId, shopId, gearId);
+    return { gear: fromRow(r.gear), material: { itemId: r.material.item_id, total: Number(r.material.total) }, copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async sellGear(shopId: string, gearId: string): Promise<GearSaleResult> {
+    const r = await sellGear(this.characterId, shopId, gearId);
+    return { gearId: r.gear_id, earned: Number(r.earned), copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async equip(gearId: string): Promise<EquipResult> {
+    const r = await equipGear(this.characterId, gearId);
+    return { gear: fromRow(r.gear), unequipped: r.unequipped };
+  }
+
+  async unequip(gearId: string): Promise<GearPiece> {
+    return fromRow((await unequipGear(this.characterId, gearId)).gear);
+  }
 }
 
 export class OfflineBackend implements GameBackend {
   readonly saves = false;
   private readonly inventory = new Map<string, number>();
+  private readonly gear: GearPiece[] = [];
+  private readonly itemById = new Map(content.items.items.map((i) => [i.id, i]));
+  private pieces = 0;
+
+  /** `pathId`: caminho da classe escolhida (as armas conferem). */
+  constructor(private readonly pathId: string) {}
   private readonly collected = new Set<string>();
   private readonly killed = new Set<string>();
   private readonly opened = new Set<string>();
@@ -226,6 +310,10 @@ export class OfflineBackend implements GameBackend {
     if (!node) throw new Error('Ponto de coleta inválido');
     const key = `${run.id}:${nodeIndex}`;
     const collected = !this.collected.has(key);
+    // mesma regra de collect_node: depósito raro pede a ferramenta equipada
+    if (collected && gatherBlock(this.itemById.get(node.itemId)!, this.gear, this.itemById, content.equipment)) {
+      throw new Error('Você precisa de uma ferramenta melhor equipada para este depósito.');
+    }
     if (collected) {
       this.collected.add(key);
       this.inventory.set(node.itemId, (this.inventory.get(node.itemId) ?? 0) + node.quantity);
@@ -288,6 +376,11 @@ export class OfflineBackend implements GameBackend {
     return { ...this.progress };
   }
 
+  /** Só para o teste de fumaça: dá materiais para testar a fabricação. */
+  testGrantItem(itemId: string, quantity: number): number {
+    return this.addItem(itemId, quantity);
+  }
+
   /** Mesmas regras de shop_buy, shop_sell, use_item, tavern_rest e exchange_currency (migration economy). */
   private inTown(): void {
     if (this.activeRun) throw new Error('Volte para a cidade para usar este serviço.');
@@ -311,9 +404,16 @@ export class OfflineBackend implements GameBackend {
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error('Quantidade inválida');
     const offer = this.shop(shopId).sells.find((x) => x.item === itemId);
     if (!offer) throw new Error('Este item não está à venda aqui.');
+    const isGear = Boolean(this.itemById.get(itemId)?.equip);
+    if (isGear && quantity !== 1) throw new Error('Equipamentos são comprados um de cada vez.');
     const cost = offer.price * quantity;
     const p = this.progress;
     if (p[offer.currency] < cost) throw new Error(offer.currency === 'gold' ? 'Ouro insuficiente.' : 'Cobre insuficiente.');
+    if (isGear) {
+      const gear = this.addGear(itemId);
+      p[offer.currency] -= cost;
+      return { itemId, total: 0, gear: { ...gear }, copper: p.copper, gold: p.gold };
+    }
     p[offer.currency] -= cost;
     return { itemId, total: this.addItem(itemId, quantity), copper: p.copper, gold: p.gold };
   }
@@ -322,7 +422,7 @@ export class OfflineBackend implements GameBackend {
     this.inTown();
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new Error('Quantidade inválida');
     const item = content.items.items.find((i) => i.id === itemId);
-    if (!item || !shopBuys(this.shop(shopId), item)) throw new Error('Este NPC não compra esse item.');
+    if (!item || item.equip || !shopBuys(this.shop(shopId), item)) throw new Error('Este NPC não compra esse item.');
     const total = this.addItem(itemId, -quantity);
     const earned = sellPrice(item, content.rarities, content.shops) * quantity;
     this.progress.copper += earned;
@@ -355,10 +455,92 @@ export class OfflineBackend implements GameBackend {
   async loadInventory(): Promise<Map<string, number>> {
     return new Map(this.inventory);
   }
+
+  /** Mesmas regras de craft_item, upgrade_gear, sell_gear, equip_gear e unequip_gear (migration equipment). */
+  private addGear(itemId: string): GearPiece {
+    if (this.gear.length >= content.equipment.maxPieces) throw new Error('Sua bolsa de equipamentos está cheia. Venda alguma peça no Ferreiro.');
+    const piece: GearPiece = { id: `offline-gear-${++this.pieces}`, itemId, upgrade: 0, slot: null };
+    this.gear.push(piece);
+    return piece;
+  }
+
+  private piece(gearId: string): GearPiece {
+    const g = this.gear.find((x) => x.id === gearId);
+    if (!g) throw new Error('Peça não encontrada');
+    return g;
+  }
+
+  async loadGear(): Promise<GearPiece[]> {
+    return this.gear.map((g) => ({ ...g }));
+  }
+
+  async craft(recipeId: string): Promise<CraftResult> {
+    this.inTown();
+    const recipe = content.recipes.recipes.find((r) => r.id === recipeId);
+    if (!recipe) throw new Error('Receita desconhecida.');
+    const p = this.progress;
+    if (p.copper < recipe.copper) throw new Error('Cobre insuficiente.');
+    if (p.gold < recipe.gold) throw new Error('Ouro insuficiente.');
+    if (recipe.materials.some((m) => (this.inventory.get(m.item) ?? 0) < m.quantity)) throw new Error('Faltam materiais para esta receita.');
+    const isGear = Boolean(this.itemById.get(recipe.item)?.equip);
+    const gear = isGear ? this.addGear(recipe.item) : undefined;
+    const materials = [...recipe.materials].sort((a, b) => a.item.localeCompare(b.item)).map((m) => ({ itemId: m.item, total: this.addItem(m.item, -m.quantity) }));
+    p.copper -= recipe.copper;
+    p.gold -= recipe.gold;
+    const total = isGear ? 0 : this.addItem(recipe.item, 1);
+    return { itemId: recipe.item, total, gear: gear && { ...gear }, materials, copper: p.copper, gold: p.gold };
+  }
+
+  async upgrade(shopId: string, gearId: string): Promise<UpgradeResult> {
+    this.inTown();
+    if (!this.shop(shopId).upgrades) throw new Error('Este NPC não melhora equipamentos.');
+    const g = this.piece(gearId);
+    const item = this.itemById.get(g.itemId)!;
+    if (!item.equip?.upgradeMaterial) throw new Error('Esta peça não pode ser melhorada.');
+    if (!canUpgrade(item, g.upgrade, content.equipment)) throw new Error('Esta peça já está no nível máximo.');
+    const cost = upgradeCost(item, g.upgrade, content.equipment)!;
+    const p = this.progress;
+    if (p.copper < cost.copper) throw new Error('Cobre insuficiente.');
+    if (p.gold < cost.gold) throw new Error('Ouro insuficiente.');
+    if ((this.inventory.get(cost.material) ?? 0) < cost.materials) throw new Error('Faltam materiais para a melhoria.');
+    const total = this.addItem(cost.material, -cost.materials);
+    p.copper -= cost.copper;
+    p.gold -= cost.gold;
+    g.upgrade = Math.min(g.upgrade + 1, maxUpgrade(content.equipment));
+    return { gear: { ...g }, material: { itemId: cost.material, total }, copper: p.copper, gold: p.gold };
+  }
+
+  async sellGear(shopId: string, gearId: string): Promise<GearSaleResult> {
+    this.inTown();
+    const g = this.piece(gearId);
+    const item = this.itemById.get(g.itemId)!;
+    if (!shopBuys(this.shop(shopId), item)) throw new Error('Este NPC não compra esse item.');
+    const earned = gearSellPrice(item, g.upgrade, content.rarities, content.shops, content.equipment);
+    this.gear.splice(this.gear.indexOf(g), 1);
+    this.progress.copper += earned;
+    return { gearId, earned, copper: this.progress.copper, gold: this.progress.gold };
+  }
+
+  async equip(gearId: string): Promise<EquipResult> {
+    const g = this.piece(gearId);
+    const item = this.itemById.get(g.itemId)!;
+    if (!canEquip(item, this.pathId)) throw new Error('Sua classe não usa esta peça.');
+    const slot = item.equip!.slot;
+    const old = this.gear.find((x) => x.slot === slot && x !== g);
+    if (old) old.slot = null;
+    g.slot = slot;
+    return { gear: { ...g }, unequipped: old?.id ?? null };
+  }
+
+  async unequip(gearId: string): Promise<GearPiece> {
+    const g = this.piece(gearId);
+    g.slot = null;
+    return { ...g };
+  }
 }
 
 export function createBackend(session: PlaySession): GameBackend {
-  return session.mode === 'online' ? new OnlineBackend(session.character.id) : new OfflineBackend();
+  return session.mode === 'online' ? new OnlineBackend(session.character.id) : new OfflineBackend(pathOfClass(content.classes, session.classId));
 }
 
 export const getBackend = (scene: Phaser.Scene): GameBackend => scene.registry.get('backend') as GameBackend;
@@ -380,6 +562,35 @@ export class Inventory extends Phaser.Events.EventEmitter {
 }
 
 export const getInventory = (scene: Phaser.Scene): Inventory | undefined => scene.registry.get('inventory') as Inventory | undefined;
+
+/** Peças de equipamento em memória, sempre iguais ao último valor que o servidor devolveu. */
+export class GearBag extends Phaser.Events.EventEmitter {
+  constructor(private pieces: GearPiece[]) {
+    super();
+  }
+
+  list(): GearPiece[] {
+    return this.pieces;
+  }
+
+  equipped(): GearPiece[] {
+    return this.pieces.filter((g) => g.slot);
+  }
+
+  /** Grava a peça como o servidor devolveu; `unequipped` volta para a bolsa. */
+  put(piece: GearPiece, unequipped: string | null = null): void {
+    this.pieces = this.pieces.filter((g) => g.id !== piece.id).map((g) => (g.id === unequipped ? { ...g, slot: null } : g));
+    this.pieces.push(piece);
+    this.emit('change');
+  }
+
+  remove(id: string): void {
+    this.pieces = this.pieces.filter((g) => g.id !== id);
+    this.emit('change');
+  }
+}
+
+export const getGear = (scene: Phaser.Scene): GearBag => scene.registry.get('gear') as GearBag;
 
 /** XP, nível, cobre e ouro em memória, sempre iguais ao último valor que o servidor devolveu. */
 export class Progress extends Phaser.Events.EventEmitter {

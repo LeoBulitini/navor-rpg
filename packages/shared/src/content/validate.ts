@@ -5,11 +5,13 @@ import {
   classesSchema,
   combatSchema,
   creaturesSchema,
+  equipmentSchema,
   itemsSchema,
   objectsSchema,
   proceduralSchema,
   progressionSchema,
   raritiesSchema,
+  recipesSchema,
   shopsSchema,
   tilesSchema,
   worldSchema,
@@ -18,11 +20,13 @@ import {
   type Classes,
   type Combat,
   type Creatures,
+  type Equipment,
   type Items,
   type ObjectDefs,
   type Procedural,
   type Progression,
   type Rarities,
+  type Recipes,
   type Shops,
   type TileDefs,
   type World,
@@ -46,6 +50,8 @@ export interface RawContent {
   world: unknown;
   procedural: unknown;
   shops: unknown;
+  equipment: unknown;
+  recipes: unknown;
   maps: Record<string, unknown>;
 }
 
@@ -62,6 +68,8 @@ export interface Content {
   world: World;
   procedural: Procedural;
   shops: Shops;
+  equipment: Equipment;
+  recipes: Recipes;
   maps: Record<string, AsciiMap>;
 }
 
@@ -219,6 +227,43 @@ export function loadContent(raw: RawContent): Content {
     for (const c of shop.buys.categories) if (!categories.has(c as never)) throw new Error(`${where}: categoria "${c}" não existe`);
   }
 
+  const equipment = parseWith(equipmentSchema, raw.equipment, 'equipment.json');
+  assertUnique(equipment.slots.map((x) => x.id), 'equipment.json (slots)');
+  const slotById = new Map(equipment.slots.map((x) => [x.id, x]));
+  for (const r of Object.keys(equipment.gatherTiers)) {
+    if (!rarityIds.has(r)) throw new Error(`equipment.json: gatherTiers usa a raridade "${r}", que não existe`);
+  }
+  const gearCategories = new Set(['weapon', 'armor', 'shield', 'accessory', 'tool']);
+  const pathIds = new Set(classes.paths.map((x) => x.id));
+  for (const item of items.items) {
+    const where = `items.json: ${item.id}`;
+    if (gearCategories.has(item.category) !== Boolean(item.equip)) throw new Error(`${where}: só armas, armaduras, escudos, acessórios e ferramentas têm 'equip' (e todos precisam ter)`);
+    if (item.gather && !slotById.get(item.gather)?.tool) throw new Error(`${where}: 'gather' "${item.gather}" não é um espaço de ferramenta`);
+    const e = item.equip;
+    if (!e) continue;
+    const slot = slotById.get(e.slot);
+    if (!slot) throw new Error(`${where}: espaço "${e.slot}" não existe em equipment.json`);
+    if (slot.tool !== (e.toolTier !== undefined)) throw new Error(`${where}: ferramentas (e só elas) têm 'toolTier'`);
+    for (const pid of e.paths ?? []) if (!pathIds.has(pid)) throw new Error(`${where}: caminho "${pid}" não existe em classes.json`);
+    if (e.upgradeMaterial) {
+      const mat = itemById.get(e.upgradeMaterial);
+      if (!mat || mat.equip) throw new Error(`${where}: material de melhoria "${e.upgradeMaterial}" não existe ou é equipamento`);
+      if (Object.values(e.stats).every((v) => v === 0)) throw new Error(`${where}: peça sem atributos não pode ter melhoria`);
+    }
+  }
+  const recipes = parseWith(recipesSchema, raw.recipes, 'recipes.json');
+  assertUnique(recipes.recipes.map((x) => x.id), 'recipes.json (id)');
+  for (const r of recipes.recipes) {
+    const where = `recipes.json: ${r.id}`;
+    if (!shops.shops.some((x) => x.id === r.shop)) throw new Error(`${where}: serviço "${r.shop}" não existe em shops.json`);
+    if (!itemById.has(r.item)) throw new Error(`${where}: item "${r.item}" não existe em items.json`);
+    assertUnique(r.materials.map((m) => m.item), `${where}.materials`);
+    for (const m of r.materials) {
+      const mat = itemById.get(m.item);
+      if (!mat || mat.equip) throw new Error(`${where}: material "${m.item}" não existe ou é equipamento`);
+    }
+  }
+
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
 
   // Ponto de chegada num mapa fixo: livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
@@ -238,5 +283,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, maps };
+  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, maps };
 }

@@ -1,5 +1,5 @@
 {
-  "$comment": "Combate em tempo real (GDD 17: A DEFINIR). PROVISÓRIO, decidido por Claude em 2026-10-27. Um ataque básico por caminho de classe. Dano = max(1, ataque × variação − defesa × defenseFactor), com ataque/defesa físicos ou mágicos conforme 'damageType'; crítico pela chance e multiplicador do personagem. Acerto = min(1, baseHitChance + precisão × hitPerPrecision). 'server.maxDamagePerSecond' é o teto (base + perLevel × nível) que o servidor aceita ao validar abates; um teste garante que fica acima do máximo de qualquer caminho.",
+  "$comment": "Combate em tempo real (GDD 17: A DEFINIR). PROVISÓRIO, decidido por Claude em 2026-10-27. Um ataque básico por caminho de classe. Dano = max(1, ataque × variação − defesa × defenseFactor), com ataque/defesa físicos ou mágicos conforme 'damageType'; crítico pela chance e multiplicador do personagem. Acerto = min(1, baseHitChance + precisão × hitPerPrecision). 'server.maxDamagePerSecond' é o teto (base + perLevel × nível) que o servidor aceita ao validar abates; um teste garante que fica acima do máximo de qualquer caminho. 'perAttackBonus' soma ao teto, por ponto de ataque dos equipamentos (Fase 11), para quem usa arma melhor.",
   "basicAttacks": {
     "magic": { "name": "Projétil Arcano", "kind": "projectile", "damageType": "magical", "sprite": "arcane-bolt", "manaCost": 3, "cooldownMs": 450, "projectileSpeedTilesPerSecond": 9, "rangeTiles": 6 },
     "melee": { "name": "Golpe de Espada", "kind": "melee", "damageType": "physical", "sprite": "slash", "manaCost": 0, "cooldownMs": 500, "rangeTiles": 1.4, "arcDegrees": 110 },
@@ -11,5 +11,5 @@
   "damageVariance": 0.1,
   "defenseFactor": 0.5,
   "invulnerableAfterHitMs": 500,
-  "server": { "maxDamagePerSecond": { "base": 60, "perLevel": 8 } }
+  "server": { "maxDamagePerSecond": { "base": 60, "perLevel": 8, "perAttackBonus": 5 } }
 }

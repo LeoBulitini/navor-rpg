@@ -112,6 +112,17 @@ const range = z
   .object({ min: z.number().int().min(0), max: z.number().int().min(0) })
   .refine((r) => r.min <= r.max, 'min deve ser menor ou igual a max');
 
+/** Bônus de uma peça de equipamento, somados aos atributos do personagem. */
+export const gearStatsSchema = z.object({
+  hp: z.number().int().min(0).default(0),
+  mana: z.number().int().min(0).default(0),
+  physAttack: z.number().int().min(0).default(0),
+  magAttack: z.number().int().min(0).default(0),
+  physDefense: z.number().int().min(0).default(0),
+  magDefense: z.number().int().min(0).default(0),
+  precision: z.number().int().min(0).default(0),
+});
+
 export const itemsSchema = z.object({
   items: z
     .array(
@@ -119,16 +130,63 @@ export const itemsSchema = z.object({
         id: z.string().regex(/^[a-z0-9-]+$/, 'use letras minúsculas, números e hífen'),
         name: z.string().min(1),
         rarity: z.string().min(1),
-        category: z.enum(['ore', 'resource', 'scroll', 'potion', 'food']),
+        category: z.enum(['ore', 'resource', 'scroll', 'potion', 'food', 'weapon', 'armor', 'shield', 'accessory', 'tool']),
         /** valor em cobre; sem ele, vale o 'value' da raridade */
         value: z.number().int().min(0).optional(),
         /** o que o item devolve ao ser usado (poções e comidas) */
         use: z.object({ hp: z.number().int().min(0).default(0), mana: z.number().int().min(0).default(0) }).optional(),
         /** PNG em apps/web/public/assets/items/; sem ele, o jogo mostra o ícone genérico. */
         icon: z.string().min(1).optional(),
+        /** recurso que só sai com a ferramenta desse espaço (ex.: 'pickaxe') quando a raridade pede (equipment.json gatherTiers) */
+        gather: z.string().min(1).optional(),
+        /** equipamento: cada um é uma peça única (não empilha), com nível de melhoria próprio */
+        equip: z
+          .object({
+            slot: z.string().min(1),
+            /** caminhos de classe que podem usar; sem ele, todos */
+            paths: z.array(z.string().min(1)).min(1).optional(),
+            stats: gearStatsSchema.prefault({}),
+            /** ferramentas: nível do depósito que conseguem extrair */
+            toolTier: z.number().int().min(1).optional(),
+            /** material gasto em cada melhoria; sem ele, a peça não pode ser melhorada */
+            upgradeMaterial: z.string().min(1).optional(),
+          })
+          .optional(),
       }),
     )
     .min(1),
+});
+
+/** Equipamentos (GDD 10): espaços, melhoria e qual ferramenta cada raridade de depósito pede. */
+export const equipmentSchema = z.object({
+  slots: z.array(z.object({ id: z.string().regex(/^[a-z0-9-]+$/), name: z.string().min(1), tool: z.boolean().default(false) })).min(1),
+  /** peças guardadas por personagem (equipadas ou não) */
+  maxPieces: z.number().int().positive(),
+  upgrade: z.object({
+    /** cada nível soma esta porcentagem dos atributos da peça, arredondando para cima */
+    statPercentPerLevel: z.number().int().positive(),
+    /** custo para chegar a cada nível (o 1.º item é o +1); o tamanho define o nível máximo */
+    costs: z.array(z.object({ copper: z.number().int().min(0), gold: z.number().int().min(0), materials: z.number().int().min(1) })).min(1),
+  }),
+  /** na venda, cada nível de melhoria soma esta fração do preço base */
+  sellBonusPerUpgrade: z.number().min(0),
+  /** nível de ferramenta que cada raridade de depósito pede; raridade fora da lista não pede ferramenta */
+  gatherTiers: z.record(z.string(), z.number().int().min(1)),
+});
+
+/** Receitas de fabricação (GDD 10: A DEFINIR, conjunto inicial provisório). */
+export const recipesSchema = z.object({
+  recipes: z.array(
+    z.object({
+      id: z.string().regex(/^[a-z0-9-]+$/),
+      /** serviço que fabrica (shops.json) */
+      shop: z.string().min(1),
+      item: z.string().min(1),
+      materials: z.array(z.object({ item: z.string().min(1), quantity: z.number().int().min(1) })).min(1),
+      copper: z.number().int().min(0).default(0),
+      gold: z.number().int().min(0).default(0),
+    }),
+  ),
 });
 
 /** Pontos de coleta de uma área. O servidor sorteia o conteúdo; o cliente só posiciona. */
@@ -269,7 +327,7 @@ export const combatSchema = z.object({
   damageVariance: z.number().min(0).max(0.9),
   defenseFactor: z.number().min(0),
   invulnerableAfterHitMs: z.number().int().min(0),
-  server: z.object({ maxDamagePerSecond: z.object({ base: z.number().positive(), perLevel: z.number().min(0) }) }),
+  server: z.object({ maxDamagePerSecond: z.object({ base: z.number().positive(), perLevel: z.number().min(0), perAttackBonus: z.number().min(0).default(0) }) }),
 });
 
 /** Parâmetros de uma área gerada por seed. Valores provisórios (GDD 7.3: tamanhos e densidades A DEFINIR). */
@@ -313,6 +371,8 @@ export const shopsSchema = z.object({
         buys: z.object({ categories: z.array(z.string()).default([]), items: z.array(z.string()).default([]) }),
         rest: z.object({ price: z.number().int().min(0) }).optional(),
         exchange: z.boolean().default(false),
+        /** melhora equipamentos (equipment.json upgrade) */
+        upgrades: z.boolean().default(false),
       }),
     )
     .min(1),
@@ -336,6 +396,10 @@ export type ShopDef = Shops['shops'][number];
 export type ChestsConfig = z.infer<typeof chestsConfigSchema>;
 export type Items = z.infer<typeof itemsSchema>;
 export type ItemDef = Items['items'][number];
+export type GearStats = z.infer<typeof gearStatsSchema>;
+export type Equipment = z.infer<typeof equipmentSchema>;
+export type Recipes = z.infer<typeof recipesSchema>;
+export type RecipeDef = Recipes['recipes'][number];
 export type ResourcesConfig = z.infer<typeof resourcesConfigSchema>;
 export type CreaturesConfig = z.infer<typeof creaturesConfigSchema>;
 export type Creatures = z.infer<typeof creaturesSchema>;

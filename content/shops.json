@@ -1,5 +1,5 @@
 {
-  "$comment": "Serviços da cidade com loja (GDD 7.1 e 11). PROVISÓRIO, decidido por Claude em 2026-10-27. 'building' é o prédio de objects.json onde o serviço fica (E na porta abre). 'sells': o que o NPC vende e por quanto. 'buys': o que o NPC compra do jogador (por categoria ou item), pagando o valor do item × 'sellRate'. 'rest': dormitório da Taverna (enche vida e mana). 'exchange': câmbio de cobre e ouro. Tudo é conferido e gravado pelo servidor.",
+  "$comment": "Serviços da cidade com loja (GDD 7.1 e 11). PROVISÓRIO, decidido por Claude em 2026-10-27. 'building' é o prédio de objects.json onde o serviço fica (E na porta abre). 'sells': o que o NPC vende e por quanto. 'buys': o que o NPC compra do jogador (por categoria ou item), pagando o valor do item × 'sellRate'. 'rest': dormitório da Taverna (enche vida e mana). 'exchange': câmbio de cobre e ouro. Tudo é conferido e gravado pelo servidor. O Ferreiro também fabrica (recipes.json) e melhora equipamentos ('upgrades').",
   "sellRate": 0.4,
   "copperPerGold": 100,
   "shops": [
@@ -82,10 +82,36 @@
       "id": "blacksmith",
       "name": "Ferreiro",
       "building": "blacksmith",
-      "sells": [],
+      "sells": [
+        {
+          "item": "pickaxe-iron",
+          "price": 25
+        },
+        {
+          "item": "axe-iron",
+          "price": 25
+        },
+        {
+          "item": "staff-apprentice",
+          "price": 30
+        },
+        {
+          "item": "sword-short",
+          "price": 30
+        },
+        {
+          "item": "bow-short",
+          "price": 30
+        }
+      ],
       "buys": {
         "categories": [
-          "ore"
+          "ore",
+          "weapon",
+          "armor",
+          "shield",
+          "accessory",
+          "tool"
         ],
         "items": [
           "bones",
@@ -106,7 +132,8 @@
           "wood-ancient",
           "wood-enchanted"
         ]
-      }
+      },
+      "upgrades": true
     },
     {
       "id": "market",

@@ -3,7 +3,10 @@ import {
   attackFor,
   createRng,
   defenseFor,
+  equippedStats,
   exitAt,
+  gatherBlock,
+  withGear,
   facingVector,
   generateCave,
   levelThresholds,
@@ -31,10 +34,11 @@ import {
 import { content } from '../../content.ts';
 import { itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getInventory, getProgress, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
+import { getBackend, getGear, getInventory, getProgress, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
 import { ServicePanel } from '../ui/ServicePanel.ts';
 import { shopContent } from '../ui/shopContent.ts';
+import { equipmentContent } from '../ui/gearContent.ts';
 import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
 import { Player } from '../entities/Player.ts';
@@ -160,6 +164,10 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ONE', () => (this.usePressed = 'hp'));
     this.input.keyboard?.on('keydown-TWO', () => (this.usePressed = 'mana'));
     this.input.keyboard?.on('keydown-THREE', () => (this.usePressed = 'food'));
+    this.input.keyboard?.on('keydown-C', () => this.openEquipment());
+    const onGear = () => this.refreshStats();
+    getGear(this).on('change', onGear);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => getGear(this).off('change', onGear));
     this.panel = new ServicePanel(() => {
       if (this.input.keyboard) this.input.keyboard.enabled = true;
     });
@@ -277,7 +285,15 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const { node } = target;
-    const name = content.items.items.find((i) => i.id === node.content.itemId)?.name ?? node.content.itemId;
+    const item = content.items.items.find((i) => i.id === node.content.itemId);
+    const name = item?.name ?? node.content.itemId;
+    const itemById = new Map(content.items.items.map((i) => [i.id, i]));
+    const blocked = item ? gatherBlock(item, getGear(this).list(), itemById, content.equipment) : null;
+    if (blocked && node.state === 'ready') {
+      this.promptText.setText(`${name}: ${blocked.toLowerCase()}`);
+      if (pressed) this.showNotice(blocked);
+      return;
+    }
     this.promptText.setText(node.state === 'busy' ? 'Coletando...' : `E: coletar ${name}`);
     if (node.state === 'ready' && pressed) this.collect(node);
   }
@@ -407,12 +423,31 @@ export class WorldScene extends Phaser.Scene {
     this.hud = new CombatHud(this);
   }
 
-  /** Atributos do caminho da classe (Magia, Corpo a corpo, Distância) no nível atual. */
+  private pathId(): string {
+    return pathOfClass(content.classes, sessionClassId(this));
+  }
+
+  /** Atributos do caminho da classe (Magia, Corpo a corpo, Distância) no nível atual, sem equipamento. */
+  private baseStats(): CharacterStats {
+    return statsForLevel(pathStatsFor(content.progression, this.pathId()), getProgress(this).state.level);
+  }
+
+  /** Atributos do nível somados aos bônus das peças equipadas. */
   private currentStats(): CharacterStats {
-    const path = pathOfClass(content.classes, sessionClassId(this));
-    const stats = statsForLevel(pathStatsFor(content.progression, path), getProgress(this).state.level);
+    const itemById = new Map(content.items.items.map((i) => [i.id, i]));
+    const stats = withGear(this.baseStats(), equippedStats(getGear(this).list(), itemById, content.equipment));
     this.player.setSpeedTiles(stats.moveSpeedTilesPerSecond);
     return stats;
+  }
+
+  /** Trocou equipamento: recalcula atributos; vida e mana não passam do novo máximo. */
+  private refreshStats(): void {
+    if (!this.vitals) return;
+    this.stats = this.currentStats();
+    this.vitals.maxHp = this.stats.maxHp;
+    this.vitals.maxMana = this.stats.maxMana;
+    this.vitals.hp = Math.min(this.vitals.hp, this.vitals.maxHp);
+    this.vitals.mana = Math.min(this.vitals.mana, this.vitals.maxMana);
   }
 
   private basicAttack(): BasicAttack {
@@ -631,7 +666,9 @@ export class WorldScene extends Phaser.Scene {
     const ctx = {
       backend: getBackend(this),
       inventory: getInventory(this)!,
+      gear: getGear(this),
       progress: getProgress(this),
+      pathId: this.pathId(),
       panel: this.panel,
       onRested: () => {
         this.vitals.hp = this.vitals.maxHp;
@@ -639,6 +676,24 @@ export class WorldScene extends Phaser.Scene {
       },
     };
     this.panel.open(shopContent(shop, ctx));
+  }
+
+  /** Tecla C: janela de equipamento (funciona em qualquer lugar; o mundo continua). */
+  private openEquipment(): void {
+    if (this.dead || this.leaving || this.panel.isOpen()) return;
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
+    this.player.setVelocity(0, 0);
+    this.panel.open(
+      equipmentContent({
+        backend: getBackend(this),
+        inventory: getInventory(this)!,
+        gear: getGear(this),
+        progress: getProgress(this),
+        pathId: this.pathId(),
+        panel: this.panel,
+        baseStats: () => this.baseStats(),
+      }),
+    );
   }
 
   /** Teclas 1, 2 e 3: a menor poção de vida, a menor de mana, ou uma comida. O servidor gasta o item. */
@@ -708,7 +763,7 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  F3: depuração', { ...style, align: 'right' })
+      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  F3: depuração', { ...style, align: 'right' })
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
@@ -804,6 +859,12 @@ export class WorldScene extends Phaser.Scene {
         const backend = getBackend(this);
         if (backend instanceof OfflineBackend) getProgress(this).set(backend.testGrant(copper, gold));
       },
+      /** Modo offline: dá materiais para testar a fabricação. */
+      grantItem: (itemId: string, quantity: number) => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) getInventory(this)!.set(itemId, backend.testGrantItem(itemId, quantity));
+      },
+      gear: () => getGear(this).list().map((g) => ({ ...g })),
       /** Ajusta vida e mana (para testar poções e o dormitório). */
       setVitals: (hp: number, mana: number) => Object.assign(this.vitals, { hp, mana }),
       debugEnabled: () => this.debug.isEnabled(),

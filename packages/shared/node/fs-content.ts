@@ -24,6 +24,8 @@ export function readRawContent(): RawContent {
     world: readJson('world.json'),
     procedural: readJson('procedural.json'),
     shops: readJson('shops.json'),
+    equipment: readJson('equipment.json'),
+    recipes: readJson('recipes.json'),
     maps,
   };
 }

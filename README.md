@@ -3,9 +3,11 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 10.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
+**Estado atual: Fase 11.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
 Arqueiro) protegidas por RLS, e o jogo começa na cidade principal. Alquimista, Taverna, Ferreiro e Mercado abrem com **E**
-na porta: compra de poções e comidas, venda de recursos, dormitório e câmbio de cobre e ouro. O portão sul leva à Gruta e
+na porta: compra de poções e comidas, venda de recursos, dormitório e câmbio de cobre e ouro. O Ferreiro vende, fabrica,
+melhora e compra armas, armaduras, acessórios e ferramentas; a tecla **C** abre o equipamento (equipar e tirar peças).
+Depósitos raros só saem com picareta ou machado equipado. O portão sul leva à Gruta e
 o leste à Floresta. A cada entrada o servidor sorteia a seed da área, o conteúdo dos pontos de coleta, os monstros ou
 animais e quantos baús há. O jogador coleta e abre baús com **E**, vê o inventário com **I**, ataca com **Espaço** e usa
 poção de vida, de mana ou comida com **1**, **2** e **3**. O servidor confere cada coleta, abate, baú, compra, venda e uso
@@ -156,6 +158,12 @@ A janela da loja chama as funções `shop_buy`, `shop_sell`, `tavern_rest` e `ex
 
 Vida e mana não enchem mais sozinhas na cidade: enchem ao subir de nível e dormindo na Taverna; poções e comidas devolvem uma parte.
 
+### Equipamentos e Ferreiro
+
+Um item com `equip` em `content/items.json` é um equipamento: espaço (`slot`), caminhos de classe que usam (`paths`, sem ele todos), bônus (`stats`), nível de ferramenta (`toolTier`, só picaretas e machados) e material de melhoria (`upgradeMaterial`). Cada peça é única (não empilha) e tem nível de melhoria próprio. Os espaços, a tabela de custo das melhorias, o limite de peças e qual nível de ferramenta cada raridade de depósito pede ficam em `content/equipment.json`; as receitas do Ferreiro, em `content/recipes.json` (para adicionar uma, basta uma entrada nova). Recursos com `gather` (minérios, cristais e madeiras) de raridade Rara ou acima só saem com a ferramenta equipada.
+
+O Ferreiro chama `shop_buy`, `craft_item`, `upgrade_gear` e `sell_gear`; a janela de equipamento (tecla **C**, em qualquer lugar) chama `equip_gear` e `unequip_gear`. O cliente só lê as próprias peças (`character_gear`). O teto de dano por segundo que o servidor aceita nos abates soma `perAttackBonus` (em `content/combat.json`) por ponto de ataque das peças equipadas. Não há durabilidade nem reparo por enquanto. Depois de mudar equipamentos ou receitas, rode `npm run db:content`.
+
 ## Arte
 
 ### Personagens (arte real)
@@ -184,7 +192,7 @@ O tileset (`apps/web/public/assets/city/terrain.png`, com os tiles da cidade, da
 
 ### Ícones dos itens (arte provisória)
 
-Um PNG 32×32 por `icon` de `content/items.json`, em `apps/web/public/assets/items/`, desenhados por código em `tools/art/item_art.py`. O mesmo ícone aparece no chão das áreas e no inventário. Itens sem ícone usam `unknown.png`. Para trocar, substitua o PNG mantendo o nome e o tamanho.
+Um PNG 32×32 por `icon` de `content/items.json`, em `apps/web/public/assets/items/`, desenhados por código em `tools/art/item_art.py`. O mesmo ícone aparece no chão das áreas, no inventário e nas janelas de loja e equipamento. Itens sem ícone usam `unknown.png`. Para trocar, substitua o PNG mantendo o nome e o tamanho.
 
 ### Monstros, animais, baú e efeitos (arte provisória)
 
