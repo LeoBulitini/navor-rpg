@@ -450,9 +450,21 @@ export const shopsSchema = z.object({
         exchange: z.boolean().default(false),
         /** melhora equipamentos (equipment.json upgrade) */
         upgrades: z.boolean().default(false),
+        /** mercado entre jogadores (regras em 'market') */
+        playerMarket: z.boolean().default(false),
+        /** armazém da conta (regras em 'storage') */
+        storage: z.boolean().default(false),
       }),
     )
     .min(1),
+  market: z.object({
+    /** % do valor da venda que some da economia (cobrado do vendedor) */
+    taxPercent: z.number().int().min(0).max(50),
+    maxListings: z.number().int().min(1),
+    expiresHours: z.number().int().min(1),
+    maxPricePerUnit: z.number().int().min(1),
+  }),
+  storage: z.object({ maxStacks: z.number().int().min(1) }),
 });
 
 /** Missões diárias (GDD 12). O servidor sorteia as do dia, conta o progresso e entrega a recompensa. */

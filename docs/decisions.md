@@ -108,6 +108,13 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | Dragão: 420 de vida, ataque mágico 13, 320 XP, 80 a 150 de cobre, sempre 1 ou 2 Escamas de Dragão, chance de Pergaminho Raro, Pergaminho Ancestral e Mithril | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Fase 12 corrigida: a arte de todas as classes do caminho é carregada no início, e o personagem troca de arte na hora em que evolui | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | No modo offline, as recusas de regra (cobre insuficiente, Covil já usado etc.) mostram a mensagem em português em vez de "Algo deu errado" | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Mercado entre jogadores dentro do prédio do Mercado: o item sai da bolsa e fica preso no anúncio até a venda, o cancelamento ou o recolhimento | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Taxa do Mercado: 5% do valor de cada venda (arredondado para baixo), descontada do vendedor | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Até 10 anúncios abertos por personagem; preço de 1 a 100.000 por unidade, em cobre ou ouro; anúncios vencem em 48 h e o que sobrou é recolhido pelo vendedor | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Equipamentos (peças com melhoria) ainda não vão ao Mercado nem ao Armazém; só itens empilháveis | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Personagens da mesma conta não compram anúncios uns dos outros (evita passar itens sem custo pelo Mercado; para isso existe o Armazém) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Armazém por conta (todos os personagens usam o mesmo), até 40 tipos de item, sem custo; prédio novo na cidade em (12,19) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | No modo offline, o Mercado mostra só os próprios anúncios (não há outros jogadores) | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 

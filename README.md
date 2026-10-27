@@ -3,11 +3,11 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 13.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
+**Estado atual: Fase 14.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
 Arqueiro) protegidas por RLS, e o jogo começa na cidade principal. Alquimista, Taverna, Ferreiro e Mercado abrem com **E**
 na porta: compra de poções e comidas, venda de recursos, dormitório e câmbio de cobre e ouro. O Ferreiro vende, fabrica,
 melhora e compra armas, armaduras, acessórios e ferramentas; a tecla **C** abre o equipamento (equipar e tirar peças).
-Depósitos raros só saem com picareta ou machado equipado. A tecla **K** abre as habilidades (pontos por nível, aprimoramentos, focos da habilidade ativa e evolução de classe nos níveis 25, 50 e 75); **Q**, **R**, **F** e **G** usam as habilidades ativas de cada etapa da classe. A tecla **J** mostra as missões do dia (recompensa na cidade). O portão oeste leva ao Covil do Dragão, o chefe diário (uma entrada por dia, a partir do nível 5). O portão sul leva à Gruta e
+Depósitos raros só saem com picareta ou machado equipado. A tecla **K** abre as habilidades (pontos por nível, aprimoramentos, focos da habilidade ativa e evolução de classe nos níveis 25, 50 e 75); **Q**, **R**, **F** e **G** usam as habilidades ativas de cada etapa da classe. A tecla **J** mostra as missões do dia (recompensa na cidade). O portão oeste leva ao Covil do Dragão, o chefe diário (uma entrada por dia, a partir do nível 5). No Mercado os jogadores anunciam itens uns para os outros (o item fica preso no anúncio; taxa de 5% sobre a venda; anúncios vencem em 48 h), e o Armazém guarda itens da conta, compartilhados entre os personagens. O portão sul leva à Gruta e
 o leste à Floresta. A cada entrada o servidor sorteia a seed da área, o conteúdo dos pontos de coleta, os monstros ou
 animais e quantos baús há. O jogador coleta e abre baús com **E**, vê o inventário com **I**, ataca com **Espaço** e usa
 poção de vida, de mana ou comida com **1**, **2** e **3**. O servidor confere cada coleta, abate, baú, compra, venda e uso

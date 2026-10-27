@@ -3,8 +3,19 @@ import './panel.css';
 /** Um botão de uma linha. `run` pode ser assíncrono; enquanto roda, todos os botões ficam desligados. */
 export interface PanelAction {
   label: string;
-  run: () => unknown;
+  /** recebe o valor atual de cada campo da linha (`inputs`), pelo id */
+  run: (values: Record<string, string>) => unknown;
   disabled?: boolean;
+}
+
+/** Campo da linha: número (quantidade, preço) ou lista de opções (moeda). */
+export interface PanelInput {
+  id: string;
+  label: string;
+  value: string;
+  min?: number;
+  max?: number;
+  options?: { value: string; label: string }[];
 }
 
 export interface PanelRow {
@@ -13,6 +24,10 @@ export interface PanelRow {
   /** cor do nome (raridade) */
   color?: string;
   detail?: string;
+  /** campos antes dos botões; o valor digitado fica guardado enquanto a janela está aberta */
+  inputs?: PanelInput[];
+  /** identifica a linha para guardar os campos (padrão: o nome) */
+  key?: string;
   actions: PanelAction[];
 }
 
@@ -41,6 +56,7 @@ export class ServicePanel {
   private status = { text: '', kind: '' };
   private busy = false;
   private build: (() => PanelContent) | null = null;
+  private readonly values = new Map<string, string>();
   private readonly onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') this.close();
   };
@@ -54,6 +70,7 @@ export class ServicePanel {
   open(build: () => PanelContent): void {
     this.close(false);
     this.build = build;
+    this.values.clear();
     this.status = { text: '', kind: '' };
     this.root = document.createElement('div');
     this.root.className = 'service-panel';
@@ -110,23 +127,41 @@ export class ServicePanel {
     if (row.color) name.style.color = row.color;
     if (row.detail) name.append(el('span', 'detail', row.detail));
     const actions = el('span', 'actions');
+    const rowKey = row.key ?? row.name;
+    const values = () => Object.fromEntries((row.inputs ?? []).map((i) => [i.id, this.values.get(`${rowKey}|${i.id}`) ?? i.value]));
+    for (const input of row.inputs ?? []) {
+      const key = `${rowKey}|${input.id}`;
+      const field = input.options ? document.createElement('select') : document.createElement('input');
+      if (field instanceof HTMLSelectElement) {
+        for (const o of input.options!) field.append(new Option(o.label, o.value));
+      } else {
+        field.type = 'number';
+        if (input.min !== undefined) field.min = String(input.min);
+        if (input.max !== undefined) field.max = String(input.max);
+      }
+      field.value = this.values.get(key) ?? input.value;
+      field.setAttribute('aria-label', `${input.label}: ${row.name}`);
+      field.title = input.label;
+      field.addEventListener('input', () => this.values.set(key, field.value));
+      actions.append(field);
+    }
     for (const a of row.actions) {
       const b = el('button', '', a.label) as HTMLButtonElement;
       b.disabled = this.busy || Boolean(a.disabled);
       b.setAttribute('aria-label', `${a.label}: ${row.name}`);
-      b.addEventListener('click', () => void this.run(a));
+      b.addEventListener('click', () => void this.run(a, values()));
       actions.append(b);
     }
     line.append(name, actions);
     return line;
   }
 
-  private async run(action: PanelAction): Promise<void> {
+  private async run(action: PanelAction, values: Record<string, string>): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.render();
     try {
-      await action.run();
+      await action.run(values);
     } finally {
       this.busy = false;
       this.render();

@@ -42,6 +42,7 @@ import { exchangeCurrency, shopBuy, shopSell, tavernRest, useItem } from '../ser
 import { craftItem, equipGear, listGear, sellGear, unequipGear, upgradeGear, type GearRow } from '../services/gear.ts';
 import { evolveClass, learnSkill, listSkills } from '../services/skills.ts';
 import { claimQuest, listDailyQuests } from '../services/quests.ts';
+import { listListings, listStorage, marketBuy, marketCancel, marketList, storageDeposit, storageWithdraw, type ListingRow } from '../services/market.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -155,6 +156,34 @@ export interface ClaimResult extends Wallet {
   items: { itemId: string; quantity: number; total: number }[];
 }
 
+/** Um anúncio do mercado entre jogadores. */
+export interface Listing {
+  id: string;
+  itemId: string;
+  quantity: number;
+  price: number;
+  currency: 'copper' | 'gold';
+  sellerName: string;
+  /** instante em que vence (ms) */
+  expiresAt: number;
+  mine: boolean;
+}
+
+export interface MarketBoard {
+  /** anúncios ativos de outros jogadores, do mais barato ao mais caro */
+  offers: Listing[];
+  /** anúncios abertos deste personagem (inclusive vencidos, para recolher) */
+  mine: Listing[];
+}
+
+export interface StorageResult {
+  itemId: string;
+  /** total no inventário */
+  total: number;
+  /** total no armazém */
+  stored: number;
+}
+
 export interface EquipResult {
   gear: GearPiece;
   /** peça que saiu do espaço, se havia */
@@ -205,12 +234,30 @@ export interface GameBackend {
   evolve(): Promise<EvolveResult>;
   loadQuests(): Promise<QuestBoard>;
   claimQuest(slot: number): Promise<ClaimResult>;
+  loadMarket(): Promise<MarketBoard>;
+  listOnMarket(shopId: string, itemId: string, quantity: number, price: number, currency: 'copper' | 'gold'): Promise<{ itemId: string; total: number }>;
+  buyFromMarket(shopId: string, listingId: string, quantity: number): Promise<TradeResult>;
+  cancelListing(shopId: string, listingId: string): Promise<{ itemId: string; total: number; returned: number }>;
+  loadStorage(): Promise<Map<string, number>>;
+  deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult>;
+  withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult>;
 }
 
 /** Recusa de uma regra do jogo no modo offline, com o mesmo código dos erros das funções do banco (P0001). */
 class RuleError extends Error {
   readonly code = 'P0001';
 }
+
+const fromListing = (r: ListingRow, characterId: string): Listing => ({
+  id: r.id,
+  itemId: r.item_id,
+  quantity: r.quantity,
+  price: r.price,
+  currency: r.currency,
+  sellerName: r.seller_name,
+  expiresAt: Date.parse(r.expires_at),
+  mine: r.seller_id === characterId,
+});
 
 const fromRow = (r: GearRow): GearPiece => ({ id: r.id, itemId: r.item_id, upgrade: r.upgrade, slot: r.slot });
 
@@ -352,6 +399,41 @@ class OnlineBackend implements GameBackend {
       quests: r.quests.map((q) => ({ slot: q.slot, questId: q.quest_id, progress: q.progress, claimed: q.claimed })),
       dailyAreas: r.daily_areas,
     };
+  }
+
+  async loadMarket(): Promise<MarketBoard> {
+    const rows = (await listListings()).map((r) => fromListing(r, this.characterId));
+    const now = Date.now();
+    return { offers: rows.filter((l) => !l.mine && l.quantity > 0 && l.expiresAt > now), mine: rows.filter((l) => l.mine) };
+  }
+
+  async listOnMarket(shopId: string, itemId: string, quantity: number, price: number, currency: 'copper' | 'gold'): Promise<{ itemId: string; total: number }> {
+    const r = await marketList(this.characterId, shopId, itemId, quantity, price, currency);
+    return { itemId: r.item_id, total: Number(r.total) };
+  }
+
+  async buyFromMarket(shopId: string, listingId: string, quantity: number): Promise<TradeResult> {
+    const r = await marketBuy(this.characterId, shopId, listingId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async cancelListing(shopId: string, listingId: string): Promise<{ itemId: string; total: number; returned: number }> {
+    const r = await marketCancel(this.characterId, shopId, listingId);
+    return { itemId: r.item_id, total: Number(r.total), returned: r.returned };
+  }
+
+  async loadStorage(): Promise<Map<string, number>> {
+    return new Map((await listStorage()).map((r) => [r.item_id, Number(r.quantity)]));
+  }
+
+  async deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    const r = await storageDeposit(this.characterId, shopId, itemId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), stored: Number(r.stored) };
+  }
+
+  async withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    const r = await storageWithdraw(this.characterId, shopId, itemId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), stored: Number(r.stored) };
   }
 
   async claimQuest(slot: number): Promise<ClaimResult> {
@@ -740,6 +822,95 @@ export class OfflineBackend implements GameBackend {
     p.copper += t.reward.copper;
     const items = [...t.reward.items].sort((a, b) => a.item.localeCompare(b.item)).map((r) => ({ itemId: r.item, quantity: r.quantity, total: this.addItem(r.item, r.quantity) }));
     return { slot, questId: t.id, xpGained: t.reward.xp, xp: p.xp, level: p.level, leveledUp: p.level > before, copperGained: t.reward.copper, copper: p.copper, gold: p.gold, items };
+  }
+
+  /** Mesmas regras de market_list, market_buy, market_cancel, storage_deposit e storage_withdraw (migration market). */
+  private readonly listings: (Listing & { closed: boolean })[] = [];
+  private readonly storage = new Map<string, number>();
+  private listingSeq = 0;
+
+  private service(shopId: string, kind: 'playerMarket' | 'storage'): void {
+    if (!this.shop(shopId)[kind]) throw new RuleError('Este serviço não fica aqui.');
+  }
+
+  private tradable(itemId: string): void {
+    const item = this.itemById.get(itemId);
+    if (!item) throw new RuleError('Item desconhecido.');
+    if (item.equip) throw new RuleError('Equipamentos ainda não podem ir ao mercado nem ao armazém.');
+  }
+
+  async loadMarket(): Promise<MarketBoard> {
+    // offline não há outros jogadores: só os próprios anúncios
+    return { offers: [], mine: this.listings.filter((l) => !l.closed).map(({ closed: _, ...l }) => ({ ...l })) };
+  }
+
+  async listOnMarket(shopId: string, itemId: string, quantity: number, price: number, currency: 'copper' | 'gold'): Promise<{ itemId: string; total: number }> {
+    this.inTown();
+    this.service(shopId, 'playerMarket');
+    this.tradable(itemId);
+    const rules = content.shops.market;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new RuleError('Quantidade inválida');
+    if (!Number.isInteger(price) || price < 1 || price > rules.maxPricePerUnit) throw new RuleError(`Preço inválido (de 1 a ${rules.maxPricePerUnit}).`);
+    const now = Date.now();
+    if (this.listings.filter((l) => !l.closed && l.quantity > 0 && l.expiresAt > now).length >= rules.maxListings) {
+      throw new RuleError(`Você já tem ${rules.maxListings} anúncios ativos.`);
+    }
+    const total = this.addItem(itemId, -quantity);
+    this.listings.push({ id: `offline-listing-${++this.listingSeq}`, itemId, quantity, price, currency, sellerName: 'Você', expiresAt: now + rules.expiresHours * 3600_000, mine: true, closed: false });
+    return { itemId, total };
+  }
+
+  async buyFromMarket(shopId: string, listingId: string): Promise<TradeResult> {
+    this.inTown();
+    this.service(shopId, 'playerMarket');
+    const l = this.listings.find((x) => x.id === listingId && !x.closed && x.expiresAt > Date.now());
+    if (!l) throw new RuleError('Este anúncio não está mais disponível.');
+    throw new RuleError('Você não pode comprar os próprios anúncios.');
+  }
+
+  async cancelListing(shopId: string, listingId: string): Promise<{ itemId: string; total: number; returned: number }> {
+    this.inTown();
+    this.service(shopId, 'playerMarket');
+    const l = this.listings.find((x) => x.id === listingId);
+    if (!l) throw new RuleError('Anúncio não encontrado.');
+    if (l.closed) throw new RuleError('Este anúncio já foi encerrado.');
+    l.closed = true;
+    const total = l.quantity > 0 ? this.addItem(l.itemId, l.quantity) : (this.inventory.get(l.itemId) ?? 0);
+    return { itemId: l.itemId, total, returned: l.quantity };
+  }
+
+  async loadStorage(): Promise<Map<string, number>> {
+    return new Map(this.storage);
+  }
+
+  async deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    this.inTown();
+    this.service(shopId, 'storage');
+    this.tradable(itemId);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) throw new RuleError('Quantidade inválida');
+    const max = content.shops.storage.maxStacks;
+    if (!this.storage.has(itemId) && this.storage.size >= max) throw new RuleError(`O armazém está cheio (${max} tipos de item). Retire algo antes.`);
+    const total = this.addItem(itemId, -quantity);
+    const stored = (this.storage.get(itemId) ?? 0) + quantity;
+    this.storage.set(itemId, stored);
+    return { itemId, total, stored };
+  }
+
+  async withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    this.inTown();
+    this.service(shopId, 'storage');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) throw new RuleError('Quantidade inválida');
+    const have = this.storage.get(itemId) ?? 0;
+    if (have < quantity) throw new RuleError('Você não tem tudo isso no armazém.');
+    const stored = have - quantity;
+    if (stored === 0) this.storage.delete(itemId);
+    else this.storage.set(itemId, stored);
+    return { itemId, total: this.addItem(itemId, quantity), stored };
+  }
+
+  /** Só para o teste de fumaça: vence um anúncio próprio (para testar o "Recolher"). */
+  testExpireListings(): void {
+    for (const l of this.listings) l.expiresAt = Date.now() - 1000;
   }
 
   /** Só para o teste de fumaça: completa uma missão do dia. */

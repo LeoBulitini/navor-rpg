@@ -318,6 +318,9 @@ def draw_icon(b, kind, x, y):
             half = 4 if j < 4 else 4 - (j - 3)
             b.rect(x + 5 - half, y + j, half * 2, 1, P['bl3'])
         b.rect(x + 4, y + 1, 2, 5, P['y']); b.rect(x + 2, y + 2, 6, 2, P['y'])
+    elif kind == 'box':
+        b.rect(x + 1, y + 1, 8, 7, P['k3']); b.rect(x + 1, y + 1, 8, 2, P['k4'])
+        b.rect(x + 1, y + 4, 8, 1, P['k1']); b.rect(x + 4, y + 3, 2, 3, P['s4'])
 
 
 def draw_sign(b, x, y, icon):
@@ -727,6 +730,7 @@ BUILDINGS = {
     'blacksmith': dict(w_tiles=5, roof='r', wall='mixed', door='forge', icon='hammer', chimney=True),
     'alchemist': dict(w_tiles=4, roof='pu', wall='wood', door='arch', icon='potion'),
     'training-hall': dict(w_tiles=6, roof='sl', wall='stone', door='boarded', icon='swords'),
+    'warehouse': dict(w_tiles=4, roof='sl', wall='wood', door='double', icon='box'),
     'guild': dict(w_tiles=5, roof='bl', wall='stone', door='boarded', icon='shield', banners=True),
 }
 

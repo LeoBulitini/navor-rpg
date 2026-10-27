@@ -24,6 +24,11 @@
   font: inherit; font-size: 13px; padding: 4px 10px; border: 2px solid #000; border-radius: 0; cursor: pointer;
   background: var(--accent); color: var(--accent-ink); box-shadow: 2px 2px 0 #000;
 }
+.service-panel .actions input, .service-panel .actions select {
+  font: inherit; font-size: 13px; width: 72px; padding: 3px 4px; background: var(--bg); color: var(--text);
+  border: 2px solid var(--line); border-radius: 0;
+}
+.service-panel .actions select { width: auto; }
 .service-panel button:disabled { opacity: 0.45; cursor: not-allowed; }
 .service-panel button.secondary { background: transparent; color: var(--text); border-color: var(--line); box-shadow: none; }
 .service-panel .empty { color: var(--muted); font-size: 13px; padding: 4px 0; }

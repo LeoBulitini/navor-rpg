@@ -416,6 +416,48 @@ try {
   await nav(() => window.__navor.teleport(19, 16));
   await page.waitForTimeout(200);
 
+  // Armazém e Mercado entre jogadores (Fase 14): guardar e retirar, anunciar com o item preso, cancelar, recolher vencido
+  const exact = (name) => page.getByRole('button', { name, exact: true });
+  const bag = async (id) => (await nav(() => window.__navor.inventory()))[id] ?? 0;
+  await nav(() => window.__navor.grantItem('iron', 4));
+  const iron0 = await bag('iron');
+  check('E na porta do Armazém abre o armazém', await enter('warehouse'));
+  check('o campo de quantidade tem nome acessível', await page.getByRole('spinbutton', { name: 'Quantidade: Ferro', exact: true }).isVisible());
+  await page.getByRole('spinbutton', { name: 'Quantidade: Ferro', exact: true }).fill('3');
+  await exact('Guardar: Ferro').click();
+  await page.waitForTimeout(200);
+  check('guardar 3 Ferros tira da bolsa e põe no armazém', (await bag('iron')) === iron0 - 3
+    && await page.getByText('guardado: 3').isVisible());
+  await page.screenshot({ path: join(OUT, 'armazem.png') });
+  await exact('Retirar: Ferro').click();
+  await page.waitForTimeout(200);
+  check('retirar devolve os 3 Ferros', (await bag('iron')) === iron0 && (await page.getByText('O armazém está vazio.').isVisible()));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  check('o Mercado abre com a parte de anúncios', await enter('market') && await page.getByRole('heading', { name: 'Meus anúncios' }).isVisible());
+  await page.getByRole('spinbutton', { name: 'Quantidade: Ferro', exact: true }).fill('2');
+  await page.getByRole('spinbutton', { name: 'Preço por unidade: Ferro', exact: true }).fill('7');
+  await exact('Anunciar: Ferro').click();
+  await page.waitForTimeout(300);
+  check('anunciar 2 Ferros prende os itens no anúncio', (await bag('iron')) === iron0 - 2
+    && await page.getByText('2 sobrando · 7 de cobre cada').isVisible());
+  await page.screenshot({ path: join(OUT, 'mercado.png') });
+  await exact('Cancelar: Ferro').click();
+  await page.waitForTimeout(300);
+  check('cancelar devolve os Ferros à bolsa', (await bag('iron')) === iron0 && await page.getByText('Você não tem anúncios abertos.').isVisible());
+  await page.getByRole('spinbutton', { name: 'Quantidade: Ferro', exact: true }).fill('1');
+  await exact('Anunciar: Ferro').click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await nav(() => window.__navor.expireListings());
+  await enter('market');
+  check('anúncio vencido mostra Recolher', await exact('Recolher: Ferro').isVisible());
+  await exact('Recolher: Ferro').click();
+  await page.waitForTimeout(300);
+  check('recolher devolve o que sobrou', (await bag('iron')) === iron0);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+
   // Floresta (Fase 9): portão leste da cidade, animais que fogem, Esquilos de enfeite, recursos da floresta
   await nav(() => window.__navor.teleport(37, 23));
   await hold(['ArrowRight'], 900);

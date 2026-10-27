@@ -239,12 +239,23 @@ insert into public.area_creatures (area_id, creature_id, weight) values
   ('dragon-lair', 'dragon', 1)
 on conflict (area_id, creature_id) do update set weight = excluded.weight;
 
-insert into public.shops (id, name, rest_price, exchange, upgrades) values
-  ('alchemist', 'Alquimista', null, false, false),
-  ('tavern', 'Taverna', 15, false, false),
-  ('blacksmith', 'Ferreiro', null, false, true),
-  ('market', 'Mercado', null, true, false)
-on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;
+insert into public.shops (id, name, rest_price, exchange, upgrades, player_market, storage) values
+  ('alchemist', 'Alquimista', null, false, false, false, false),
+  ('tavern', 'Taverna', 15, false, false, false, false),
+  ('blacksmith', 'Ferreiro', null, false, true, false, false),
+  ('market', 'Mercado', null, true, false, true, false),
+  ('warehouse', 'Armazém', null, false, false, false, true)
+on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades,
+  player_market = excluded.player_market, storage = excluded.storage;
+
+insert into public.market_rules (id, tax_percent, max_listings, expires_hours, max_price) values
+  (1, 5, 10, 48, 100000)
+on conflict (id) do update set tax_percent = excluded.tax_percent, max_listings = excluded.max_listings,
+  expires_hours = excluded.expires_hours, max_price = excluded.max_price;
+
+insert into public.storage_rules (id, max_stacks) values
+  (1, 40)
+on conflict (id) do update set max_stacks = excluded.max_stacks;
 
 insert into public.economy_rules (id, sell_rate, copper_per_gold) values
   (1, 0.4, 100)

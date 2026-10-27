@@ -234,6 +234,8 @@ export function loadContent(raw: RawContent): Content {
     }
     for (const c of shop.buys.categories) if (!categories.has(c as never)) throw new Error(`${where}: categoria "${c}" não existe`);
   }
+  if (!shops.shops.some((x) => x.playerMarket)) throw new Error('shops.json: nenhum prédio tem o mercado entre jogadores (playerMarket)');
+  if (!shops.shops.some((x) => x.storage)) throw new Error('shops.json: nenhum prédio tem o armazém (storage)');
 
   const equipment = parseWith(equipmentSchema, raw.equipment, 'equipment.json');
   assertUnique(equipment.slots.map((x) => x.id), 'equipment.json (slots)');

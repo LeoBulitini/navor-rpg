@@ -8,7 +8,7 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
  * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
- * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, habilidades, evolução de classe, missões diárias, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * e o que soltam, monstros de cada área, lojas, mercado, armazém, equipamentos, receitas, habilidades, evolução de classe, missões diárias, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
@@ -158,9 +158,21 @@ export function contentSql(content: Content): string {
   const buys = shops.shops.flatMap((sh) => content.items.items.filter((i) => shopBuys(sh, i)).map((i) => `  (${q(sh.id)}, ${q(i.id)})`));
   lines.push(
     '',
-    'insert into public.shops (id, name, rest_price, exchange, upgrades) values',
-    shops.shops.map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades})`).join(',\n'),
-    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;',
+    'insert into public.shops (id, name, rest_price, exchange, upgrades, player_market, storage) values',
+    shops.shops
+      .map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades}, ${sh.playerMarket}, ${sh.storage})`)
+      .join(',\n'),
+    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades,',
+    '  player_market = excluded.player_market, storage = excluded.storage;',
+    '',
+    'insert into public.market_rules (id, tax_percent, max_listings, expires_hours, max_price) values',
+    `  (1, ${shops.market.taxPercent}, ${shops.market.maxListings}, ${shops.market.expiresHours}, ${shops.market.maxPricePerUnit})`,
+    'on conflict (id) do update set tax_percent = excluded.tax_percent, max_listings = excluded.max_listings,',
+    '  expires_hours = excluded.expires_hours, max_price = excluded.max_price;',
+    '',
+    'insert into public.storage_rules (id, max_stacks) values',
+    `  (1, ${shops.storage.maxStacks})`,
+    'on conflict (id) do update set max_stacks = excluded.max_stacks;',
     '',
     'insert into public.economy_rules (id, sell_rate, copper_per_gold) values',
     `  (1, ${shops.sellRate}, ${shops.copperPerGold})`,

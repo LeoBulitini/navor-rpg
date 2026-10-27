@@ -44,7 +44,7 @@ import { friendlyError } from '../../services/errors.ts';
 import { getBackend, getGear, getInventory, getProgress, getQuests, getSkills, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
 import { ServicePanel } from '../ui/ServicePanel.ts';
-import { shopContent } from '../ui/shopContent.ts';
+import { shopContent, type ServiceContext } from '../ui/shopContent.ts';
 import { equipmentContent } from '../ui/gearContent.ts';
 import { skillContent } from '../ui/skillContent.ts';
 import { questContent } from '../ui/questContent.ts';
@@ -771,8 +771,9 @@ export class WorldScene extends Phaser.Scene {
     if (!shop) return;
     if (this.input.keyboard) this.input.keyboard.enabled = false;
     this.player.setVelocity(0, 0);
-    const ctx = {
-      backend: getBackend(this),
+    const backend = getBackend(this);
+    const ctx: ServiceContext = {
+      backend,
       inventory: getInventory(this)!,
       gear: getGear(this),
       progress: getProgress(this),
@@ -783,7 +784,20 @@ export class WorldScene extends Phaser.Scene {
         this.vitals.mana = this.vitals.maxMana;
       },
     };
-    this.panel.open(shopContent(shop, ctx));
+    if (!shop.playerMarket && !shop.storage) {
+      this.panel.open(shopContent(shop, ctx));
+      return;
+    }
+    // Mercado e Armazém: lê anúncios e itens guardados antes de abrir a janela.
+    Promise.all([shop.playerMarket ? backend.loadMarket() : Promise.resolve({ offers: [], mine: [] }), shop.storage ? backend.loadStorage() : Promise.resolve(new Map<string, number>())])
+      .then(([board, storage]) => {
+        ctx.market = { board, storage };
+        this.panel.open(shopContent(shop, ctx));
+      })
+      .catch((err: unknown) => {
+        if (this.input.keyboard) this.input.keyboard.enabled = true;
+        this.showNotice(friendlyError(err));
+      });
   }
 
   /** Tecla C: janela de equipamento (funciona em qualquer lugar; o mundo continua). */
@@ -1031,6 +1045,11 @@ export class WorldScene extends Phaser.Scene {
       completeQuest: (slot: number) => {
         const backend = getBackend(this);
         if (backend instanceof OfflineBackend) backend.testCompleteQuest(slot);
+      },
+      /** Modo offline: vence os anúncios próprios (para testar o "Recolher"). */
+      expireListings: () => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) backend.testExpireListings();
       },
       boss: () => {
         const b = this.monsters.find((m) => m.def.boss);
