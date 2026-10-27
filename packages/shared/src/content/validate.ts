@@ -10,6 +10,7 @@ import {
   proceduralSchema,
   progressionSchema,
   raritiesSchema,
+  shopsSchema,
   tilesSchema,
   worldSchema,
   type AsciiMap,
@@ -22,6 +23,7 @@ import {
   type Procedural,
   type Progression,
   type Rarities,
+  type Shops,
   type TileDefs,
   type World,
 } from './schemas.ts';
@@ -43,6 +45,7 @@ export interface RawContent {
   combat: unknown;
   world: unknown;
   procedural: unknown;
+  shops: unknown;
   maps: Record<string, unknown>;
 }
 
@@ -58,6 +61,7 @@ export interface Content {
   combat: Combat;
   world: World;
   procedural: Procedural;
+  shops: Shops;
   maps: Record<string, AsciiMap>;
 }
 
@@ -201,6 +205,20 @@ export function loadContent(raw: RawContent): Content {
     }
   }
 
+  const shops = parseWith(shopsSchema, raw.shops, 'shops.json');
+  assertUnique(shops.shops.map((x) => x.id), 'shops.json (id)');
+  assertUnique(shops.shops.map((x) => x.building), 'shops.json (building)');
+  const categories = new Set(items.items.map((i) => i.category));
+  for (const shop of shops.shops) {
+    const where = `shops.json: ${shop.id}`;
+    if (!objects.objects.find((o) => o.id === shop.building)?.door) throw new Error(`${where}: prédio "${shop.building}" não existe ou não tem porta`);
+    assertUnique(shop.sells.map((x) => x.item), `${where}.sells`);
+    for (const id of [...shop.sells.map((x) => x.item), ...shop.buys.items]) {
+      if (!itemById.has(id)) throw new Error(`${where}: item "${id}" não existe em items.json`);
+    }
+    for (const c of shop.buys.categories) if (!categories.has(c as never)) throw new Error(`${where}: categoria "${c}" não existe`);
+  }
+
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
 
   // Ponto de chegada num mapa fixo: livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
@@ -220,5 +238,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, maps };
+  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, maps };
 }

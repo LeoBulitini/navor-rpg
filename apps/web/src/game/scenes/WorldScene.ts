@@ -31,8 +31,10 @@ import {
 import { content } from '../../content.ts';
 import { itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getInventory, getProgress, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
+import { getBackend, getInventory, getProgress, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
+import { ServicePanel } from '../ui/ServicePanel.ts';
+import { shopContent } from '../ui/shopContent.ts';
 import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
 import { Player } from '../entities/Player.ts';
@@ -68,6 +70,8 @@ type Interactable = { kind: 'node'; node: ResourceNode } | { kind: 'chest'; ches
 const FADE_MS = 250;
 /** Depois de cair, quanto tempo a mensagem fica na tela antes de voltar para a cidade. */
 const DEATH_DELAY_MS = 1800;
+/** Fração da vida máxima com que o jogador volta à cidade depois de cair. */
+const DEATH_HP_FRACTION = 0.5;
 const THRESHOLDS = levelThresholds(content.progression.xpCurve, content.classes.maxLevel);
 /** Distância (em pixels, do centro do jogador ao centro do ponto) para poder coletar. */
 const COLLECT_RANGE = 40;
@@ -105,6 +109,10 @@ export class WorldScene extends Phaser.Scene {
   private invulnerableUntil = 0;
   private dead = false;
   private rng: Rng = createRng(crypto.getRandomValues(new Uint32Array(1))[0]!);
+  private panel!: ServicePanel;
+  /** porta de prédio em frente à qual o jogador está (para abrir o serviço com E) */
+  private doorObject: PlacedObject | null = null;
+  private usePressed: 'hp' | 'mana' | 'food' | null = null;
 
   constructor() {
     super('World');
@@ -148,6 +156,14 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-E', () => (this.collectPressed = true));
     this.input.keyboard?.on('keydown-SPACE', () => (this.firePressed = true));
     this.input.keyboard?.on('keydown-I', () => !this.leaving && this.inventoryPanel.toggle());
+    this.usePressed = null;
+    this.input.keyboard?.on('keydown-ONE', () => (this.usePressed = 'hp'));
+    this.input.keyboard?.on('keydown-TWO', () => (this.usePressed = 'mana'));
+    this.input.keyboard?.on('keydown-THREE', () => (this.usePressed = 'food'));
+    this.panel = new ServicePanel(() => {
+      if (this.input.keyboard) this.input.keyboard.enabled = true;
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.panel.close(false));
     this.debug = new DebugOverlay(this, this.player, this.map, T);
     this.addHud();
     this.inventoryPanel = new InventoryPanel(this, getInventory(this)!, getBackend(this).saves);
@@ -159,8 +175,16 @@ export class WorldScene extends Phaser.Scene {
       for (const m of [...this.monsters, ...this.critters]) if (m.state === 'alive') m.setVelocity(0, 0);
       return;
     }
-    this.player.move(this.keys.read());
+    if (this.panel.isOpen()) {
+      // janela de serviço aberta: o jogador fica parado e o mundo continua
+      this.player.move({ left: false, right: false, up: false, down: false });
+      this.collectPressed = false;
+      this.firePressed = false;
+    } else {
+      this.player.move(this.keys.read());
+    }
     this.updateCombat(time, delta);
+    this.updateQuickUse();
     // A profundidade segue o "pé": o jogador passa atrás de telhados e copas e na frente das bases.
     this.player.setDepth(this.player.body.bottom);
     this.updateDoorMessage();
@@ -239,6 +263,10 @@ export class WorldScene extends Phaser.Scene {
   private updateCollectPrompt(): void {
     const pressed = this.collectPressed;
     this.collectPressed = false;
+    if (pressed && this.doorObject && this.shopAt(this.doorObject)) {
+      this.openService(this.doorObject);
+      return;
+    }
     const target = this.nearestInteractable();
     this.promptText.setVisible(Boolean(target));
     if (!target) return;
@@ -325,7 +353,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /**
-   * Vida e mana não são gravadas no servidor: na cidade enchem; entre mapas, seguem iguais.
+   * Vida e mana não são gravadas no servidor: seguem iguais entre mapas; enchem ao subir de nível e
+   * dormindo na Taverna; poções e comidas devolvem uma parte.
    * Monstros só existem nas áreas geradas; a posição sai da seed e o tipo veio do servidor.
    * Os bichos de enfeite (Esquilos) saem só da seed e não entram no combate.
    */
@@ -334,12 +363,12 @@ export class WorldScene extends Phaser.Scene {
     this.lastShot = -Infinity;
     this.invulnerableUntil = 0;
     this.stats = this.currentStats();
+    // Vida e mana seguem iguais entre mapas (Fase 10: não enchem mais sozinhas na cidade).
     const saved = this.registry.get('vitals') as { hp: number; mana: number } | undefined;
-    const inTown = this.run === null;
     this.vitals = {
-      hp: inTown || !saved ? this.stats.maxHp : Math.min(saved.hp, this.stats.maxHp),
+      hp: saved ? Math.min(saved.hp, this.stats.maxHp) : this.stats.maxHp,
       maxHp: this.stats.maxHp,
-      mana: inTown || !saved ? this.stats.maxMana : Math.min(saved.mana, this.stats.maxMana),
+      mana: saved ? Math.min(saved.mana, this.stats.maxMana) : this.stats.maxMana,
       maxMana: this.stats.maxMana,
     };
 
@@ -534,14 +563,15 @@ export class WorldScene extends Phaser.Scene {
 
   /**
    * Morte (decisão provisória): a entrada é encerrada no servidor e o jogador volta à cidade com
-   * vida e mana cheias. Não perde itens nem XP; o que ainda não foi coletado na Gruta se perde.
+   * metade da vida. Não perde itens nem XP; o que ainda não foi coletado na área se perde.
    */
   private die(): void {
     this.dead = true;
     this.leaving = true;
     this.player.setVelocity(0, 0);
     this.promptText.setVisible(false);
-    this.registry.remove('vitals');
+    // volta à cidade com metade da vida e mana cheia (decisão provisória da Fase 10)
+    this.registry.set('vitals', { hp: Math.ceil(this.vitals.maxHp * DEATH_HP_FRACTION), mana: this.vitals.maxMana });
     this.showNotice('Você foi derrotado. Voltando para a cidade...');
     const run = this.run;
     const ended = run ? getBackend(this).endExploration(run).catch(() => undefined) : Promise.resolve();
@@ -578,11 +608,68 @@ export class WorldScene extends Phaser.Scene {
   /** Mostra o aviso da porta enquanto os pés do jogador estão na frente dela. */
   private updateDoorMessage(): void {
     const b = this.player.body;
-    const door = this.map.objects.find(
+    const obj = this.map.objects.find(
       (o) => o.door && b.right > o.door.x && b.x < o.door.x + o.door.w && b.bottom > o.door.y && b.y < o.door.y + o.door.h,
-    )?.door;
-    this.doorText.setVisible(Boolean(door));
-    if (door) this.doorText.setText(door.message);
+    );
+    this.doorObject = obj ?? null;
+    this.doorText.setVisible(Boolean(obj));
+    if (!obj) return;
+    const shop = this.shopAt(obj);
+    this.doorText.setText(shop ? `${obj.door!.message} (E: entrar)` : obj.door!.message);
+  }
+
+  private shopAt(obj: PlacedObject) {
+    return content.shops.shops.find((s) => s.building === obj.def.id);
+  }
+
+  /** E na porta de um prédio com serviço abre a janela dele. */
+  private openService(obj: PlacedObject): void {
+    const shop = this.shopAt(obj);
+    if (!shop) return;
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
+    this.player.setVelocity(0, 0);
+    const ctx = {
+      backend: getBackend(this),
+      inventory: getInventory(this)!,
+      progress: getProgress(this),
+      panel: this.panel,
+      onRested: () => {
+        this.vitals.hp = this.vitals.maxHp;
+        this.vitals.mana = this.vitals.maxMana;
+      },
+    };
+    this.panel.open(shopContent(shop, ctx));
+  }
+
+  /** Teclas 1, 2 e 3: a menor poção de vida, a menor de mana, ou uma comida. O servidor gasta o item. */
+  private updateQuickUse(): void {
+    const kind = this.usePressed;
+    this.usePressed = null;
+    if (!kind || this.dead || this.leaving || this.panel.isOpen()) return;
+    const inv = new Map(getInventory(this)!.entries());
+    const candidates = content.items.items
+      .filter((i) => i.use && (inv.get(i.id) ?? 0) > 0)
+      .filter((i) => (kind === 'food' ? i.category === 'food' : i.category === 'potion' && (kind === 'hp' ? i.use!.hp > 0 : i.use!.mana > 0)))
+      .sort((a, b) => (kind === 'mana' ? a.use!.mana - b.use!.mana : a.use!.hp - b.use!.hp));
+    const item = candidates[0];
+    if (!item) {
+      this.showNotice(kind === 'food' ? 'Você não tem comida.' : kind === 'hp' ? 'Sem poção de vida.' : 'Sem poção de mana.');
+      return;
+    }
+    this.useItem(item.id);
+  }
+
+  private useItem(itemId: string): void {
+    getBackend(this)
+      .useItem(itemId)
+      .then((r) => {
+        getInventory(this)!.set(r.itemId, r.total);
+        this.vitals.hp = Math.min(this.vitals.maxHp, this.vitals.hp + r.hp);
+        this.vitals.mana = Math.min(this.vitals.maxMana, this.vitals.mana + r.mana);
+        const gains = [...(r.hp ? [`+${r.hp} vida`] : []), ...(r.mana ? [`+${r.mana} mana`] : [])];
+        this.floatText(this.player.x, this.player.y - 18, gains.join('  '), '#86efac');
+      })
+      .catch((err: unknown) => this.showNotice(friendlyError(err)));
   }
 
   /** Para entrar numa área gerada, o servidor cria a entrada (seed e pontos) durante o escurecer. */
@@ -592,7 +679,13 @@ export class WorldScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.promptText.setVisible(false);
     const generated = content.procedural.areas.some((a) => a.id === exit.to);
-    const run: Promise<ExplorationRun | undefined> = generated ? getBackend(this).startExploration(exit.to) : Promise.resolve(undefined);
+    // Voltar para a cidade encerra a entrada no servidor (as lojas só atendem quem está na cidade).
+    const leftRun = this.run;
+    const run: Promise<ExplorationRun | undefined> = generated
+      ? getBackend(this).startExploration(exit.to)
+      : leftRun
+        ? getBackend(this).endExploration(leftRun).then(() => undefined, () => undefined)
+        : Promise.resolve(undefined);
     const faded = new Promise<void>((resolve) => {
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => resolve());
       this.cameras.main.fadeOut(FADE_MS);
@@ -615,7 +708,7 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'Setas/WASD: mover   Espaço: atacar   E: coletar/abrir   I: inventário   F3: depuração', style)
+      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  F3: depuração', { ...style, align: 'right' })
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
@@ -705,6 +798,14 @@ export class WorldScene extends Phaser.Scene {
       /** Enche a vida (para testes que não devem depender dos golpes dos monstros). */
       heal: () => (this.vitals.hp = this.vitals.maxHp),
       zoom: () => this.scale.zoom,
+      panelOpen: () => this.panel.isOpen(),
+      /** Modo offline: dá moedas para testar as lojas (nada é salvo). */
+      grant: (copper: number, gold = 0) => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) getProgress(this).set(backend.testGrant(copper, gold));
+      },
+      /** Ajusta vida e mana (para testar poções e o dormitório). */
+      setVitals: (hp: number, mana: number) => Object.assign(this.vitals, { hp, mana }),
       debugEnabled: () => this.debug.isEnabled(),
       session: () => this.registry.get('session'),
     };

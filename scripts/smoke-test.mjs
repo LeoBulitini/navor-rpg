@@ -104,7 +104,7 @@ try {
   const atDoor = await p();
   check('não atravessa o prédio', atDoor.bottom - 12 >= market.y + 6 - 1, `topo dos pés ${Math.round(atDoor.bottom - 12)}`);
   const msg = await nav(() => window.__navor.doorMessage());
-  check('mostra o aviso na porta do Mercado', msg === 'Mercado: em breve', String(msg));
+  check('mostra o aviso na porta do Mercado', msg === 'Mercado (E: entrar)', String(msg));
   await page.screenshot({ path: join(OUT, 'cidade-porta.png') });
 
   // Muro da cidade: da beira oeste, segura a seta para a esquerda; para no arbusto da borda
@@ -177,7 +177,7 @@ try {
   const monsters = await nav(() => window.__navor.monsters());
   check('a Gruta tem de 4 a 6 monstros', monsters.length >= 4 && monsters.length <= 6, String(monsters.length));
   const full = await nav(() => window.__navor.vitals());
-  check('entra na Gruta com vida e mana cheias', full.hp === full.maxHp && full.mana === full.maxMana, JSON.stringify(full));
+  check('entra na Gruta com a vida da cidade e mana cheia', full.hp > 0 && full.hp <= full.maxHp && full.mana === full.maxMana, JSON.stringify(full));
   const target = monsters.find((m) => m.creatureId === 'cave-rat') ?? monsters[0];
   await nav(([x, y]) => window.__navor.teleport(x, y), [target.cell.x, target.cell.y]);
   await page.keyboard.press('Space');
@@ -205,9 +205,61 @@ try {
   await waitForMap('city').catch(() => {});
   check('depois da derrota, volta para a cidade', (await nav(() => window.__navor.mapId)) === 'city');
   const revived = await nav(() => window.__navor.vitals());
-  check('volta com vida cheia', revived.hp === revived.maxHp, JSON.stringify(revived));
+  check('volta com metade da vida', revived.hp === Math.ceil(revived.maxHp / 2), JSON.stringify(revived));
   check('a derrota não tira XP nem itens', (await nav(() => window.__navor.progress())).xp === progress.xp
     && (await nav(() => window.__navor.inventory()))[first.itemId] >= first.quantity);
+
+  // Economia (Fase 10): lojas dos NPCs, poção na tecla 1, dormitório e câmbio (modo offline)
+  const doors = await nav(() => window.__navor.doors);
+  const enter = async (id) => {
+    const d = doors.find((x) => x.id === id);
+    await nav(([x, y]) => window.__navor.teleport(x, y), [d.approach.x, d.approach.y + 1]);
+    await hold(['ArrowUp'], 600);
+    await page.keyboard.press('e');
+    await page.waitForTimeout(200);
+    return nav(() => window.__navor.panelOpen());
+  };
+  const wallet = async () => {
+    const pr = await nav(() => window.__navor.progress());
+    return { copper: pr.copper, gold: pr.gold };
+  };
+  const button = (name) => page.getByRole('button', { name });
+  await nav(() => window.__navor.grant(300));
+  const w0 = await wallet();
+  check('E na porta do Alquimista abre a loja', await enter('alchemist'));
+  check('a loja mostra o nome do NPC', await page.getByRole('heading', { name: 'Alquimista' }).isVisible());
+  await button('Comprar 1: Poção de Vida Pequena').click();
+  await page.waitForTimeout(200);
+  await button('Comprar 1: Poção de Vida Pequena').click();
+  await page.waitForTimeout(200);
+  check('comprar 2 poções de 15 gasta 30 de cobre', (await wallet()).copper === w0.copper - 30);
+  check('as poções entram no inventário', (await nav(() => window.__navor.inventory()))['potion-health-small'] === 2);
+  await button('Vender 1: Poção de Vida Pequena').click();
+  await page.waitForTimeout(200);
+  check('vender uma poção devolve 6 de cobre', (await wallet()).copper === w0.copper - 24);
+  await page.screenshot({ path: join(OUT, 'loja-alquimista.png') });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  check('Esc fecha a loja', !(await nav(() => window.__navor.panelOpen())));
+  await nav(() => window.__navor.setVitals(10, 0));
+  await page.keyboard.press('1');
+  await page.waitForTimeout(300);
+  check('tecla 1 bebe a poção (+40 de vida)', (await nav(() => window.__navor.vitals())).hp === 50);
+  check('a poção usada sai do inventário', !(await nav(() => window.__navor.inventory()))['potion-health-small']);
+  check('E na porta da Taverna abre a Taverna', await enter('tavern'));
+  await button('Dormir: Dormir').click();
+  await page.waitForTimeout(200);
+  const rested = await nav(() => window.__navor.vitals());
+  check('dormir enche vida e mana e custa 15 de cobre', rested.hp === rested.maxHp && rested.mana === rested.maxMana
+    && (await wallet()).copper === w0.copper - 39);
+  await page.keyboard.press('Escape');
+  check('E na porta do Mercado abre o câmbio', await enter('market'));
+  await button('1 ouro: Comprar ouro').click();
+  await page.waitForTimeout(200);
+  const w1 = await wallet();
+  check('100 de cobre viram 1 de ouro', w1.gold === w0.gold + 1 && w1.copper === w0.copper - 139, JSON.stringify(w1));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
 
   // Floresta (Fase 9): portão leste da cidade, animais que fogem, Esquilos de enfeite, recursos da floresta
   await nav(() => window.__navor.teleport(37, 23));

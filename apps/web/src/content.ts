@@ -11,6 +11,7 @@ import progression from '@content/progression.json';
 import combat from '@content/combat.json';
 import world from '@content/world.json';
 import procedural from '@content/procedural.json';
+import shops from '@content/shops.json';
 
 const mapFiles = import.meta.glob('@content/maps/*.json', { eager: true, import: 'default' });
 
@@ -26,5 +27,6 @@ export const content: Content = loadContent({
   combat,
   world,
   procedural,
+  shops,
   maps: Object.fromEntries(Object.entries(mapFiles).map(([path, data]) => [path.split('/').pop()!, data])),
 });

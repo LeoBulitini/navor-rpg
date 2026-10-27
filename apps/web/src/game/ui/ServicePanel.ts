@@ -1,0 +1,142 @@
+import './panel.css';
+
+/** Um botão de uma linha. `run` pode ser assíncrono; enquanto roda, todos os botões ficam desligados. */
+export interface PanelAction {
+  label: string;
+  run: () => unknown;
+  disabled?: boolean;
+}
+
+export interface PanelRow {
+  icon?: string;
+  name: string;
+  /** cor do nome (raridade) */
+  color?: string;
+  detail?: string;
+  actions: PanelAction[];
+}
+
+export interface PanelSection {
+  title: string;
+  rows: PanelRow[];
+  /** texto quando não há linhas */
+  empty?: string;
+  note?: string;
+}
+
+export interface PanelContent {
+  title: string;
+  /** linha à direita do título (ex.: moedas) */
+  subtitle?: string;
+  sections: PanelSection[];
+}
+
+/**
+ * Janela HTML por cima do jogo para os serviços da cidade. Quem abre passa uma função que monta o
+ * conteúdo; depois de cada ação a janela é montada de novo, já com os valores que o servidor devolveu.
+ * Esc ou "Fechar" fecham. Enquanto está aberta, o teclado do jogo fica desligado.
+ */
+export class ServicePanel {
+  private root: HTMLDivElement | null = null;
+  private status = { text: '', kind: '' };
+  private busy = false;
+  private build: (() => PanelContent) | null = null;
+  private readonly onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') this.close();
+  };
+
+  constructor(private readonly onClosed: () => void) {}
+
+  isOpen(): boolean {
+    return this.root !== null;
+  }
+
+  open(build: () => PanelContent): void {
+    this.close(false);
+    this.build = build;
+    this.status = { text: '', kind: '' };
+    this.root = document.createElement('div');
+    this.root.className = 'service-panel';
+    this.root.setAttribute('role', 'dialog');
+    document.body.appendChild(this.root);
+    window.addEventListener('keydown', this.onKey);
+    this.render();
+  }
+
+  close(notify = true): void {
+    if (!this.root) return;
+    this.root.remove();
+    this.root = null;
+    this.build = null;
+    window.removeEventListener('keydown', this.onKey);
+    if (notify) this.onClosed();
+  }
+
+  /** Mensagem de resultado (verde) ou erro (vermelho) embaixo da janela. */
+  say(text: string, kind: 'ok' | 'error'): void {
+    this.status = { text, kind };
+    this.render();
+  }
+
+  render(): void {
+    if (!this.root || !this.build) return;
+    const c = this.build();
+    const box = el('div', 'box');
+    const header = el('header');
+    header.append(el('h2', '', c.title), el('span', 'wallet', c.subtitle ?? ''));
+    box.append(header);
+    for (const section of c.sections) {
+      box.append(el('h3', '', section.title));
+      if (section.rows.length === 0) box.append(el('div', 'empty', section.empty ?? 'Nada aqui.'));
+      for (const row of section.rows) box.append(this.renderRow(row));
+      if (section.note) box.append(el('div', 'note', section.note));
+    }
+    box.append(el('div', `status ${this.status.kind}`, this.status.text));
+    const close = el('button', 'secondary', 'Fechar (Esc)');
+    close.addEventListener('click', () => this.close());
+    box.append(close);
+    this.root.replaceChildren(box);
+  }
+
+  private renderRow(row: PanelRow): HTMLElement {
+    const line = el('div', 'row');
+    if (row.icon) {
+      const img = document.createElement('img');
+      img.src = row.icon;
+      img.alt = '';
+      line.append(img);
+    }
+    const name = el('span', 'name', row.name);
+    if (row.color) name.style.color = row.color;
+    if (row.detail) name.append(el('span', 'detail', row.detail));
+    const actions = el('span', 'actions');
+    for (const a of row.actions) {
+      const b = el('button', '', a.label) as HTMLButtonElement;
+      b.disabled = this.busy || Boolean(a.disabled);
+      b.setAttribute('aria-label', `${a.label}: ${row.name}`);
+      b.addEventListener('click', () => void this.run(a));
+      actions.append(b);
+    }
+    line.append(name, actions);
+    return line;
+  }
+
+  private async run(action: PanelAction): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    this.render();
+    try {
+      await action.run();
+    } finally {
+      this.busy = false;
+      this.render();
+    }
+  }
+}
+
+function el(tag: string, className = '', text = ''): HTMLElement {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text) e.textContent = text;
+  return e;
+}

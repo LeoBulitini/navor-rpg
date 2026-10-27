@@ -4,7 +4,7 @@ const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'cor deve ser #RRGGBB');
 
 export const raritiesSchema = z.object({
   rarities: z
-    .array(z.object({ id: z.string().min(1), name: z.string().min(1), color: hexColor }))
+    .array(z.object({ id: z.string().min(1), name: z.string().min(1), color: hexColor, value: z.number().int().min(0) }))
     .min(1),
 });
 
@@ -119,7 +119,11 @@ export const itemsSchema = z.object({
         id: z.string().regex(/^[a-z0-9-]+$/, 'use letras minúsculas, números e hífen'),
         name: z.string().min(1),
         rarity: z.string().min(1),
-        category: z.enum(['ore', 'resource', 'scroll']),
+        category: z.enum(['ore', 'resource', 'scroll', 'potion', 'food']),
+        /** valor em cobre; sem ele, vale o 'value' da raridade */
+        value: z.number().int().min(0).optional(),
+        /** o que o item devolve ao ser usado (poções e comidas) */
+        use: z.object({ hp: z.number().int().min(0).default(0), mana: z.number().int().min(0).default(0) }).optional(),
         /** PNG em apps/web/public/assets/items/; sem ele, o jogo mostra o ícone genérico. */
         icon: z.string().min(1).optional(),
       }),
@@ -293,6 +297,27 @@ export const caveConfigSchema = z.object({
   creatures: creaturesConfigSchema.optional(),
   chests: chestsConfigSchema.optional(),
 });
+/** Lojas da cidade (GDD 7.1 e 11). O servidor confere preço, saldo e estoque do jogador. */
+export const shopsSchema = z.object({
+  /** fração do valor do item que o NPC paga ao comprar do jogador */
+  sellRate: z.number().gt(0).max(1),
+  copperPerGold: z.number().int().positive(),
+  shops: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9-]+$/),
+        name: z.string().min(1),
+        /** prédio de objects.json com porta */
+        building: z.string().min(1),
+        sells: z.array(z.object({ item: z.string().min(1), price: z.number().int().positive(), currency: z.enum(['copper', 'gold']).default('copper') })),
+        buys: z.object({ categories: z.array(z.string()).default([]), items: z.array(z.string()).default([]) }),
+        rest: z.object({ price: z.number().int().min(0) }).optional(),
+        exchange: z.boolean().default(false),
+      }),
+    )
+    .min(1),
+});
+
 export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
 
 export type Rarities = z.infer<typeof raritiesSchema>;
@@ -306,6 +331,8 @@ export type ObjectDef = ObjectDefs['objects'][number];
 export type World = z.infer<typeof worldSchema>;
 export type CaveConfig = z.infer<typeof caveConfigSchema>;
 export type Procedural = z.infer<typeof proceduralSchema>;
+export type Shops = z.infer<typeof shopsSchema>;
+export type ShopDef = Shops['shops'][number];
 export type ChestsConfig = z.infer<typeof chestsConfigSchema>;
 export type Items = z.infer<typeof itemsSchema>;
 export type ItemDef = Items['items'][number];

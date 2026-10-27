@@ -296,6 +296,56 @@ def silk():
     return img
 
 
+def potion(liquid, light, big):
+    """Frasco redondo de poção (o grande tem gargalo mais alto e brilho extra)."""
+    img = Img(32, 32)
+    r = 7 if big else 5
+    top = 6 if big else 9
+    img.rect(14, top, 4, 2, hx('#8a5a32'))  # rolha
+    img.rect(14, top + 2, 4, 3, hx('#c8d3e0', 210))
+    blob(img, 16, 25 - r, r, r, hx('#c8d3e0', 210))
+    blob(img, 16, 26 - r, r - 1, r - 2, hx(liquid), None, hx(light))
+    img.px(16 - r + 2, 23 - r, hx('#ffffff'))
+    if big:
+        img.px(17 - r + 2, 22 - r, hx('#ffffff'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def bread():
+    img = Img(32, 32)
+    blob(img, 16, 19, 10, 5, hx('#c8893a'), hx('#8a5a22'), hx('#e8b46a'))
+    for x in (11, 16, 21):
+        img.px(x, 17, hx('#f5e0b0')); img.px(x + 1, 16, hx('#f5e0b0'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def roast():
+    img = Img(32, 32)
+    blob(img, 14, 18, 8, 6, hx('#8a4a22'), hx('#5a2a12'), hx('#b8703a'))
+    for x, y in ((10, 16), (13, 19), (17, 15)):
+        img.px(x, y, hx('#e0a060'))
+    img.rect(21, 15, 6, 2, P['f1'])
+    blob(img, 27, 15, 2, 2, P['f1'], hx('#a89f8a'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def pie():
+    img = Img(32, 32)
+    blob(img, 16, 20, 10, 4, hx('#c8893a'), hx('#8a5a22'))
+    blob(img, 16, 18, 9, 3, hx('#b0284a'), hx('#7a1830'), hx('#e85a7a'))
+    for x in range(8, 25, 3):
+        img.px(x, 17, hx('#e8b46a')); img.px(x + 1, 19, hx('#e8b46a'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
 ROCK = (P['s2'], P['s1'], P['s3'])
 ICONS = {
     'iron': lambda: ore(ROCK, [hx('#b5651d'), hx('#8a4b1a')], 1),
@@ -331,6 +381,13 @@ ICONS = {
     'spider-silk': silk,
     'scroll-simple': lambda: scroll('#e8dcc0', '#9ca3af'),
     'scroll-improved': lambda: scroll('#e8dcc0', '#22c55e'),
+    'potion-health-small': lambda: potion('#d03a3a', '#ff8a8a', False),
+    'potion-health': lambda: potion('#d03a3a', '#ff8a8a', True),
+    'potion-mana-small': lambda: potion('#3a6ad0', '#8ab4ff', False),
+    'potion-mana': lambda: potion('#3a6ad0', '#8ab4ff', True),
+    'bread': bread,
+    'roast-meat': roast,
+    'berry-pie': pie,
     'unknown': unknown,
 }
 

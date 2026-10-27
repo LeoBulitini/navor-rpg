@@ -1,0 +1,123 @@
+{
+  "$comment": "Serviços da cidade com loja (GDD 7.1 e 11). PROVISÓRIO, decidido por Claude em 2026-10-27. 'building' é o prédio de objects.json onde o serviço fica (E na porta abre). 'sells': o que o NPC vende e por quanto. 'buys': o que o NPC compra do jogador (por categoria ou item), pagando o valor do item × 'sellRate'. 'rest': dormitório da Taverna (enche vida e mana). 'exchange': câmbio de cobre e ouro. Tudo é conferido e gravado pelo servidor.",
+  "sellRate": 0.4,
+  "copperPerGold": 100,
+  "shops": [
+    {
+      "id": "alchemist",
+      "name": "Alquimista",
+      "building": "alchemist",
+      "sells": [
+        {
+          "item": "potion-health-small",
+          "price": 15
+        },
+        {
+          "item": "potion-mana-small",
+          "price": 15
+        },
+        {
+          "item": "potion-health",
+          "price": 40
+        },
+        {
+          "item": "potion-mana",
+          "price": 40
+        }
+      ],
+      "buys": {
+        "categories": [
+          "potion"
+        ],
+        "items": [
+          "mushroom-common",
+          "mushroom-medicinal",
+          "mushroom-arcane",
+          "medicinal-herbs",
+          "blue-flower",
+          "arcane-flower",
+          "sun-flower",
+          "spider-venom",
+          "crystal-blue",
+          "crystal-violet",
+          "monster-essence",
+          "ancient-crystal-core",
+          "shadow-essence",
+          "shadow-root"
+        ]
+      }
+    },
+    {
+      "id": "tavern",
+      "name": "Taverna",
+      "building": "tavern",
+      "sells": [
+        {
+          "item": "bread",
+          "price": 4
+        },
+        {
+          "item": "roast-meat",
+          "price": 10
+        },
+        {
+          "item": "berry-pie",
+          "price": 12
+        }
+      ],
+      "buys": {
+        "categories": [
+          "food"
+        ],
+        "items": [
+          "meat",
+          "wild-berries"
+        ]
+      },
+      "rest": {
+        "price": 15
+      }
+    },
+    {
+      "id": "blacksmith",
+      "name": "Ferreiro",
+      "building": "blacksmith",
+      "sells": [],
+      "buys": {
+        "categories": [
+          "ore"
+        ],
+        "items": [
+          "bones",
+          "ancient-bone",
+          "rat-pelt",
+          "goblin-fangs",
+          "bat-chitin",
+          "leather-simple",
+          "rabbit-pelt",
+          "wolf-pelt",
+          "wolf-fangs",
+          "boar-tusks",
+          "bear-pelt",
+          "bear-fangs",
+          "spider-silk",
+          "wood-common",
+          "wood-sturdy",
+          "wood-ancient",
+          "wood-enchanted"
+        ]
+      }
+    },
+    {
+      "id": "market",
+      "name": "Mercado",
+      "building": "market",
+      "sells": [],
+      "buys": {
+        "categories": [],
+        "items": []
+      },
+      "exchange": true
+    }
+  ]
+}

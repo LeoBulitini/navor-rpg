@@ -4,16 +4,20 @@ import {
   creatureById,
   levelForXp,
   levelThresholds,
+  exchange,
   rollChestContents,
   rollChestCount,
   rollKillRewards,
   rollMonsters,
   rollResourceNodes,
+  sellPrice,
+  shopBuys,
   type MonsterSpawn,
   type NodeContent,
 } from '@navor/shared';
 import { content } from '../content.ts';
 import type { PlaySession } from '../menu/menu.ts';
+import { exchangeCurrency, shopBuy, shopSell, tavernRest, useItem } from '../services/economy.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -55,6 +59,26 @@ export interface ChestResult {
   drops: { itemId: string; quantity: number; total: number }[];
 }
 
+export interface Wallet {
+  copper: number;
+  gold: number;
+}
+
+/** Resultado de comprar ou vender: o total do item no inventário e as moedas depois da operação. */
+export interface TradeResult extends Wallet {
+  itemId: string;
+  total: number;
+  /** cobre recebido (só na venda) */
+  earned?: number;
+}
+
+export interface UseResult {
+  itemId: string;
+  total: number;
+  hp: number;
+  mana: number;
+}
+
 /** XP, nível, cobre e ouro do personagem, como o servidor gravou. */
 export interface ProgressState {
   level: number;
@@ -73,8 +97,13 @@ export interface GameBackend {
   collect(run: ExplorationRun, nodeIndex: number): Promise<CollectResult>;
   killMonster(run: ExplorationRun, monsterIndex: number): Promise<KillResult>;
   openChest(run: ExplorationRun, chestIndex: number): Promise<ChestResult>;
-  /** Morte: encerra a entrada no servidor. */
+  /** Morte ou volta à cidade: encerra a entrada no servidor. */
   endExploration(run: ExplorationRun): Promise<void>;
+  buy(shopId: string, itemId: string, quantity: number): Promise<TradeResult>;
+  sell(shopId: string, itemId: string, quantity: number): Promise<TradeResult>;
+  useItem(itemId: string): Promise<UseResult>;
+  rest(shopId: string): Promise<Wallet>;
+  exchange(shopId: string, to: 'gold' | 'copper', amount: number): Promise<Wallet>;
   loadInventory(): Promise<Map<string, number>>;
 }
 
@@ -130,19 +159,46 @@ class OnlineBackend implements GameBackend {
     await endExploration(run.id!);
   }
 
+  async buy(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
+    const r = await shopBuy(this.characterId, shopId, itemId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async sell(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
+    const r = await shopSell(this.characterId, shopId, itemId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), copper: Number(r.copper), gold: Number(r.gold), earned: Number(r.earned) };
+  }
+
+  async useItem(itemId: string): Promise<UseResult> {
+    const r = await useItem(this.characterId, itemId);
+    return { itemId: r.item_id, total: Number(r.total), hp: r.hp, mana: r.mana };
+  }
+
+  async rest(shopId: string): Promise<Wallet> {
+    const r = await tavernRest(this.characterId, shopId);
+    return { copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async exchange(shopId: string, to: 'gold' | 'copper', amount: number): Promise<Wallet> {
+    const r = await exchangeCurrency(this.characterId, shopId, to, amount);
+    return { copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
   async loadInventory(): Promise<Map<string, number>> {
     const rows = await listInventory(this.characterId);
     return new Map(rows.map((r) => [r.item_id, Number(r.quantity)]));
   }
 }
 
-class OfflineBackend implements GameBackend {
+export class OfflineBackend implements GameBackend {
   readonly saves = false;
   private readonly inventory = new Map<string, number>();
   private readonly collected = new Set<string>();
   private readonly killed = new Set<string>();
   private readonly opened = new Set<string>();
   private readonly startedAt = new Map<string, number>();
+  /** entrada aberta (fora da cidade); as lojas recusam enquanto houver uma, como no servidor */
+  private activeRun: string | null = null;
   private readonly progress: ProgressState = { level: 0, xp: 0, copper: 0, gold: 0 };
   private readonly thresholds = levelThresholds(content.progression.xpCurve, content.classes.maxLevel);
   private readonly rng = createRng(crypto.getRandomValues(new Uint32Array(1))[0]!);
@@ -161,6 +217,7 @@ class OfflineBackend implements GameBackend {
     this.runs++;
     const id = `offline-${this.runs}`;
     this.startedAt.set(id, performance.now());
+    this.activeRun = id;
     return { id, areaId, seed, nodes, monsters, chests };
   }
 
@@ -220,7 +277,80 @@ class OfflineBackend implements GameBackend {
     return { opened: true, copperGained: got.copper, copper: p.copper, goldGained: got.gold, gold: p.gold, drops };
   }
 
-  async endExploration(): Promise<void> {}
+  async endExploration(run: ExplorationRun): Promise<void> {
+    if (this.activeRun === run.id) this.activeRun = null;
+  }
+
+  /** Só para o teste de fumaça (?test, modo offline): dá moedas para testar as lojas. */
+  testGrant(copper: number, gold = 0): ProgressState {
+    this.progress.copper += copper;
+    this.progress.gold += gold;
+    return { ...this.progress };
+  }
+
+  /** Mesmas regras de shop_buy, shop_sell, use_item, tavern_rest e exchange_currency (migration economy). */
+  private inTown(): void {
+    if (this.activeRun) throw new Error('Volte para a cidade para usar este serviço.');
+  }
+
+  private shop(shopId: string) {
+    const shop = content.shops.shops.find((s) => s.id === shopId);
+    if (!shop) throw new Error('Loja desconhecida');
+    return shop;
+  }
+
+  private addItem(itemId: string, delta: number): number {
+    const total = (this.inventory.get(itemId) ?? 0) + delta;
+    if (total < 0) throw new Error('Você não tem itens suficientes.');
+    this.inventory.set(itemId, total);
+    return total;
+  }
+
+  async buy(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
+    this.inTown();
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error('Quantidade inválida');
+    const offer = this.shop(shopId).sells.find((x) => x.item === itemId);
+    if (!offer) throw new Error('Este item não está à venda aqui.');
+    const cost = offer.price * quantity;
+    const p = this.progress;
+    if (p[offer.currency] < cost) throw new Error(offer.currency === 'gold' ? 'Ouro insuficiente.' : 'Cobre insuficiente.');
+    p[offer.currency] -= cost;
+    return { itemId, total: this.addItem(itemId, quantity), copper: p.copper, gold: p.gold };
+  }
+
+  async sell(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
+    this.inTown();
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new Error('Quantidade inválida');
+    const item = content.items.items.find((i) => i.id === itemId);
+    if (!item || !shopBuys(this.shop(shopId), item)) throw new Error('Este NPC não compra esse item.');
+    const total = this.addItem(itemId, -quantity);
+    const earned = sellPrice(item, content.rarities, content.shops) * quantity;
+    this.progress.copper += earned;
+    return { itemId, total, earned, copper: this.progress.copper, gold: this.progress.gold };
+  }
+
+  async useItem(itemId: string): Promise<UseResult> {
+    const item = content.items.items.find((i) => i.id === itemId);
+    if (!item?.use || (item.use.hp === 0 && item.use.mana === 0)) throw new Error('Este item não pode ser usado.');
+    return { itemId, total: this.addItem(itemId, -1), hp: item.use.hp, mana: item.use.mana };
+  }
+
+  async rest(shopId: string): Promise<Wallet> {
+    this.inTown();
+    const price = this.shop(shopId).rest?.price;
+    if (price === undefined) throw new Error('Não há dormitório aqui.');
+    if (this.progress.copper < price) throw new Error('Cobre insuficiente.');
+    this.progress.copper -= price;
+    return { copper: this.progress.copper, gold: this.progress.gold };
+  }
+
+  async exchange(shopId: string, to: 'gold' | 'copper', amount: number): Promise<Wallet> {
+    this.inTown();
+    if (!this.shop(shopId).exchange) throw new Error('Não há câmbio aqui.');
+    const w = exchange(this.progress, to, amount, content.shops.copperPerGold);
+    Object.assign(this.progress, w);
+    return w;
+  }
 
   async loadInventory(): Promise<Map<string, number>> {
     return new Map(this.inventory);

@@ -29,10 +29,14 @@ export function itemIconPath(icon: string): string {
   return `${manifest.items.path}/${icon}.png`;
 }
 
+/** Ícone de um item; sem ícone próprio, o genérico. */
+export function itemIconFor(itemId: string): string {
+  return content.items.items.find((i) => i.id === itemId)?.icon ?? manifest.items.fallback;
+}
+
 /** Textura do ícone de um item; sem ícone próprio, o genérico. */
 export function itemTexture(itemId: string): string {
-  const icon = content.items.items.find((i) => i.id === itemId)?.icon ?? manifest.items.fallback;
-  return TextureKeys.item(icon);
+  return TextureKeys.item(itemIconFor(itemId));
 }
 
 /** Tira de quadros de um monstro pelo 'sprite' de content/creatures.json. */

@@ -1,5 +1,5 @@
 {
-  "$comment": "Catálogo de itens (GDD 9.2 a 9.5, mais o que os animais da floresta soltam, GDD 8.1). 'rarity' vem de rarities.json. 'icon' é o PNG em apps/web/public/assets/items/; sem ícone, o jogo usa o ícone 'unknown'. Usos, preços e receitas estão A DEFINIR no GDD.",
+  "$comment": "Catálogo de itens (GDD 9.2 a 9.5, mais o que os animais da floresta soltam, GDD 8.1, e poções e comidas, GDD 7.1). 'rarity' vem de rarities.json. 'icon' é o PNG em apps/web/public/assets/items/; sem ícone, o jogo usa o ícone 'unknown'. 'value' (cobre) substitui o valor base da raridade. 'use' diz quanto de vida e mana o item devolve ao ser usado. Preços e efeitos são PROVISÓRIOS (Claude, 2026-10-27).",
   "items": [
     { "id": "iron", "name": "Ferro", "rarity": "common", "category": "ore", "icon": "iron" },
     { "id": "copper", "name": "Cobre", "rarity": "common", "category": "ore", "icon": "copper" },
@@ -48,6 +48,13 @@
     { "id": "spider-venom", "name": "Veneno de Aranha", "rarity": "uncommon", "category": "resource", "icon": "spider-venom" },
     { "id": "spider-silk", "name": "Seda de Aranha", "rarity": "uncommon", "category": "resource", "icon": "spider-silk" },
     { "id": "bear-pelt", "name": "Pele de Urso", "rarity": "rare", "category": "resource", "icon": "bear-pelt" },
-    { "id": "bear-fangs", "name": "Presas de Urso", "rarity": "rare", "category": "resource", "icon": "bear-fangs" }
+    { "id": "bear-fangs", "name": "Presas de Urso", "rarity": "rare", "category": "resource", "icon": "bear-fangs" },
+    { "id": "potion-health-small", "name": "Poção de Vida Pequena", "rarity": "common", "category": "potion", "icon": "potion-health-small", "value": 15, "use": {"hp": 40} },
+    { "id": "potion-health", "name": "Poção de Vida", "rarity": "uncommon", "category": "potion", "icon": "potion-health", "value": 40, "use": {"hp": 100} },
+    { "id": "potion-mana-small", "name": "Poção de Mana Pequena", "rarity": "common", "category": "potion", "icon": "potion-mana-small", "value": 15, "use": {"mana": 30} },
+    { "id": "potion-mana", "name": "Poção de Mana", "rarity": "uncommon", "category": "potion", "icon": "potion-mana", "value": 40, "use": {"mana": 80} },
+    { "id": "bread", "name": "Pão", "rarity": "common", "category": "food", "icon": "bread", "value": 4, "use": {"hp": 20} },
+    { "id": "roast-meat", "name": "Carne Assada", "rarity": "common", "category": "food", "icon": "roast-meat", "value": 10, "use": {"hp": 45} },
+    { "id": "berry-pie", "name": "Torta de Frutas", "rarity": "uncommon", "category": "food", "icon": "berry-pie", "value": 12, "use": {"hp": 30, "mana": 15} }
   ]
 }
