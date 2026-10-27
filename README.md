@@ -41,6 +41,7 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | `npm run preview` | Serve o build de produção em http://localhost:4173 |
 | `npm run smoke` | Teste de fumaça no navegador real (requer `npm run build` e `npx playwright install chromium` uma vez) |
 | `npm run placeholders` | Regenera a arte temporária em `apps/web/public/assets/placeholder/` |
+| `npm run sprites:import -- "<pasta>"` | Copia a arte dos personagens da pasta do artista para o jogo (veja abaixo) |
 
 ## Estrutura
 
@@ -48,7 +49,7 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 apps/web/            cliente Phaser 4 + Vite
   src/game/          cenas, entidades, sistemas (input), UI de depuração
   src/assets/        manifest.json: chave lógica -> arquivo de arte
-  public/assets/     placeholder/ (arte temporária) e final/ (arte real)
+  public/assets/     characters/ (arte real dos personagens) e placeholder/ (arte temporária)
 packages/shared/     lógica pura em TypeScript, sem Phaser (será usada também pelo backend)
 content/             dados configuráveis: raridades, classes, tiles, valores de protótipo, mapas
   src/menu/          menu HTML: login, lista e criação de personagem
@@ -64,16 +65,28 @@ O mapa está em `content/maps/test-map.json`, uma linha de texto por fileira de 
 A legenda está em `content/tiles.json` (`.` grama, `,` caminho, `#` muro, `T` árvore, `R` rocha, `~` água) e `P` é o ponto de nascimento.
 O mapa precisa ser retangular, ter a borda toda sólida e exatamente um `P`; `npm run content:check` aponta a linha e a coluna de qualquer erro.
 
-## Trocar a arte placeholder pela arte real
+## Arte
 
-A arte atual é **temporária**: cada quadro do personagem tem a marca "PH" em magenta, cada tile tem um ponto magenta no canto e o jogo mostra "ARTE PLACEHOLDER (PH)".
+### Personagens (arte real)
 
-1. Coloque os PNGs em `apps/web/public/assets/final/`.
-   - Tileset: uma fileira de tiles 32×32, na ordem do campo `index` de `content/tiles.json`.
-   - Mago: spritesheet de quadros 32×32; linhas = baixo, esquerda, direita, cima; colunas = parado, passo A, passo B.
-2. Em `apps/web/src/assets/manifest.json`, troque o `path` e mude `placeholder` para `false`.
+Cada classe tem 8 PNGs, um por direção: `south`, `south-west`, `west`, `north-west`, `north`, `north-east`, `east`, `south-east`.
+Cada PNG é uma tira horizontal de quadros 32×32 (hoje há 1 quadro por direção, então o personagem não anima ao andar).
 
-Nenhum código precisa mudar se o formato for o mesmo.
+Para atualizar, rode na raiz do repositório, apontando para a pasta do artista:
+
+```
+npm run sprites:import -- "C:\Users\<você>\Downloads\Navor RPG\Assets\Personagens"
+```
+
+O script procura `<pasta>/<grupo>/<Nome da classe>/<direção>.png`, com o nome igual ao de `content/classes.json` (Mago, Feiticeiro, Espadachim...).
+Ele copia para `apps/web/public/assets/characters/<classId>/` e gera `apps/web/src/assets/characters.json` com as classes importadas.
+Classes sem arte completa usam o personagem placeholder e o jogo mostra o aviso "ARTE PLACEHOLDER (PH)".
+
+Quando houver quadros de caminhada, basta deixar os PNGs mais largos (2, 3, 4... quadros) e ajustar `frames.walk` em `apps/web/src/assets/manifest.json`.
+
+### Tiles (ainda placeholder)
+
+Cada tile tem um ponto magenta no canto. Para trocar: coloque uma fileira de tiles 32×32, na ordem do campo `index` de `content/tiles.json`, troque o `path` do `tileset` em `apps/web/src/assets/manifest.json` e mude `placeholder` para `false`.
 
 ## Valores de protótipo
 

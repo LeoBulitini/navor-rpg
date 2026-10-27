@@ -2,9 +2,9 @@
 // Todos os arquivos saem em apps/web/public/assets/placeholder/. Cada quadro de personagem
 // leva a marca "PH" em magenta e cada tile um ponto magenta 2x2 no canto (uma marca "PH"
 // por tile poluía demais a tela); o jogo também mostra "ARTE PLACEHOLDER" na interface.
-// Para usar arte real: coloque os PNGs em public/assets/final/ e aponte o
-// apps/web/src/assets/manifest.json para eles. Uso: npm run placeholders
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+// O personagem placeholder (8 direções, 1 quadro cada) só aparece para classes que ainda
+// não têm arte importada por npm run sprites:import. Uso: npm run placeholders
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { join } from 'node:path';
 
@@ -139,7 +139,7 @@ function buildTileset() {
   return img;
 }
 
-// ---------- Mago: 3 colunas (parado, passo A, passo B) x 4 linhas (baixo, esquerda, direita, cima) ----------
+// ---------- Personagem placeholder (desenho de um mago genérico) ----------
 const C = {
   robe: hex('#2f5fb3'), robeDark: hex('#1f4180'), gold: hex('#e0b23a'), skin: hex('#f1c79b'),
   eye: hex('#1b1b1b'), staff: hex('#7a4f27'), crystal: hex('#5ec8ff'), crystalLight: hex('#c9f0ff'),
@@ -184,14 +184,20 @@ function drawMage(img, ox, oy, dir, frame) {
   markPH(img, ox, oy);
 }
 
-function buildMage() {
-  const dirs = ['down', 'left', 'right', 'up'];
-  const img = image(3 * T, dirs.length * T);
-  dirs.forEach((dir, row) => [0, 1, 2].forEach((f) => drawMage(img, f * T, row * T, dir, f)));
-  return img;
-}
+// Mesmos nomes de arquivo da arte real; as diagonais reaproveitam o desenho lateral.
+const FACING_TO_DRAWING = {
+  south: 'down', 'south-west': 'left', west: 'left', 'north-west': 'left',
+  north: 'up', 'north-east': 'right', east: 'right', 'south-east': 'right',
+};
 
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, 'tileset.png'), encodePng(buildTileset()));
-writeFileSync(join(OUT, 'mage.png'), encodePng(buildMage()));
-console.log(`Placeholders gerados em ${OUT}: tileset.png, mage.png`);
+rmSync(join(OUT, 'mage.png'), { force: true });
+const CHAR_OUT = join(OUT, 'character');
+mkdirSync(CHAR_OUT, { recursive: true });
+for (const [facing, drawing] of Object.entries(FACING_TO_DRAWING)) {
+  const img = image(T, T);
+  drawMage(img, 0, 0, drawing, 0);
+  writeFileSync(join(CHAR_OUT, `${facing}.png`), encodePng(img));
+}
+console.log(`Placeholders gerados em ${OUT}: tileset.png, character/*.png`);

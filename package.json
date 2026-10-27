@@ -21,7 +21,8 @@
     "content:check": "node --experimental-strip-types scripts/validate-content.ts",
     "placeholders": "node scripts/gen-placeholders.mjs",
     "smoke": "node scripts/smoke-test.mjs",
-    "test:db": "bash scripts/test-db.sh"
+    "test:db": "bash scripts/test-db.sh",
+    "sprites:import": "node scripts/import-character-sprites.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",

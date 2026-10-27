@@ -4,6 +4,6 @@
   "viewport": { "width": 640, "height": 360 },
   "player": {
     "moveSpeedTilesPerSecond": 4,
-    "hitbox": { "width": 18, "height": 12, "offsetX": 7, "offsetY": 19 }
+    "hitbox": { "width": 18, "height": 12, "offsetX": 7, "offsetY": 17 }
   }
 }

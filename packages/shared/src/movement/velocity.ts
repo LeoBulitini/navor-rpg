@@ -5,7 +5,9 @@ export interface DirectionInput {
   down: boolean;
 }
 
-export type Facing = 'down' | 'left' | 'right' | 'up';
+/** As 8 direções da arte (os nomes batem com os arquivos south.png, north-east.png...). */
+export const FACINGS = ['south', 'south-west', 'west', 'north-west', 'north', 'north-east', 'east', 'south-east'] as const;
+export type Facing = (typeof FACINGS)[number];
 
 export interface Velocity {
   vx: number;
@@ -24,16 +26,12 @@ export function velocityFromInput(input: DirectionInput, speed: number): Velocit
   return { vx: (dx / len) * speed, vy: (dy / len) * speed };
 }
 
-/**
- * Direção para escolher a animação. Na diagonal mantém a direção atual se ela
- * ainda fizer parte do movimento, evitando o sprite "piscar" entre direções.
- */
+/** Direção para escolher o sprite: cada uma das 8 direções de movimento tem o seu. */
 export function facingFromVelocity(v: Velocity, current: Facing): Facing {
   if (v.vx === 0 && v.vy === 0) return current;
-  const horizontal: Facing | null = v.vx < 0 ? 'left' : v.vx > 0 ? 'right' : null;
-  const vertical: Facing | null = v.vy < 0 ? 'up' : v.vy > 0 ? 'down' : null;
-  if (horizontal && vertical) return current === horizontal || current === vertical ? current : horizontal;
-  return (horizontal ?? vertical)!;
+  const vertical = v.vy < 0 ? 'north' : v.vy > 0 ? 'south' : '';
+  const horizontal = v.vx < 0 ? 'west' : v.vx > 0 ? 'east' : '';
+  return [vertical, horizontal].filter(Boolean).join('-') as Facing;
 }
 
 export function tilesPerSecondToPixels(tilesPerSecond: number, tileSize: number): number {

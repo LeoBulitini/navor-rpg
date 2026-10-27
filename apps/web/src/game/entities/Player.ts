@@ -6,11 +6,16 @@ import { animKey } from '../scenes/PreloadScene.ts';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
-  private facing: Facing = 'down';
+  private facing: Facing = 'south';
   private readonly speed: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, TextureKeys.mage, 0);
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    private readonly classId: string,
+  ) {
+    super(scene, x, y, TextureKeys.character(classId, 'south'), 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
@@ -21,7 +26,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(player.hitbox.width, player.hitbox.height);
     this.body.setOffset(player.hitbox.offsetX, player.hitbox.offsetY);
     this.setCollideWorldBounds(true);
-    this.play(animKey('idle', this.facing));
+    this.play(animKey(this.classId, 'idle', this.facing));
   }
 
   move(input: DirectionInput): void {
@@ -29,7 +34,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(v.vx, v.vy);
     this.facing = facingFromVelocity(v, this.facing);
     const moving = v.vx !== 0 || v.vy !== 0;
-    this.play(animKey(moving ? 'walk' : 'idle', this.facing), true);
+    this.play(animKey(this.classId, moving ? 'walk' : 'idle', this.facing), true);
   }
 
   getFacing(): Facing {

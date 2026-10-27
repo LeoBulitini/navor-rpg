@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { facingFromVelocity, velocityFromInput, tilesPerSecondToPixels } from '../src/index.ts';
+import { FACINGS, facingFromVelocity, velocityFromInput, tilesPerSecondToPixels } from '../src/index.ts';
 
 const none = { left: false, right: false, up: false, down: false };
 
@@ -26,15 +26,19 @@ describe('velocityFromInput', () => {
 
 describe('facingFromVelocity', () => {
   it('mantém a direção quando parado', () => {
-    expect(facingFromVelocity({ vx: 0, vy: 0 }, 'up')).toBe('up');
+    expect(facingFromVelocity({ vx: 0, vy: 0 }, 'north')).toBe('north');
   });
   it('segue o eixo em linha reta', () => {
-    expect(facingFromVelocity({ vx: -1, vy: 0 }, 'down')).toBe('left');
-    expect(facingFromVelocity({ vx: 0, vy: 1 }, 'up')).toBe('down');
+    expect(facingFromVelocity({ vx: -1, vy: 0 }, 'south')).toBe('west');
+    expect(facingFromVelocity({ vx: 0, vy: 1 }, 'north')).toBe('south');
   });
-  it('na diagonal mantém a direção atual se ela fizer parte do movimento', () => {
-    expect(facingFromVelocity({ vx: 1, vy: -1 }, 'up')).toBe('up');
-    expect(facingFromVelocity({ vx: 1, vy: -1 }, 'down')).toBe('right');
+  it('usa a direção diagonal própria', () => {
+    expect(facingFromVelocity({ vx: 1, vy: -1 }, 'south')).toBe('north-east');
+    expect(facingFromVelocity({ vx: -1, vy: 1 }, 'north')).toBe('south-west');
+  });
+  it('só gera direções que existem na arte', () => {
+    for (const vx of [-1, 0, 1])
+      for (const vy of [-1, 0, 1]) expect(FACINGS).toContain(facingFromVelocity({ vx, vy }, 'south'));
   });
 });
 

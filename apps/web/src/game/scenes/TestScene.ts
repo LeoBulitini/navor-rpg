@@ -5,11 +5,11 @@ import { TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { Player } from '../entities/Player.ts';
 import { DirectionKeys } from '../systems/input.ts';
 import { DebugOverlay } from '../ui/DebugOverlay.ts';
-import type { PlaySession } from '../../menu/menu.ts';
+import { getSession, sessionClassId } from '../session.ts';
 
 const MAP_ID = 'test-map';
 
-/** Cena de teste da Fase 1: mapa feito à mão, Mago andando e colidindo. */
+/** Cena de teste da Fase 1: mapa feito à mão, personagem andando e colidindo. */
 export class TestScene extends Phaser.Scene {
   private player!: Player;
   private keys!: DirectionKeys;
@@ -38,7 +38,7 @@ export class TestScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, worldW, worldH);
 
     const { spawn } = this.map;
-    this.player = new Player(this, spawn.x * T + T / 2, spawn.y * T + T / 2);
+    this.player = new Player(this, spawn.x * T + T / 2, spawn.y * T + T / 2, sessionClassId(this));
     this.physics.add.collider(this.player, ground);
 
     this.cameras.main.setBounds(0, 0, worldW, worldH);
@@ -66,13 +66,13 @@ export class TestScene extends Phaser.Scene {
       .setOrigin(1, 1)
       .setScrollFactor(0)
       .setDepth(1000);
-    const session = this.registry.get('session') as PlaySession | undefined;
+    const session = getSession(this);
     const who =
       session?.mode === 'online'
         ? `${session.character.name} · nível ${session.character.level}`
         : 'Modo offline (nada é salvo)';
     this.add.text(4, height - 4, who, style).setOrigin(0, 1).setScrollFactor(0).setDepth(1000);
-    if (usesPlaceholderArt) {
+    if (usesPlaceholderArt(sessionClassId(this))) {
       this.add
         .text(width - 4, 4, 'ARTE PLACEHOLDER (PH)', { ...style, color: '#ff66ff' })
         .setOrigin(1, 0)
@@ -93,6 +93,7 @@ export class TestScene extends Phaser.Scene {
         x: this.player.body.center.x,
         y: this.player.body.center.y,
         facing: this.player.getFacing(),
+        texture: this.player.texture.key,
       }),
       isSolidAt: (px: number, py: number) =>
         this.map.tiles[Math.floor(py / T)]?.[Math.floor(px / T)]?.solid ?? true,
