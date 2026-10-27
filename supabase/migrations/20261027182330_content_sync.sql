@@ -49,6 +49,7 @@ insert into public.items (id, name, rarity, category, value, use_hp, use_mana, g
   ('spider-silk', 'Seda de Aranha', 'uncommon', 'resource', 15, 0, 0, null),
   ('bear-pelt', 'Pele de Urso', 'rare', 'resource', 50, 0, 0, null),
   ('bear-fangs', 'Presas de Urso', 'rare', 'resource', 50, 0, 0, null),
+  ('dragon-scale', 'Escama de Dragão', 'epic', 'resource', 120, 0, 0, null),
   ('potion-health-small', 'Poção de Vida Pequena', 'common', 'potion', 15, 40, 0, null),
   ('potion-health', 'Poção de Vida', 'uncommon', 'potion', 40, 100, 0, null),
   ('potion-mana-small', 'Poção de Mana Pequena', 'common', 'potion', 15, 0, 30, null),
@@ -122,12 +123,14 @@ insert into public.gather_tiers (rarity, tier) values
   ('shadow', 4)
 on conflict (rarity) do update set tier = excluded.tier;
 
-insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max) values
-  ('cave', 8, 12, 30, 500, 10, 4, 6),
-  ('forest', 8, 12, 30, 500, 10, 5, 8)
+insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max, daily, min_level) values
+  ('cave', 8, 12, 30, 500, 10, 4, 6, false, 0),
+  ('forest', 8, 12, 30, 500, 10, 5, 8, false, 0),
+  ('dragon-lair', 2, 3, 30, 500, 10, 1, 1, true, 5)
 on conflict (id) do update set nodes_min = excluded.nodes_min, nodes_max = excluded.nodes_max,
   expires_minutes = excluded.expires_minutes, collect_cooldown_ms = excluded.collect_cooldown_ms,
-  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max;
+  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max,
+  daily = excluded.daily, min_level = excluded.min_level;
 
 insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max) values
   ('cave', 'common', 70, 1, 3),
@@ -135,7 +138,8 @@ insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max)
   ('cave', 'rare', 5, 1, 1),
   ('forest', 'common', 70, 1, 3),
   ('forest', 'uncommon', 25, 1, 2),
-  ('forest', 'rare', 5, 1, 1)
+  ('forest', 'rare', 5, 1, 1),
+  ('dragon-lair', 'rare', 1, 1, 2)
 on conflict (area_id, rarity) do update set weight = excluded.weight, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
 insert into public.area_items (area_id, item_id) values
@@ -156,19 +160,25 @@ insert into public.area_items (area_id, item_id) values
   ('forest', 'medicinal-herbs'),
   ('forest', 'wood-sturdy'),
   ('forest', 'blue-flower'),
-  ('forest', 'wood-ancient')
+  ('forest', 'wood-ancient'),
+  ('dragon-lair', 'monster-essence'),
+  ('dragon-lair', 'ancient-bone'),
+  ('dragon-lair', 'crystal-blue')
 on conflict (area_id, item_id) do nothing;
 
 insert into public.area_chest_rules (area_id, chests_min, chests_max, copper_min, copper_max, gold_chance, min_seconds) values
   ('cave', 1, 2, 3, 15, 0.02, 10),
-  ('forest', 0, 1, 2, 10, 0.01, 10)
+  ('forest', 0, 1, 2, 10, 0.01, 10),
+  ('dragon-lair', 1, 1, 40, 80, 0.25, 10)
 on conflict (area_id) do update set chests_min = excluded.chests_min, chests_max = excluded.chests_max,
   copper_min = excluded.copper_min, copper_max = excluded.copper_max, gold_chance = excluded.gold_chance, min_seconds = excluded.min_seconds;
 
 insert into public.area_chest_items (area_id, item_id, chance, qty_min, qty_max) values
   ('cave', 'scroll-simple', 0.25, 1, 1),
   ('cave', 'scroll-improved', 0.06, 1, 1),
-  ('forest', 'scroll-simple', 0.2, 1, 1)
+  ('forest', 'scroll-simple', 0.2, 1, 1),
+  ('dragon-lair', 'scroll-improved', 0.5, 1, 1),
+  ('dragon-lair', 'scroll-rare', 0.15, 1, 1)
 on conflict (area_id, item_id) do update set chance = excluded.chance, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
 insert into public.creatures (id, name, hp, xp, copper_min, copper_max) values
@@ -182,7 +192,8 @@ insert into public.creatures (id, name, hp, xp, copper_min, copper_max) values
   ('wolf', 'Lobo', 40, 20, 1, 4),
   ('wild-boar', 'Javali Selvagem', 55, 24, 1, 4),
   ('bear', 'Urso', 140, 70, 5, 12),
-  ('giant-spider', 'Aranha Gigante', 45, 26, 0, 3)
+  ('giant-spider', 'Aranha Gigante', 45, 26, 0, 3),
+  ('dragon', 'Dragão', 420, 320, 80, 150)
 on conflict (id) do update set name = excluded.name, hp = excluded.hp, xp = excluded.xp,
   copper_min = excluded.copper_min, copper_max = excluded.copper_max;
 
@@ -207,7 +218,11 @@ insert into public.creature_drops (creature_id, item_id, chance, qty_min, qty_ma
   ('bear', 'bear-pelt', 0.5, 1, 1),
   ('bear', 'bear-fangs', 0.4, 1, 2),
   ('giant-spider', 'spider-venom', 0.4, 1, 1),
-  ('giant-spider', 'spider-silk', 0.5, 1, 2)
+  ('giant-spider', 'spider-silk', 0.5, 1, 2),
+  ('dragon', 'dragon-scale', 1, 1, 2),
+  ('dragon', 'scroll-rare', 0.5, 1, 1),
+  ('dragon', 'scroll-ancient', 0.1, 1, 1),
+  ('dragon', 'mithril', 0.3, 1, 2)
 on conflict (creature_id, item_id) do update set chance = excluded.chance, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
 insert into public.area_creatures (area_id, creature_id, weight) values
@@ -220,15 +235,27 @@ insert into public.area_creatures (area_id, creature_id, weight) values
   ('forest', 'wolf', 18),
   ('forest', 'wild-boar', 15),
   ('forest', 'giant-spider', 13),
-  ('forest', 'bear', 5)
+  ('forest', 'bear', 5),
+  ('dragon-lair', 'dragon', 1)
 on conflict (area_id, creature_id) do update set weight = excluded.weight;
 
-insert into public.shops (id, name, rest_price, exchange, upgrades) values
-  ('alchemist', 'Alquimista', null, false, false),
-  ('tavern', 'Taverna', 15, false, false),
-  ('blacksmith', 'Ferreiro', null, false, true),
-  ('market', 'Mercado', null, true, false)
-on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;
+insert into public.shops (id, name, rest_price, exchange, upgrades, player_market, storage) values
+  ('alchemist', 'Alquimista', null, false, false, false, false),
+  ('tavern', 'Taverna', 15, false, false, false, false),
+  ('blacksmith', 'Ferreiro', null, false, true, false, false),
+  ('market', 'Mercado', null, true, false, true, false),
+  ('warehouse', 'Armazém', null, false, false, false, true)
+on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades,
+  player_market = excluded.player_market, storage = excluded.storage;
+
+insert into public.market_rules (id, tax_percent, max_listings, expires_hours, max_price) values
+  (1, 5, 10, 48, 100000)
+on conflict (id) do update set tax_percent = excluded.tax_percent, max_listings = excluded.max_listings,
+  expires_hours = excluded.expires_hours, max_price = excluded.max_price;
+
+insert into public.storage_rules (id, max_stacks) values
+  (1, 40)
+on conflict (id) do update set max_stacks = excluded.max_stacks;
 
 insert into public.economy_rules (id, sell_rate, copper_per_gold) values
   (1, 0.4, 100)
@@ -373,6 +400,305 @@ insert into public.recipe_materials (recipe_id, item_id, quantity) values
   ('amulet-fangs', 'spider-silk', 1)
 on conflict (recipe_id, item_id) do update set quantity = excluded.quantity;
 
+insert into public.skill_rules (id, points_per_level) values
+  (1, 1)
+on conflict (id) do update set points_per_level = excluded.points_per_level;
+
+insert into public.skills (id, class_id, kind, effect) values
+  ('arcane-burst', 'mage', 'active', null),
+  ('mage-power', 'mage', 'passive', 'magAttack'),
+  ('mage-efficiency', 'mage', 'passive', 'manaCostPercent'),
+  ('mage-penetration', 'mage', 'passive', 'penetrationPercent'),
+  ('focused-ray', 'sorcerer', 'active', null),
+  ('sorcerer-power', 'sorcerer', 'passive', 'magAttack'),
+  ('sorcerer-focus', 'sorcerer', 'passive', 'manaCostPercent'),
+  ('sorcerer-recovery', 'sorcerer', 'passive', 'manaRegenPercent'),
+  ('fireball', 'elementalist', 'active', null),
+  ('elemental-mastery', 'elementalist', 'passive', 'magAttack'),
+  ('elemental-affinity', 'elementalist', 'passive', 'critDamage'),
+  ('elemental-rupture', 'elementalist', 'passive', 'penetrationPercent'),
+  ('dark-touch', 'necromancer', 'active', null),
+  ('dark-magic', 'necromancer', 'passive', 'magAttack'),
+  ('life-drain', 'necromancer', 'passive', 'lifeStealPercent'),
+  ('summoning', 'necromancer', 'passive', 'mana'),
+  ('whirlwind', 'warrior', 'active', null),
+  ('warrior-strength', 'warrior', 'passive', 'physAttack'),
+  ('warrior-endurance', 'warrior', 'passive', 'damageReductionPercent'),
+  ('warrior-block', 'warrior', 'passive', 'blockChance'),
+  ('lunge', 'swordsman', 'active', null),
+  ('sword-mastery', 'swordsman', 'passive', 'physAttack'),
+  ('attack-speed', 'swordsman', 'passive', 'attackSpeedPercent'),
+  ('parry', 'swordsman', 'passive', 'damageReductionPercent'),
+  ('holy-hammer', 'paladin', 'active', null),
+  ('holy-defense', 'paladin', 'passive', 'defense'),
+  ('holy-power', 'paladin', 'passive', 'physAttack'),
+  ('protective-aura', 'paladin', 'passive', 'damageReductionPercent'),
+  ('brutal-fury', 'berserker', 'active', null),
+  ('fury', 'berserker', 'passive', 'lowHpDamagePercent'),
+  ('brutal-strike', 'berserker', 'passive', 'critDamage'),
+  ('pain-resistance', 'berserker', 'passive', 'damageReductionPercent'),
+  ('piercing-arrow', 'archer', 'active', null),
+  ('archer-precision', 'archer', 'passive', 'precision'),
+  ('agility', 'archer', 'passive', 'attackSpeedPercent'),
+  ('ranged-damage', 'archer', 'passive', 'physAttack'),
+  ('sure-shot', 'hunter', 'active', null),
+  ('tracking', 'hunter', 'passive', 'precision'),
+  ('lethal-precision', 'hunter', 'passive', 'critChance'),
+  ('game-gathering', 'hunter', 'passive', 'dropChancePercent'),
+  ('poison-dagger', 'thief', 'active', null),
+  ('stealth', 'thief', 'passive', 'stealthPercent'),
+  ('backstab', 'thief', 'passive', 'critChance'),
+  ('expert-loot', 'thief', 'passive', 'dropChancePercent'),
+  ('shadow-strike', 'assassin', 'active', null),
+  ('deadly-crit', 'assassin', 'passive', 'critDamage'),
+  ('shadow-step', 'assassin', 'passive', 'moveSpeedPercent'),
+  ('execution', 'assassin', 'passive', 'executeDamagePercent')
+on conflict (id) do update set class_id = excluded.class_id, kind = excluded.kind, effect = excluded.effect;
+
+insert into public.skill_grades (skill_id, grade, points, scroll_item_id, effect_value) values
+  ('arcane-burst', 1, 1, null, null),
+  ('arcane-burst', 2, 1, 'scroll-simple', null),
+  ('arcane-burst', 3, 1, 'scroll-improved', null),
+  ('arcane-burst', 4, 1, 'scroll-rare', null),
+  ('arcane-burst', 5, 1, 'scroll-ancient', null),
+  ('arcane-burst', 6, 1, 'scroll-legendary', null),
+  ('arcane-burst', 7, 1, 'scroll-forbidden', null),
+  ('mage-power', 1, 1, null, 2),
+  ('mage-power', 2, 2, null, 5),
+  ('mage-power', 3, 3, null, 9),
+  ('mage-efficiency', 1, 1, null, 10),
+  ('mage-efficiency', 2, 2, null, 20),
+  ('mage-efficiency', 3, 3, null, 30),
+  ('mage-penetration', 1, 1, null, 8),
+  ('mage-penetration', 2, 2, null, 16),
+  ('mage-penetration', 3, 3, null, 25),
+  ('focused-ray', 1, 1, null, null),
+  ('focused-ray', 2, 1, 'scroll-simple', null),
+  ('focused-ray', 3, 1, 'scroll-improved', null),
+  ('focused-ray', 4, 1, 'scroll-rare', null),
+  ('focused-ray', 5, 1, 'scroll-ancient', null),
+  ('focused-ray', 6, 1, 'scroll-legendary', null),
+  ('focused-ray', 7, 1, 'scroll-forbidden', null),
+  ('sorcerer-power', 1, 1, null, 4),
+  ('sorcerer-power', 2, 2, null, 9),
+  ('sorcerer-power', 3, 3, null, 15),
+  ('sorcerer-focus', 1, 1, null, 8),
+  ('sorcerer-focus', 2, 2, null, 16),
+  ('sorcerer-focus', 3, 3, null, 25),
+  ('sorcerer-recovery', 1, 1, null, 20),
+  ('sorcerer-recovery', 2, 2, null, 45),
+  ('sorcerer-recovery', 3, 3, null, 75),
+  ('fireball', 1, 1, null, null),
+  ('fireball', 2, 1, 'scroll-simple', null),
+  ('fireball', 3, 1, 'scroll-improved', null),
+  ('fireball', 4, 1, 'scroll-rare', null),
+  ('fireball', 5, 1, 'scroll-ancient', null),
+  ('fireball', 6, 1, 'scroll-legendary', null),
+  ('fireball', 7, 1, 'scroll-forbidden', null),
+  ('elemental-mastery', 1, 1, null, 6),
+  ('elemental-mastery', 2, 2, null, 13),
+  ('elemental-mastery', 3, 3, null, 22),
+  ('elemental-affinity', 1, 1, null, 0.1),
+  ('elemental-affinity', 2, 2, null, 0.25),
+  ('elemental-affinity', 3, 3, null, 0.45),
+  ('elemental-rupture', 1, 1, null, 8),
+  ('elemental-rupture', 2, 2, null, 16),
+  ('elemental-rupture', 3, 3, null, 25),
+  ('dark-touch', 1, 1, null, null),
+  ('dark-touch', 2, 1, 'scroll-simple', null),
+  ('dark-touch', 3, 1, 'scroll-improved', null),
+  ('dark-touch', 4, 1, 'scroll-rare', null),
+  ('dark-touch', 5, 1, 'scroll-ancient', null),
+  ('dark-touch', 6, 1, 'scroll-legendary', null),
+  ('dark-touch', 7, 1, 'scroll-forbidden', null),
+  ('dark-magic', 1, 1, null, 8),
+  ('dark-magic', 2, 2, null, 17),
+  ('dark-magic', 3, 3, null, 28),
+  ('life-drain', 1, 1, null, 4),
+  ('life-drain', 2, 2, null, 8),
+  ('life-drain', 3, 3, null, 12),
+  ('summoning', 1, 1, null, 15),
+  ('summoning', 2, 2, null, 35),
+  ('summoning', 3, 3, null, 60),
+  ('whirlwind', 1, 1, null, null),
+  ('whirlwind', 2, 1, 'scroll-simple', null),
+  ('whirlwind', 3, 1, 'scroll-improved', null),
+  ('whirlwind', 4, 1, 'scroll-rare', null),
+  ('whirlwind', 5, 1, 'scroll-ancient', null),
+  ('whirlwind', 6, 1, 'scroll-legendary', null),
+  ('whirlwind', 7, 1, 'scroll-forbidden', null),
+  ('warrior-strength', 1, 1, null, 2),
+  ('warrior-strength', 2, 2, null, 5),
+  ('warrior-strength', 3, 3, null, 9),
+  ('warrior-endurance', 1, 1, null, 4),
+  ('warrior-endurance', 2, 2, null, 8),
+  ('warrior-endurance', 3, 3, null, 12),
+  ('warrior-block', 1, 1, null, 0.04),
+  ('warrior-block', 2, 2, null, 0.08),
+  ('warrior-block', 3, 3, null, 0.12),
+  ('lunge', 1, 1, null, null),
+  ('lunge', 2, 1, 'scroll-simple', null),
+  ('lunge', 3, 1, 'scroll-improved', null),
+  ('lunge', 4, 1, 'scroll-rare', null),
+  ('lunge', 5, 1, 'scroll-ancient', null),
+  ('lunge', 6, 1, 'scroll-legendary', null),
+  ('lunge', 7, 1, 'scroll-forbidden', null),
+  ('sword-mastery', 1, 1, null, 4),
+  ('sword-mastery', 2, 2, null, 9),
+  ('sword-mastery', 3, 3, null, 15),
+  ('attack-speed', 1, 1, null, 6),
+  ('attack-speed', 2, 2, null, 12),
+  ('attack-speed', 3, 3, null, 18),
+  ('parry', 1, 1, null, 4),
+  ('parry', 2, 2, null, 8),
+  ('parry', 3, 3, null, 12),
+  ('holy-hammer', 1, 1, null, null),
+  ('holy-hammer', 2, 1, 'scroll-simple', null),
+  ('holy-hammer', 3, 1, 'scroll-improved', null),
+  ('holy-hammer', 4, 1, 'scroll-rare', null),
+  ('holy-hammer', 5, 1, 'scroll-ancient', null),
+  ('holy-hammer', 6, 1, 'scroll-legendary', null),
+  ('holy-hammer', 7, 1, 'scroll-forbidden', null),
+  ('holy-defense', 1, 1, null, 3),
+  ('holy-defense', 2, 2, null, 7),
+  ('holy-defense', 3, 3, null, 12),
+  ('holy-power', 1, 1, null, 6),
+  ('holy-power', 2, 2, null, 13),
+  ('holy-power', 3, 3, null, 22),
+  ('protective-aura', 1, 1, null, 4),
+  ('protective-aura', 2, 2, null, 8),
+  ('protective-aura', 3, 3, null, 12),
+  ('brutal-fury', 1, 1, null, null),
+  ('brutal-fury', 2, 1, 'scroll-simple', null),
+  ('brutal-fury', 3, 1, 'scroll-improved', null),
+  ('brutal-fury', 4, 1, 'scroll-rare', null),
+  ('brutal-fury', 5, 1, 'scroll-ancient', null),
+  ('brutal-fury', 6, 1, 'scroll-legendary', null),
+  ('brutal-fury', 7, 1, 'scroll-forbidden', null),
+  ('fury', 1, 1, null, 10),
+  ('fury', 2, 2, null, 22),
+  ('fury', 3, 3, null, 35),
+  ('brutal-strike', 1, 1, null, 0.1),
+  ('brutal-strike', 2, 2, null, 0.25),
+  ('brutal-strike', 3, 3, null, 0.45),
+  ('pain-resistance', 1, 1, null, 4),
+  ('pain-resistance', 2, 2, null, 8),
+  ('pain-resistance', 3, 3, null, 12),
+  ('piercing-arrow', 1, 1, null, null),
+  ('piercing-arrow', 2, 1, 'scroll-simple', null),
+  ('piercing-arrow', 3, 1, 'scroll-improved', null),
+  ('piercing-arrow', 4, 1, 'scroll-rare', null),
+  ('piercing-arrow', 5, 1, 'scroll-ancient', null),
+  ('piercing-arrow', 6, 1, 'scroll-legendary', null),
+  ('piercing-arrow', 7, 1, 'scroll-forbidden', null),
+  ('archer-precision', 1, 1, null, 3),
+  ('archer-precision', 2, 2, null, 7),
+  ('archer-precision', 3, 3, null, 12),
+  ('agility', 1, 1, null, 6),
+  ('agility', 2, 2, null, 12),
+  ('agility', 3, 3, null, 18),
+  ('ranged-damage', 1, 1, null, 2),
+  ('ranged-damage', 2, 2, null, 5),
+  ('ranged-damage', 3, 3, null, 9),
+  ('sure-shot', 1, 1, null, null),
+  ('sure-shot', 2, 1, 'scroll-simple', null),
+  ('sure-shot', 3, 1, 'scroll-improved', null),
+  ('sure-shot', 4, 1, 'scroll-rare', null),
+  ('sure-shot', 5, 1, 'scroll-ancient', null),
+  ('sure-shot', 6, 1, 'scroll-legendary', null),
+  ('sure-shot', 7, 1, 'scroll-forbidden', null),
+  ('tracking', 1, 1, null, 4),
+  ('tracking', 2, 2, null, 9),
+  ('tracking', 3, 3, null, 15),
+  ('lethal-precision', 1, 1, null, 0.03),
+  ('lethal-precision', 2, 2, null, 0.06),
+  ('lethal-precision', 3, 3, null, 0.1),
+  ('game-gathering', 1, 1, null, 10),
+  ('game-gathering', 2, 2, null, 20),
+  ('game-gathering', 3, 3, null, 30),
+  ('poison-dagger', 1, 1, null, null),
+  ('poison-dagger', 2, 1, 'scroll-simple', null),
+  ('poison-dagger', 3, 1, 'scroll-improved', null),
+  ('poison-dagger', 4, 1, 'scroll-rare', null),
+  ('poison-dagger', 5, 1, 'scroll-ancient', null),
+  ('poison-dagger', 6, 1, 'scroll-legendary', null),
+  ('poison-dagger', 7, 1, 'scroll-forbidden', null),
+  ('stealth', 1, 1, null, 10),
+  ('stealth', 2, 2, null, 20),
+  ('stealth', 3, 3, null, 30),
+  ('backstab', 1, 1, null, 0.03),
+  ('backstab', 2, 2, null, 0.06),
+  ('backstab', 3, 3, null, 0.1),
+  ('expert-loot', 1, 1, null, 10),
+  ('expert-loot', 2, 2, null, 20),
+  ('expert-loot', 3, 3, null, 30),
+  ('shadow-strike', 1, 1, null, null),
+  ('shadow-strike', 2, 1, 'scroll-simple', null),
+  ('shadow-strike', 3, 1, 'scroll-improved', null),
+  ('shadow-strike', 4, 1, 'scroll-rare', null),
+  ('shadow-strike', 5, 1, 'scroll-ancient', null),
+  ('shadow-strike', 6, 1, 'scroll-legendary', null),
+  ('shadow-strike', 7, 1, 'scroll-forbidden', null),
+  ('deadly-crit', 1, 1, null, 0.15),
+  ('deadly-crit', 2, 2, null, 0.3),
+  ('deadly-crit', 3, 3, null, 0.5),
+  ('shadow-step', 1, 1, null, 5),
+  ('shadow-step', 2, 2, null, 10),
+  ('shadow-step', 3, 3, null, 15),
+  ('execution', 1, 1, null, 15),
+  ('execution', 2, 2, null, 30),
+  ('execution', 3, 3, null, 50)
+on conflict (skill_id, grade) do update set points = excluded.points, scroll_item_id = excluded.scroll_item_id, effect_value = excluded.effect_value;
+
+insert into public.class_evolution (level, copper, gold) values
+  (25, 500, 0),
+  (50, 2000, 2),
+  (75, 5000, 5)
+on conflict (level) do update set copper = excluded.copper, gold = excluded.gold;
+
+insert into public.quest_rules (id, per_day) values
+  (1, 3)
+on conflict (id) do update set per_day = excluded.per_day;
+
+insert into public.quest_templates (id, name, kind, target, count, min_level, max_level, reward_xp, reward_copper) values
+  ('rats', 'Ratos no porão', 'kill', 'cave-rat', 6, 0, 6, 40, 12),
+  ('bats', 'Asas na escuridão', 'kill', 'cave-bat', 5, 0, 6, 40, 12),
+  ('rabbits', 'Coelhos na horta', 'kill', 'rabbit', 3, 0, 6, 30, 10),
+  ('mushrooms', 'Cogumelos para o Alquimista', 'collect', 'mushroom-common', 4, 0, 6, 30, 10),
+  ('firewood', 'Lenha para a Taverna', 'collect', 'wood-common', 4, 0, 6, 30, 10),
+  ('goblins', 'Saqueadores goblins', 'kill', 'goblin-raider', 5, 4, 14, 120, 30),
+  ('wolves', 'Matilha na trilha', 'kill', 'wolf', 5, 4, 14, 120, 30),
+  ('boars', 'Javalis na plantação', 'kill', 'wild-boar', 4, 4, 14, 120, 30),
+  ('iron', 'Ferro para o Ferreiro', 'collect', 'iron', 5, 4, 14, 90, 25),
+  ('herbs', 'Ervas para curar', 'collect', 'medicinal-herbs', 3, 4, 14, 90, 25),
+  ('skeletons', 'Ossos que andam', 'kill', 'ancient-skeleton', 4, 10, null, 300, 60),
+  ('bears', 'O urso da floresta', 'kill', 'bear', 3, 10, null, 300, 60),
+  ('spiders', 'Teias na floresta', 'kill', 'giant-spider', 5, 10, null, 260, 55),
+  ('dragon', 'Desafio do Covil', 'kill', 'dragon', 1, 8, null, 600, 150),
+  ('ancient-wood', 'Madeira antiga', 'collect', 'wood-ancient', 2, 10, null, 220, 50)
+on conflict (id) do update set name = excluded.name, kind = excluded.kind, target = excluded.target, count = excluded.count,
+  min_level = excluded.min_level, max_level = excluded.max_level, reward_xp = excluded.reward_xp, reward_copper = excluded.reward_copper;
+
+insert into public.quest_reward_items (quest_id, item_id, quantity) values
+  ('goblins', 'scroll-simple', 1),
+  ('herbs', 'potion-health-small', 2),
+  ('skeletons', 'scroll-improved', 1),
+  ('dragon', 'scroll-rare', 1)
+on conflict (quest_id, item_id) do update set quantity = excluded.quantity;
+
+insert into public.social_rules (id, training_building, training_max_hours, training_rate_base_milli, training_rate_level_milli,
+  guild_building, guild_create_cost, guild_max_members, guild_name_min, guild_name_max, guild_tag_min, guild_tag_max,
+  chat_max_length, chat_cooldown_seconds, chat_keep_days, ranking_size) values
+  (1, 'training-hall', 8, 1000, 400,
+  'guild', 1000, 20, 3, 20, 2, 4,
+  200, 2, 7, 20)
+on conflict (id) do update set training_building = excluded.training_building, training_max_hours = excluded.training_max_hours,
+  training_rate_base_milli = excluded.training_rate_base_milli, training_rate_level_milli = excluded.training_rate_level_milli,
+  guild_building = excluded.guild_building, guild_create_cost = excluded.guild_create_cost, guild_max_members = excluded.guild_max_members,
+  guild_name_min = excluded.guild_name_min, guild_name_max = excluded.guild_name_max, guild_tag_min = excluded.guild_tag_min,
+  guild_tag_max = excluded.guild_tag_max, chat_max_length = excluded.chat_max_length, chat_cooldown_seconds = excluded.chat_cooldown_seconds,
+  chat_keep_days = excluded.chat_keep_days, ranking_size = excluded.ranking_size;
+
 insert into public.level_thresholds (level, total_xp) values
   (0, 0),
   (1, 40),
@@ -452,7 +778,7 @@ insert into public.level_thresholds (level, total_xp) values
   (75, 1174183)
 on conflict (level) do update set total_xp = excluded.total_xp;
 
-insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack) values
-  (1, 60, 8, 5)
+insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack, max_dps_per_skill_point_percent) values
+  (1, 60, 8, 5, 8)
 on conflict (id) do update set max_dps_base = excluded.max_dps_base, max_dps_per_level = excluded.max_dps_per_level,
-  max_dps_per_attack = excluded.max_dps_per_attack;
+  max_dps_per_attack = excluded.max_dps_per_attack, max_dps_per_skill_point_percent = excluded.max_dps_per_skill_point_percent;

@@ -1,4 +1,4 @@
-import { itemValue, levelThresholds, shopBuys, type Content } from '../src/index.ts';
+import { gradeCost, itemValue, levelThresholds, maxGrade, shopBuys, type Content, type SkillDef } from '../src/index.ts';
 
 /** Marca as migrations geradas por `npm run db:content`. */
 export const CONTENT_SYNC_SUFFIX = '_content_sync.sql';
@@ -8,7 +8,7 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
  * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
- * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * e o que soltam, monstros de cada área, lojas, mercado, armazém, equipamentos, receitas, habilidades, evolução de classe, missões diárias, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
@@ -72,7 +72,7 @@ export function contentSql(content: Content): string {
       .map((a) => {
         const r = a.resources!;
         const m = a.creatures?.count ?? { min: 0, max: 0 };
-        return `  (${q(a.id)}, ${r.nodes.min}, ${r.nodes.max}, ${r.expiresMinutes}, ${r.collectCooldownMs}, ${r.maxStartsPerMinute}, ${m.min}, ${m.max})`;
+        return `  (${q(a.id)}, ${r.nodes.min}, ${r.nodes.max}, ${r.expiresMinutes}, ${r.collectCooldownMs}, ${r.maxStartsPerMinute}, ${m.min}, ${m.max}, ${a.daily}, ${a.minLevel})`;
       })
       .join(',\n');
     const ruleRows = areas
@@ -81,11 +81,12 @@ export function contentSql(content: Content): string {
     const itemRows = areas.flatMap((a) => a.resources!.items.map((id) => `  (${q(a.id)}, ${q(id)})`)).join(',\n');
     lines.push(
       '',
-      'insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max) values',
+      'insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max, daily, min_level) values',
       areaRows,
       'on conflict (id) do update set nodes_min = excluded.nodes_min, nodes_max = excluded.nodes_max,',
       '  expires_minutes = excluded.expires_minutes, collect_cooldown_ms = excluded.collect_cooldown_ms,',
-      '  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max;',
+      '  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max,',
+      '  daily = excluded.daily, min_level = excluded.min_level;',
       '',
       'insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max) values',
       ruleRows,
@@ -157,9 +158,21 @@ export function contentSql(content: Content): string {
   const buys = shops.shops.flatMap((sh) => content.items.items.filter((i) => shopBuys(sh, i)).map((i) => `  (${q(sh.id)}, ${q(i.id)})`));
   lines.push(
     '',
-    'insert into public.shops (id, name, rest_price, exchange, upgrades) values',
-    shops.shops.map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades})`).join(',\n'),
-    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;',
+    'insert into public.shops (id, name, rest_price, exchange, upgrades, player_market, storage) values',
+    shops.shops
+      .map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades}, ${sh.playerMarket}, ${sh.storage})`)
+      .join(',\n'),
+    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades,',
+    '  player_market = excluded.player_market, storage = excluded.storage;',
+    '',
+    'insert into public.market_rules (id, tax_percent, max_listings, expires_hours, max_price) values',
+    `  (1, ${shops.market.taxPercent}, ${shops.market.maxListings}, ${shops.market.expiresHours}, ${shops.market.maxPricePerUnit})`,
+    'on conflict (id) do update set tax_percent = excluded.tax_percent, max_listings = excluded.max_listings,',
+    '  expires_hours = excluded.expires_hours, max_price = excluded.max_price;',
+    '',
+    'insert into public.storage_rules (id, max_stacks) values',
+    `  (1, ${shops.storage.maxStacks})`,
+    'on conflict (id) do update set max_stacks = excluded.max_stacks;',
     '',
     'insert into public.economy_rules (id, sell_rate, copper_per_gold) values',
     `  (1, ${shops.sellRate}, ${shops.copperPerGold})`,
@@ -189,16 +202,86 @@ export function contentSql(content: Content): string {
       'on conflict (recipe_id, item_id) do update set quantity = excluded.quantity;',
     );
   }
+  const sk = content.skills;
+  const skillRows: { def: SkillDef; classId: string }[] = Object.entries(sk.classes).flatMap(([classId, c]) => [
+    { classId, def: { type: 'active' as const, ...c.active } },
+    ...c.passives.map((p) => ({ classId, def: { type: 'passive' as const, ...p } })),
+  ]);
+  lines.push(
+    '',
+    'insert into public.skill_rules (id, points_per_level) values',
+    `  (1, ${sk.pointsPerLevel})`,
+    'on conflict (id) do update set points_per_level = excluded.points_per_level;',
+    '',
+    'insert into public.skills (id, class_id, kind, effect) values',
+    skillRows.map(({ def, classId }) => `  (${q(def.id)}, ${q(classId)}, ${q(def.type)}, ${def.type === 'passive' ? q(def.effect.kind) : 'null'})`).join(',\n'),
+    'on conflict (id) do update set class_id = excluded.class_id, kind = excluded.kind, effect = excluded.effect;',
+    '',
+    'insert into public.skill_grades (skill_id, grade, points, scroll_item_id, effect_value) values',
+    skillRows
+      .flatMap(({ def }) =>
+        Array.from({ length: maxGrade(sk, def) }, (_, i) => {
+          const c = gradeCost(sk, def, i + 1);
+          const value = def.type === 'passive' ? String(def.effect.values[i]) : 'null';
+          return `  (${q(def.id)}, ${i + 1}, ${c.points}, ${c.scroll ? q(c.scroll) : 'null'}, ${value})`;
+        }),
+      )
+      .join(',\n'),
+    'on conflict (skill_id, grade) do update set points = excluded.points, scroll_item_id = excluded.scroll_item_id, effect_value = excluded.effect_value;',
+    '',
+    'insert into public.class_evolution (level, copper, gold) values',
+    sk.evolution.map((e) => `  (${e.level}, ${e.copper}, ${e.gold})`).join(',\n'),
+    'on conflict (level) do update set copper = excluded.copper, gold = excluded.gold;',
+  );
+  const qs = content.quests;
+  const rewardItems = qs.templates.flatMap((t) => t.reward.items.map((r) => `  (${q(t.id)}, ${q(r.item)}, ${r.quantity})`));
+  lines.push(
+    '',
+    'insert into public.quest_rules (id, per_day) values',
+    `  (1, ${qs.perDay})`,
+    'on conflict (id) do update set per_day = excluded.per_day;',
+    '',
+    'insert into public.quest_templates (id, name, kind, target, count, min_level, max_level, reward_xp, reward_copper) values',
+    qs.templates
+      .map((t) => `  (${q(t.id)}, ${q(t.name)}, ${q(t.kind)}, ${q(t.target)}, ${t.count}, ${t.minLevel}, ${t.maxLevel ?? 'null'}, ${t.reward.xp}, ${t.reward.copper})`)
+      .join(',\n'),
+    'on conflict (id) do update set name = excluded.name, kind = excluded.kind, target = excluded.target, count = excluded.count,',
+    '  min_level = excluded.min_level, max_level = excluded.max_level, reward_xp = excluded.reward_xp, reward_copper = excluded.reward_copper;',
+  );
+  if (rewardItems.length > 0) {
+    lines.push(
+      '',
+      'insert into public.quest_reward_items (quest_id, item_id, quantity) values',
+      rewardItems.join(',\n'),
+      'on conflict (quest_id, item_id) do update set quantity = excluded.quantity;',
+    );
+  }
+  const so = content.social;
+  lines.push(
+    '',
+    'insert into public.social_rules (id, training_building, training_max_hours, training_rate_base_milli, training_rate_level_milli,',
+    '  guild_building, guild_create_cost, guild_max_members, guild_name_min, guild_name_max, guild_tag_min, guild_tag_max,',
+    '  chat_max_length, chat_cooldown_seconds, chat_keep_days, ranking_size) values',
+    `  (1, ${q(so.training.building)}, ${so.training.maxHours}, ${Math.round(so.training.xpPerMinuteBase * 1000)}, ${Math.round(so.training.xpPerMinutePerLevel * 1000)},`,
+    `  ${q(so.guilds.building)}, ${so.guilds.createCost}, ${so.guilds.maxMembers}, ${so.guilds.nameMin}, ${so.guilds.nameMax}, ${so.guilds.tagMin}, ${so.guilds.tagMax},`,
+    `  ${so.chat.maxLength}, ${so.chat.cooldownSeconds}, ${so.chat.keepDays}, ${so.ranking.size})`,
+    'on conflict (id) do update set training_building = excluded.training_building, training_max_hours = excluded.training_max_hours,',
+    '  training_rate_base_milli = excluded.training_rate_base_milli, training_rate_level_milli = excluded.training_rate_level_milli,',
+    '  guild_building = excluded.guild_building, guild_create_cost = excluded.guild_create_cost, guild_max_members = excluded.guild_max_members,',
+    '  guild_name_min = excluded.guild_name_min, guild_name_max = excluded.guild_name_max, guild_tag_min = excluded.guild_tag_min,',
+    '  guild_tag_max = excluded.guild_tag_max, chat_max_length = excluded.chat_max_length, chat_cooldown_seconds = excluded.chat_cooldown_seconds,',
+    '  chat_keep_days = excluded.chat_keep_days, ranking_size = excluded.ranking_size;',
+  );
   lines.push(
     '',
     'insert into public.level_thresholds (level, total_xp) values',
     thresholds.map((xp, level) => `  (${level}, ${xp})`).join(',\n'),
     'on conflict (level) do update set total_xp = excluded.total_xp;',
     '',
-    'insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack) values',
-    `  (1, ${dps.base}, ${dps.perLevel}, ${dps.perAttackBonus})`,
+    'insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack, max_dps_per_skill_point_percent) values',
+    `  (1, ${dps.base}, ${dps.perLevel}, ${dps.perAttackBonus}, ${dps.perSkillPointPercent})`,
     'on conflict (id) do update set max_dps_base = excluded.max_dps_base, max_dps_per_level = excluded.max_dps_per_level,',
-    '  max_dps_per_attack = excluded.max_dps_per_attack;',
+    '  max_dps_per_attack = excluded.max_dps_per_attack, max_dps_per_skill_point_percent = excluded.max_dps_per_skill_point_percent;',
   );
   return `${lines.join('\n')}\n`;
 }

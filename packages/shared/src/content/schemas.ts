@@ -174,6 +174,67 @@ export const equipmentSchema = z.object({
   gatherTiers: z.record(z.string(), z.number().int().min(1)),
 });
 
+/** Efeitos que um aprimoramento de atributo pode dar (o jogo aplica cada um; ver combat/skills.ts). */
+export const SKILL_EFFECT_KINDS = [
+  'hp',
+  'mana',
+  'physAttack',
+  'magAttack',
+  'defense',
+  'precision',
+  'critChance',
+  'critDamage',
+  'attackSpeedPercent',
+  'manaCostPercent',
+  'manaRegenPercent',
+  'moveSpeedPercent',
+  'damageReductionPercent',
+  'blockChance',
+  'penetrationPercent',
+  'dropChancePercent',
+  'lifeStealPercent',
+  'lowHpDamagePercent',
+  'executeDamagePercent',
+  'stealthPercent',
+] as const;
+
+const activeSkillBase = {
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  /** efeito de basicAttacks reaproveitado (arte provisória) */
+  sprite: z.string().min(1),
+  /** dano = ataque × (damageMultiplier + perFocus × (foco − 1)) */
+  damageMultiplier: z.number().positive(),
+  perFocus: z.number().min(0),
+  manaCost: z.number().min(0),
+  cooldownMs: z.number().int().positive(),
+  rangeTiles: z.number().positive(),
+};
+
+export const activeSkillSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('projectile'), ...activeSkillBase, projectileSpeedTilesPerSecond: z.number().positive(), scale: z.number().positive().default(1) }),
+  z.object({ kind: z.literal('melee'), ...activeSkillBase, arcDegrees: z.number().positive().max(360) }),
+]);
+
+export const passiveSkillSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  effect: z.object({ kind: z.enum(SKILL_EFFECT_KINDS), values: z.array(z.number().positive()).min(1) }),
+});
+
+/** Habilidades por classe e evolução (GDD 4 e 6). */
+export const skillsSchema = z.object({
+  pointsPerLevel: z.number().int().positive(),
+  /** pontos de cada graduação de um aprimoramento (1.ª, 2.ª, 3.ª) */
+  gradeCosts: z.array(z.number().int().positive()).min(1),
+  focusPointCost: z.number().int().positive(),
+  /** pergaminho pedido em cada foco (1.º = aprender); null = nenhum */
+  focusScrolls: z.array(z.string().min(1).nullable()).min(1),
+  evolution: z.array(z.object({ level: z.number().int().positive(), copper: z.number().int().min(0), gold: z.number().int().min(0) })),
+  classes: z.record(z.string(), z.object({ active: activeSkillSchema, passives: z.array(passiveSkillSchema) })),
+});
+
 /** Receitas de fabricação (GDD 10: A DEFINIR, conjunto inicial provisório). */
 export const recipesSchema = z.object({
   recipes: z.array(
@@ -264,6 +325,10 @@ export const creaturesSchema = z.object({
         hidden: z.boolean().default(false),
         /** só enfeite: não pode ser atacado e não dá nada (Esquilo, GDD 8.1) */
         decorative: z.boolean().default(false),
+        /** tamanho do desenho e do corpo (chefes, ex.: Dragão = 2) */
+        scale: z.number().min(1).max(4).default(1),
+        /** chefe: barra de vida no topo da tela (Dragão, GDD 12) */
+        boss: z.boolean().default(false),
         xp: z.number().int().min(0),
         copper: range,
         drops: z.array(
@@ -327,7 +392,15 @@ export const combatSchema = z.object({
   damageVariance: z.number().min(0).max(0.9),
   defenseFactor: z.number().min(0),
   invulnerableAfterHitMs: z.number().int().min(0),
-  server: z.object({ maxDamagePerSecond: z.object({ base: z.number().positive(), perLevel: z.number().min(0), perAttackBonus: z.number().min(0).default(0) }) }),
+  server: z.object({
+    maxDamagePerSecond: z.object({
+      base: z.number().positive(),
+      perLevel: z.number().min(0),
+      perAttackBonus: z.number().min(0).default(0),
+      /** % a mais no teto por ponto de habilidade gasto */
+      perSkillPointPercent: z.number().min(0).default(0),
+    }),
+  }),
 });
 
 /** Parâmetros de uma área gerada por seed. Valores provisórios (GDD 7.3: tamanhos e densidades A DEFINIR). */
@@ -354,6 +427,10 @@ export const caveConfigSchema = z.object({
   resources: resourcesConfigSchema.optional(),
   creatures: creaturesConfigSchema.optional(),
   chests: chestsConfigSchema.optional(),
+  /** uma entrada por dia por personagem; o dia vira às 00:00 de Brasília (Covil do Dragão, GDD 12) */
+  daily: z.boolean().default(false),
+  /** nível mínimo para entrar */
+  minLevel: z.number().int().min(0).default(0),
 });
 /** Lojas da cidade (GDD 7.1 e 11). O servidor confere preço, saldo e estoque do jogador. */
 export const shopsSchema = z.object({
@@ -373,9 +450,75 @@ export const shopsSchema = z.object({
         exchange: z.boolean().default(false),
         /** melhora equipamentos (equipment.json upgrade) */
         upgrades: z.boolean().default(false),
+        /** mercado entre jogadores (regras em 'market') */
+        playerMarket: z.boolean().default(false),
+        /** armazém da conta (regras em 'storage') */
+        storage: z.boolean().default(false),
       }),
     )
     .min(1),
+  market: z.object({
+    /** % do valor da venda que some da economia (cobrado do vendedor) */
+    taxPercent: z.number().int().min(0).max(50),
+    maxListings: z.number().int().min(1),
+    expiresHours: z.number().int().min(1),
+    maxPricePerUnit: z.number().int().min(1),
+  }),
+  storage: z.object({ maxStacks: z.number().int().min(1) }),
+});
+
+/** Missões diárias (GDD 12). O servidor sorteia as do dia, conta o progresso e entrega a recompensa. */
+export const questsSchema = z.object({
+  perDay: z.number().int().min(1).max(10),
+  templates: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9-]+$/),
+        name: z.string().min(1),
+        /** kill: abates da criatura 'target'; collect: unidades do item 'target' em pontos de coleta */
+        kind: z.enum(['kill', 'collect']),
+        target: z.string().min(1),
+        count: z.number().int().min(1),
+        minLevel: z.number().int().min(0),
+        maxLevel: z.number().int().min(0).optional(),
+        reward: z.object({
+          xp: z.number().int().min(0),
+          copper: z.number().int().min(0),
+          items: z.array(z.object({ item: z.string().min(1), quantity: z.number().int().min(1) })).default([]),
+        }),
+      }),
+    )
+    .min(1),
+});
+
+/** Salão de Treinamento, guildas, chat e ranking (GDD 7.1 e 17). O servidor confere e grava tudo. */
+export const socialSchema = z.object({
+  training: z.object({
+    /** prédio de objects.json onde se treina */
+    building: z.string().min(1),
+    maxHours: z.number().int().min(1).max(24),
+    xpPerMinuteBase: z.number().min(0),
+    xpPerMinutePerLevel: z.number().min(0),
+  }),
+  guilds: z.object({
+    building: z.string().min(1),
+    /** cobre para fundar */
+    createCost: z.number().int().min(0),
+    maxMembers: z.number().int().min(2),
+    nameMin: z.number().int().min(1),
+    nameMax: z.number().int().min(1).max(40),
+    tagMin: z.number().int().min(1),
+    tagMax: z.number().int().min(1).max(6),
+  }),
+  chat: z.object({
+    maxLength: z.number().int().min(1).max(500),
+    cooldownSeconds: z.number().int().min(0),
+    /** mensagens carregadas ao abrir */
+    history: z.number().int().min(1).max(200),
+    /** mensagens mais antigas que isso são apagadas */
+    keepDays: z.number().int().min(1),
+  }),
+  ranking: z.object({ size: z.number().int().min(1).max(100) }),
 });
 
 export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
@@ -400,6 +543,13 @@ export type GearStats = z.infer<typeof gearStatsSchema>;
 export type Equipment = z.infer<typeof equipmentSchema>;
 export type Recipes = z.infer<typeof recipesSchema>;
 export type RecipeDef = Recipes['recipes'][number];
+export type Skills = z.infer<typeof skillsSchema>;
+export type Quests = z.infer<typeof questsSchema>;
+export type Social = z.infer<typeof socialSchema>;
+export type QuestTemplate = Quests['templates'][number];
+export type ActiveSkill = z.infer<typeof activeSkillSchema>;
+export type PassiveSkill = z.infer<typeof passiveSkillSchema>;
+export type SkillEffectKind = (typeof SKILL_EFFECT_KINDS)[number];
 export type ResourcesConfig = z.infer<typeof resourcesConfigSchema>;
 export type CreaturesConfig = z.infer<typeof creaturesConfigSchema>;
 export type Creatures = z.infer<typeof creaturesSchema>;

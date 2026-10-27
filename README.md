@@ -3,11 +3,11 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 11.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
+**Estado atual: Fase 15.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
 Arqueiro) protegidas por RLS, e o jogo começa na cidade principal. Alquimista, Taverna, Ferreiro e Mercado abrem com **E**
 na porta: compra de poções e comidas, venda de recursos, dormitório e câmbio de cobre e ouro. O Ferreiro vende, fabrica,
 melhora e compra armas, armaduras, acessórios e ferramentas; a tecla **C** abre o equipamento (equipar e tirar peças).
-Depósitos raros só saem com picareta ou machado equipado. O portão sul leva à Gruta e
+Depósitos raros só saem com picareta ou machado equipado. A tecla **K** abre as habilidades (pontos por nível, aprimoramentos, focos da habilidade ativa e evolução de classe nos níveis 25, 50 e 75); **Q**, **R**, **F** e **G** usam as habilidades ativas de cada etapa da classe. A tecla **J** mostra as missões do dia (recompensa na cidade). O portão oeste leva ao Covil do Dragão, o chefe diário (uma entrada por dia, a partir do nível 5). No Mercado os jogadores anunciam itens uns para os outros (o item fica preso no anúncio; taxa de 5% sobre a venda; anúncios vencem em 48 h), e o Armazém guarda itens da conta, compartilhados entre os personagens. No Salão de Treinamento o personagem treina parado por até 8 horas (o servidor conta o tempo e paga o XP ao encerrar; enquanto treina, não sai da cidade). Na Guilda dá para fundar (1000 de cobre), entrar, sair e ver o ranking de jogadores e de guildas. **Enter** abre o chat (canal geral; comece com /g para o canal da guilda), e o canto do chat mostra quantos jogadores estão online. O portão sul leva à Gruta e
 o leste à Floresta. A cada entrada o servidor sorteia a seed da área, o conteúdo dos pontos de coleta, os monstros ou
 animais e quantos baús há. O jogador coleta e abre baús com **E**, vê o inventário com **I**, ataca com **Espaço** e usa
 poção de vida, de mana ou comida com **1**, **2** e **3**. O servidor confere cada coleta, abate, baú, compra, venda e uso
@@ -163,6 +163,20 @@ Vida e mana não enchem mais sozinhas na cidade: enchem ao subir de nível e dor
 Um item com `equip` em `content/items.json` é um equipamento: espaço (`slot`), caminhos de classe que usam (`paths`, sem ele todos), bônus (`stats`), nível de ferramenta (`toolTier`, só picaretas e machados) e material de melhoria (`upgradeMaterial`). Cada peça é única (não empilha) e tem nível de melhoria próprio. Os espaços, a tabela de custo das melhorias, o limite de peças e qual nível de ferramenta cada raridade de depósito pede ficam em `content/equipment.json`; as receitas do Ferreiro, em `content/recipes.json` (para adicionar uma, basta uma entrada nova). Recursos com `gather` (minérios, cristais e madeiras) de raridade Rara ou acima só saem com a ferramenta equipada.
 
 O Ferreiro chama `shop_buy`, `craft_item`, `upgrade_gear` e `sell_gear`; a janela de equipamento (tecla **C**, em qualquer lugar) chama `equip_gear` e `unequip_gear`. O cliente só lê as próprias peças (`character_gear`). O teto de dano por segundo que o servidor aceita nos abates soma `perAttackBonus` (em `content/combat.json`) por ponto de ataque das peças equipadas. Não há durabilidade nem reparo por enquanto. Depois de mudar equipamentos ou receitas, rode `npm run db:content`.
+
+### Habilidades e evolução de classe
+
+As habilidades ficam em `content/skills.json`: pontos por nível (`pointsPerLevel`), custo de cada graduação dos aprimoramentos (`gradeCosts`), custo em pontos de cada foco da habilidade ativa (`focusPointCost`) e o pergaminho pedido do foco 2 ao 7 (`focusScrolls`), custo da evolução em cada etapa (`evolution`) e, por classe, uma habilidade ativa e três aprimoramentos. Cada aprimoramento tem um efeito (`effect.kind`) e o valor de cada graduação (`effect.values`); os tipos de efeito estão em `SKILL_EFFECT_KINDS` (`packages/shared/src/content/schemas.ts`). Para trocar números ou nomes, basta editar o JSON e rodar `npm run db:content`.
+
+A janela (tecla **K**, em qualquer lugar) chama `learn_skill`; evoluir chama `evolve_class` e só funciona na cidade. O servidor confere a classe, os pontos livres, o pergaminho (que é gasto) e as moedas. Ao evoluir, o personagem mantém tudo o que aprendeu e ganha a árvore da classe nova; cada etapa usa uma tecla (Q, R, F, G). Nos abates, o servidor aplica o bônus de chance de itens dos aprimoramentos e aumenta o teto de dano por segundo em `perSkillPointPercent` (em `content/combat.json`) por ponto gasto. Não há como desaprender pontos por enquanto. Enquanto uma classe evoluída não tiver arte própria, ela usa a arte da classe base do caminho.
+
+### Missões diárias e Covil do Dragão
+
+As missões ficam em `content/quests.json`: quantas por dia (`perDay`) e os modelos, cada um com tipo (`kill` conta abates da criatura `target`; `collect` conta unidades do item `target` tiradas de pontos de coleta), quantidade, faixa de nível (`minLevel` e `maxLevel`) e recompensa (XP, cobre e itens). O validador exige que todo nível tenha missões suficientes e que os alvos apareçam em alguma área.
+
+O dia do jogo vira à meia-noite de Brasília e é contado pelo servidor (`game_day()`), nunca pelo relógio do jogador. Na primeira vez do dia (`list_daily_quests`), o servidor sorteia as missões entre as do nível do personagem; elas não mudam até o dia seguinte. O progresso só avança por gatilhos no banco quando `kill_monster` e `collect_node` aceitam um abate ou uma coleta, e `claim_quest` paga uma vez só, na cidade.
+
+O Covil do Dragão é uma área de `content/procedural.json` com `daily: true` e `minLevel: 5`: `start_exploration` grava a entrada do dia e recusa a segunda. Entrar gasta a vez, mesmo sem vencer. O Dragão (`content/creatures.json`) tem `boss: true` (barra de vida no topo) e `scale: 2` (desenho e corpo maiores).
 
 ## Arte
 

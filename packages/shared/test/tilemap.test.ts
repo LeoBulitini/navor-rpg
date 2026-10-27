@@ -66,11 +66,11 @@ describe('cidade', () => {
     expect(content.world.startMap).toBe('city');
   });
 
-  it('tem os seis prédios de serviço do GDD, todos com porta alcançável', () => {
+  it('tem os seis prédios de serviço do GDD e o Armazém, todos com porta alcançável', () => {
     const reach = reachableFrom(city, city.spawn);
     const buildings = city.objects.filter((o) => o.door);
     expect(buildings.map((b) => b.def.name).sort()).toEqual(
-      ['Alquimista', 'Ferreiro', 'Guilda', 'Mercado', 'Salão de Treinamento', 'Taverna'].sort(),
+      ['Alquimista', 'Armazém', 'Ferreiro', 'Guilda', 'Mercado', 'Salão de Treinamento', 'Taverna'].sort(),
     );
     for (const b of buildings) expect(reach.has(`${b.door!.approach.x},${b.door!.approach.y}`), b.def.id).toBe(true);
   });

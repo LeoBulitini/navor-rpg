@@ -101,9 +101,10 @@ export function rollMonsters(config: CreaturesConfig, rng: Rng): MonsterSpawn[] 
 }
 
 /** Recompensa de um abate. É a mesma regra de kill_monster; aqui serve ao modo offline. */
-export function rollKillRewards(creature: CreatureDef, rng: Rng): KillRewards {
+/** `dropMultiplier`: Coleta de Caça e Saque Especializado (1 = sem bônus). Mesma regra de kill_monster. */
+export function rollKillRewards(creature: CreatureDef, rng: Rng, dropMultiplier = 1): KillRewards {
   const drops = creature.drops
-    .filter((d) => rng.next() < d.chance)
+    .filter((d) => rng.next() < Math.min(1, d.chance * dropMultiplier))
     .map((d) => ({ itemId: d.item, quantity: rng.int(d.quantity.min, d.quantity.max) }));
   return { xp: creature.xp, copper: rng.int(creature.copper.min, creature.copper.max), drops };
 }

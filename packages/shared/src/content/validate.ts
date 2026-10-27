@@ -12,6 +12,9 @@ import {
   progressionSchema,
   raritiesSchema,
   recipesSchema,
+  skillsSchema,
+  questsSchema,
+  socialSchema,
   shopsSchema,
   tilesSchema,
   worldSchema,
@@ -27,6 +30,9 @@ import {
   type Progression,
   type Rarities,
   type Recipes,
+  type Skills,
+  type Quests,
+  type Social,
   type Shops,
   type TileDefs,
   type World,
@@ -52,6 +58,9 @@ export interface RawContent {
   shops: unknown;
   equipment: unknown;
   recipes: unknown;
+  skills: unknown;
+  quests: unknown;
+  social: unknown;
   maps: Record<string, unknown>;
 }
 
@@ -70,6 +79,9 @@ export interface Content {
   shops: Shops;
   equipment: Equipment;
   recipes: Recipes;
+  skills: Skills;
+  quests: Quests;
+  social: Social;
   maps: Record<string, AsciiMap>;
 }
 
@@ -226,6 +238,8 @@ export function loadContent(raw: RawContent): Content {
     }
     for (const c of shop.buys.categories) if (!categories.has(c as never)) throw new Error(`${where}: categoria "${c}" não existe`);
   }
+  if (!shops.shops.some((x) => x.playerMarket)) throw new Error('shops.json: nenhum prédio tem o mercado entre jogadores (playerMarket)');
+  if (!shops.shops.some((x) => x.storage)) throw new Error('shops.json: nenhum prédio tem o armazém (storage)');
 
   const equipment = parseWith(equipmentSchema, raw.equipment, 'equipment.json');
   assertUnique(equipment.slots.map((x) => x.id), 'equipment.json (slots)');
@@ -264,6 +278,50 @@ export function loadContent(raw: RawContent): Content {
     }
   }
 
+  const skills = parseWith(skillsSchema, raw.skills, 'skills.json');
+  const classIds = classes.paths.flatMap((x) => x.stages.map((st) => st.classId));
+  for (const id of classIds) if (!skills.classes[id]) throw new Error(`skills.json: falta a classe "${id}"`);
+  for (const id of Object.keys(skills.classes)) if (!classIds.includes(id)) throw new Error(`skills.json: classe "${id}" não existe em classes.json`);
+  const allSkills = Object.values(skills.classes).flatMap((c) => [c.active, ...c.passives]);
+  assertUnique(allSkills.map((x) => x.id), 'skills.json (id das habilidades)');
+  const attackSprites = new Set(Object.values(combat.basicAttacks).map((a) => a.sprite));
+  for (const [classId, c] of Object.entries(skills.classes)) {
+    if (!attackSprites.has(c.active.sprite)) throw new Error(`skills.json: ${classId}.active usa o efeito "${c.active.sprite}", que nenhum ataque básico carrega`);
+    for (const ps of c.passives) {
+      if (ps.effect.values.length !== skills.gradeCosts.length) throw new Error(`skills.json: ${ps.id} precisa de ${skills.gradeCosts.length} valores (um por graduação)`);
+      if (ps.effect.values.some((v, i) => i > 0 && v <= ps.effect.values[i - 1]!)) throw new Error(`skills.json: ${ps.id} precisa crescer a cada graduação`);
+    }
+  }
+  for (const id of skills.focusScrolls) if (id && itemById.get(id)?.category !== 'scroll') throw new Error(`skills.json: "${id}" não é um pergaminho de items.json`);
+  const stageLevels = [...new Set(classes.paths.flatMap((x) => x.stages.map((st) => st.level)).filter((l) => l > 0))].sort((a, b) => a - b);
+  if (JSON.stringify(skills.evolution.map((e) => e.level)) !== JSON.stringify(stageLevels)) {
+    throw new Error(`skills.json: 'evolution' precisa de um custo para cada etapa de classe (${stageLevels.join(', ')})`);
+  }
+
+  const quests = parseWith(questsSchema, raw.quests, 'quests.json');
+  assertUnique(quests.templates.map((x) => x.id), 'quests.json (id)');
+  const spawnable = new Set(procedural.areas.flatMap((a) => a.creatures?.spawn.map((x) => x.creature) ?? []));
+  const gatherable = new Set(procedural.areas.flatMap((a) => a.resources?.items ?? []));
+  for (const t of quests.templates) {
+    const where = `quests.json: ${t.id}`;
+    if (t.kind === 'kill' && !spawnable.has(t.target)) throw new Error(`${where}: "${t.target}" não aparece em nenhuma área (spawn de procedural.json)`);
+    if (t.kind === 'collect' && !gatherable.has(t.target)) throw new Error(`${where}: "${t.target}" não sai de nenhum ponto de coleta de procedural.json`);
+    if (t.maxLevel !== undefined && t.maxLevel < t.minLevel) throw new Error(`${where}: maxLevel menor que minLevel`);
+    for (const r of t.reward.items) if (!itemById.has(r.item) || itemById.get(r.item)!.equip) throw new Error(`${where}: recompensa "${r.item}" não existe ou é equipamento`);
+  }
+  // todo nível precisa ter missões suficientes para o sorteio do dia
+  for (let level = 0; level <= classes.maxLevel; level++) {
+    const n = quests.templates.filter((t) => t.minLevel <= level && (t.maxLevel === undefined || level <= t.maxLevel)).length;
+    if (n < quests.perDay) throw new Error(`quests.json: o nível ${level} só tem ${n} missões (precisa de ${quests.perDay})`);
+  }
+
+  const social = parseWith(socialSchema, raw.social, 'social.json');
+  for (const [label, building] of [['training', social.training.building], ['guilds', social.guilds.building]] as const) {
+    if (!objects.objects.find((o) => o.id === building)?.door) throw new Error(`social.json: ${label}.building "${building}" não é um prédio com porta em objects.json`);
+    if (shops.shops.some((x) => x.building === building)) throw new Error(`social.json: o prédio "${building}" já tem uma loja em shops.json`);
+  }
+  if (social.guilds.nameMin > social.guilds.nameMax || social.guilds.tagMin > social.guilds.tagMax) throw new Error('social.json: guilds com mínimo maior que o máximo');
+
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
 
   // Ponto de chegada num mapa fixo: livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
@@ -283,5 +341,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, maps };
+  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, skills, quests, social, maps };
 }
