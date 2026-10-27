@@ -1,8 +1,9 @@
 // Teste de fumaça no navegador (Chromium via Playwright). Requer `npm run build` antes.
 // Sobe o `vite preview`, entra no modo offline, abre o jogo com ?test e verifica: carregamento na cidade, escala
 // inteira, movimento, diagonal, colisão com prédio e borda, aviso da porta, ida e volta da Gruta gerada por seed
-// e Gruta nova a cada entrada, coleta de recursos e inventário, combate e derrota (modo offline). Uso: npm run smoke
-import { mkdirSync } from 'node:fs';
+// e Gruta nova a cada entrada, coleta de recursos e inventário, combate e derrota, Floresta com animais e baús
+// (modo offline). Uso: npm run smoke
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { preview } from 'vite';
 
@@ -20,6 +21,9 @@ const OUT = join(import.meta.dirname, '..', 'test-results');
 mkdirSync(OUT, { recursive: true });
 
 const WEB = join(import.meta.dirname, '..', 'apps', 'web');
+const readContent = (file) => JSON.parse(readFileSync(join(import.meta.dirname, '..', 'content', file), 'utf8'));
+const CREATURES = readContent('creatures.json').creatures;
+const FOREST = readContent('procedural.json').areas.find((a) => a.id === 'forest');
 let server;
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -78,8 +82,14 @@ try {
   check('velocidade perto de 128 px/s', dx > 45 && dx < 90, `${Math.round(dx)} px em 500 ms`);
 
   const beforeDiag = await p();
-  await hold(['d', 's'], 500);
+  // lê a direção ainda com as duas teclas apertadas: soltar uma antes da outra pode virar o boneco para o sul
+  await page.keyboard.down('d');
+  await page.keyboard.down('s');
+  await page.waitForTimeout(500);
   const afterDiag = await p();
+  await page.keyboard.up('d');
+  await page.keyboard.up('s');
+  await page.waitForTimeout(100);
   const ddx = afterDiag.x - beforeDiag.x;
   const ddy = afterDiag.y - beforeDiag.y;
   const diag = Math.hypot(ddx, ddy);
@@ -185,8 +195,8 @@ try {
   const killed = (await nav(() => window.__navor.monsters())).find((x) => x.index === target.index);
   check('o Projétil Arcano abate o monstro', killed.state === 'dead', `${killed.state}, vida ${killed.hp}`);
   const progress = await nav(() => window.__navor.progress());
-  const xpByCreature = { 'cave-rat': 8, 'goblin-raider': 22 };
-  check('o abate dá o XP do monstro', progress.xp === xpByCreature[target.creatureId], JSON.stringify(progress));
+  const xpOf = (id) => CREATURES.find((c) => c.id === id).xp;
+  check('o abate dá o XP do monstro', progress.xp === xpOf(target.creatureId), JSON.stringify(progress));
   check('levar dano dos monstros não passa da vida máxima', (await nav(() => window.__navor.vitals())).hp <= full.maxHp);
   await nav(() => window.__navor.hurtPlayer(9999));
   check('vida zerada derruba o jogador', await nav(() => window.__navor.dead()));
@@ -198,6 +208,37 @@ try {
   check('volta com vida cheia', revived.hp === revived.maxHp, JSON.stringify(revived));
   check('a derrota não tira XP nem itens', (await nav(() => window.__navor.progress())).xp === progress.xp
     && (await nav(() => window.__navor.inventory()))[first.itemId] >= first.quantity);
+
+  // Floresta (Fase 9): portão leste da cidade, animais que fogem, Esquilos de enfeite, recursos da floresta
+  await nav(() => window.__navor.teleport(37, 23));
+  await hold(['ArrowRight'], 900);
+  await waitForMap('forest').catch(() => {});
+  check('o portão leste leva à Floresta', (await nav(() => window.__navor.mapId)) === 'forest');
+  await page.screenshot({ path: join(OUT, 'floresta.png') });
+  const forestSpawns = new Set(FOREST.creatures.spawn.map((x) => x.creature));
+  const animals = await nav(() => window.__navor.monsters());
+  check('a Floresta tem de 5 a 8 animais, só da Floresta',
+    animals.length >= 5 && animals.length <= 8 && animals.every((a) => forestSpawns.has(a.creatureId)), animals.map((a) => a.creatureId).join(','));
+  const critters = await nav(() => window.__navor.critters());
+  check('a Floresta tem de 2 a 4 Esquilos de enfeite', critters.length >= 2 && critters.length <= 4 && critters.every((c) => c.creatureId === 'squirrel'));
+  const forestNodes = await nav(() => window.__navor.nodes());
+  check('os pontos de coleta dão recursos da Floresta', forestNodes.length >= 8 && forestNodes.every((n) => FOREST.resources.items.includes(n.itemId)));
+  const spider = animals.find((a) => a.creatureId === 'giant-spider');
+  if (spider) check('a Aranha Gigante fica quase invisível de longe', spider.alpha < 1, String(spider.alpha));
+  const shy = animals.find((a) => a.creatureId === 'deer' || a.creatureId === 'rabbit');
+  if (shy) {
+    await nav(([x, y]) => window.__navor.teleport(x, y), [shy.cell.x - 1, shy.cell.y]);
+    await page.waitForTimeout(150);
+    const fleeing = (await nav(() => window.__navor.monsters())).find((a) => a.index === shy.index);
+    await page.waitForTimeout(700);
+    const me = await p();
+    const after = (await nav(() => window.__navor.monsters())).find((a) => a.index === shy.index);
+    check(`o ${shy.creatureId === 'deer' ? 'Cervo' : 'Coelho'} foge do jogador`, fleeing.intent === 'flee'
+      && Math.hypot(after.x - me.x, after.y - me.y) > Math.hypot(shy.x - (shy.cell.x - 1) * T - T / 2, shy.y - shy.cell.y * T - T / 2),
+      `${fleeing.intent}, distância ${Math.round(Math.hypot(after.x - me.x, after.y - me.y))} px`);
+  }
+  await nav(() => window.__navor.hurtPlayer(9999));
+  await waitForMap('city').catch(() => {});
 
   await page.keyboard.press('F3');
   await page.waitForTimeout(200);
@@ -226,6 +267,7 @@ try {
     await pg.waitForTimeout(900);
     await pg.keyboard.up('ArrowDown');
     await pg.waitForFunction(() => window.__navor?.mapId === 'cave', null, { timeout: 5000 });
+    const enteredAt = Date.now();
     await pg.waitForTimeout(400);
     const target = (await ev(() => window.__navor.monsters()))[0];
     const mana0 = (await ev(() => window.__navor.vitals())).mana;
@@ -244,6 +286,23 @@ try {
     check(`${name}: o ataque básico não gasta mana`, (await ev(() => window.__navor.vitals())).mana >= mana0);
     check(`${name}: o abate dá XP`, (await ev(() => window.__navor.progress())).xp > 0);
     await pg.screenshot({ path: join(OUT, `gruta-${classId}.png`) });
+    if (classId === 'warrior') {
+      // Baú (Fase 9): a Gruta sempre tem pelo menos um; abre alguns segundos depois da entrada e dá cobre
+      const chest = (await ev(() => window.__navor.chests()))[0];
+      check('a Gruta tem baú', Boolean(chest));
+      const copper0 = (await ev(() => window.__navor.progress())).copper;
+      await pg.waitForTimeout(Math.max(0, 10500 - (Date.now() - enteredAt)));
+      await ev(() => window.__navor.heal());
+      await ev(([x, y]) => window.__navor.teleport(x, y), [chest.x, chest.y]);
+      await pg.waitForTimeout(150);
+      check('perto do baú aparece "E: abrir o baú"', (await ev(() => window.__navor.collectPrompt())) === 'E: abrir o baú');
+      await pg.keyboard.press('e');
+      await pg.waitForTimeout(400);
+      const opened = (await ev(() => window.__navor.chests())).find((c) => c.index === chest.index);
+      const copper1 = (await ev(() => window.__navor.progress())).copper;
+      check('o baú abre e dá cobre', opened.state === 'open' && copper1 >= copper0 + 3, `${opened.state}, cobre ${copper0} -> ${copper1}`);
+      await pg.screenshot({ path: join(OUT, 'gruta-bau.png') });
+    }
     await pg.close();
   }
 

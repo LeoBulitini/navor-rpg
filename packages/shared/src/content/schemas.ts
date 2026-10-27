@@ -149,6 +149,27 @@ export const creaturesConfigSchema = z.object({
   /** distância mínima (em tiles) da entrada, da saída e do nascimento */
   clearance: z.number().int().min(0),
   spawn: z.array(z.object({ creature: z.string().min(1), weight: z.number().int().positive() })).min(1),
+  /** Bichos só de enfeite (ex.: Esquilo): o navegador cria a partir da seed; o servidor não sabe deles. */
+  decor: z.array(z.object({ creature: z.string().min(1), count: range })).default([]),
+});
+
+/** Baús de uma área (GDD 7.2). O servidor sorteia o conteúdo ao abrir; o cliente só posiciona. */
+export const chestsConfigSchema = z.object({
+  count: range,
+  /** distância mínima (em tiles) da entrada, da saída e do nascimento */
+  clearance: z.number().int().min(0),
+  copper: range,
+  /** chance de vir 1 moeda de ouro (GDD 11: muito difícil, mas não impossível) */
+  goldChance: z.number().min(0).max(1),
+  items: z.array(
+    z.object({
+      item: z.string().min(1),
+      chance: z.number().gt(0).max(1),
+      quantity: range.refine((r) => r.min >= 1, 'quantidade mínima é 1'),
+    }),
+  ),
+  /** o servidor recusa abrir baús antes disso (contra entrar e sair só para abrir baús) */
+  minSecondsAfterStart: z.number().int().min(0),
 });
 
 export const damageTypeSchema = z.enum(['physical', 'magical']);
@@ -173,6 +194,14 @@ export const creaturesSchema = z.object({
         detectTiles: z.number().positive(),
         attackRangeTiles: z.number().positive(),
         attackCooldownMs: z.number().int().positive(),
+        /** hostile: persegue e ataca; flee: dócil, foge do jogador (GDD 8.1) */
+        behavior: z.enum(['hostile', 'flee']).default('hostile'),
+        /** deep: aparece só na metade mais distante da entrada (Esqueleto Antigo, GDD 8.2) */
+        placement: z.enum(['any', 'deep']).default('any'),
+        /** quase invisível até o jogador chegar perto (Aranha Gigante, GDD 8.1) */
+        hidden: z.boolean().default(false),
+        /** só enfeite: não pode ser atacado e não dá nada (Esquilo, GDD 8.1) */
+        decorative: z.boolean().default(false),
         xp: z.number().int().min(0),
         copper: range,
         drops: z.array(
@@ -262,6 +291,7 @@ export const caveConfigSchema = z.object({
   returnTo: z.object({ map: z.string().min(1), arriveAt: gridPoint }),
   resources: resourcesConfigSchema.optional(),
   creatures: creaturesConfigSchema.optional(),
+  chests: chestsConfigSchema.optional(),
 });
 export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
 
@@ -276,6 +306,7 @@ export type ObjectDef = ObjectDefs['objects'][number];
 export type World = z.infer<typeof worldSchema>;
 export type CaveConfig = z.infer<typeof caveConfigSchema>;
 export type Procedural = z.infer<typeof proceduralSchema>;
+export type ChestsConfig = z.infer<typeof chestsConfigSchema>;
 export type Items = z.infer<typeof itemsSchema>;
 export type ItemDef = Items['items'][number];
 export type ResourcesConfig = z.infer<typeof resourcesConfigSchema>;

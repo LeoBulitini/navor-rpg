@@ -5,6 +5,8 @@ export interface StartedExploration {
   seed: number;
   nodes: { index: number; item_id: string; quantity: number }[];
   monsters: { index: number; creature_id: string }[];
+  /** quantos baús a entrada tem (o conteúdo só é sorteado ao abrir) */
+  chests: number;
 }
 
 export interface CollectedNode {
@@ -66,4 +68,21 @@ export async function killMonster(explorationId: string, monsterIndex: number): 
 export async function endExploration(explorationId: string): Promise<void> {
   const { error } = await client().rpc('end_exploration', { p_exploration_id: explorationId });
   if (error) throw error;
+}
+
+export interface OpenedChest {
+  /** false quando o baú já tinha sido aberto: nada foi somado de novo */
+  opened: boolean;
+  copper_gained: number;
+  copper: number;
+  gold_gained: number;
+  gold: number;
+  drops: { item_id: string; quantity: number; total: number }[];
+}
+
+/** Abre um baú (função open_chest): o servidor sorteia cobre, itens e, raramente, ouro. */
+export async function openChest(explorationId: string, chestIndex: number): Promise<OpenedChest> {
+  const { data, error } = await client().rpc('open_chest', { p_exploration_id: explorationId, p_chest_index: chestIndex });
+  if (error) throw error;
+  return data as OpenedChest;
 }

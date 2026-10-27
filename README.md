@@ -3,12 +3,13 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 7, protótipo do MVP P1 fechado.** Login por e-mail e senha (Supabase), criação e seleção de
-personagem Mago protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função,
-mostram "em breve" na porta) e um portão que leva à Gruta. A cada entrada o servidor sorteia a seed da Gruta, o conteúdo
-dos pontos de coleta e os monstros. O jogador coleta com **E**, vê o inventário com **I** e ataca com **Espaço**.
-O servidor confere cada coleta e cada abate e grava inventário, XP, nível e cobre; repetir não duplica nada. Ao cair,
-o jogador volta à cidade. Sem backend configurado, o jogo abre em modo offline (nada é salvo).
+**Estado atual: Fase 9.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
+Arqueiro) protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função, mostram
+"em breve" na porta), um portão sul que leva à Gruta e um portão leste que leva à Floresta. A cada entrada o servidor
+sorteia a seed da área, o conteúdo dos pontos de coleta, os monstros ou animais e quantos baús há. O jogador coleta e
+abre baús com **E**, vê o inventário com **I** e ataca com **Espaço**. O servidor confere cada coleta, abate e baú e
+grava inventário, XP, nível, cobre e ouro; repetir não duplica nada. Ao cair, o jogador volta à cidade. Sem backend
+configurado, o jogo abre em modo offline (nada é salvo).
 Há um app Windows de teste (Tauri) que abre o mesmo jogo ligado ao mesmo Supabase; veja "App Windows" abaixo.
 O que cada critério de aceitação do GDD tem como evidência está em [docs/mvp-p1.md](docs/mvp-p1.md).
 
@@ -105,7 +106,7 @@ Os mapas fixos ficam em `content/maps/` (hoje só `city.json`, a cidade). Cada m
 
 - `rows`: uma linha de texto por fileira de tiles. A legenda está em `content/tiles.json`: `.` grama, `,` terra, `=` calçada, `*` flores, `#` muro, `T` arbusto, `R` rocha, `~` água e `|` cerca. `P` é o ponto de nascimento.
 - `objects`: prédios e decoração de `content/objects.json` (`ref`), pelo canto superior esquerdo do sprite, em tiles.
-- `exits`: retângulos (em tiles) que levam a outro mapa (`to`). `arriveAt` é a célula onde o jogador aparece lá (não se usa quando o destino é gerado, como a Gruta).
+- `exits`: retângulos (em tiles) que levam a outro mapa (`to`). `arriveAt` é a célula onde o jogador aparece lá (não se usa quando o destino é gerado, como a Gruta e a Floresta).
 
 O mapa inicial é o de `content/world.json`. `npm run content:check` (também roda no build) recusa o mapa e aponta o erro se:
 
@@ -116,15 +117,15 @@ O mapa inicial é o de `content/world.json`. `npm run content:check` (também ro
 - o nascimento, uma porta ou uma saída ficar inalcançável;
 - um `arriveAt` cair em lugar bloqueado ou dentro de outra saída.
 
-### Gruta (gerada por seed)
+### Gruta e Floresta (geradas por seed)
 
-Os parâmetros ficam em `content/procedural.json` (tamanho, número e tamanho das salas, largura dos corredores, atalhos, rochas e para onde as saídas levam); são valores provisórios.
+Os parâmetros de cada área ficam em `content/procedural.json` (tamanho, número e tamanho das salas, largura dos corredores, atalhos, rochas e para onde as saídas levam); são valores provisórios.
 O gerador (`packages/shared/src/procgen/cave.ts`) monta salas, liga todas por corredores (mais alguns atalhos que criam desvios), abre a entrada no topo e a saída embaixo, e valida antes de mostrar: tamanho, número de salas, todas as salas alcançáveis e caminho da entrada até a saída. Se uma seed não servir, tenta a seguinte.
-A mesma seed sempre gera a mesma Gruta; no jogo, a seed aparece no canto da tela. No modo offline, `?seed=123` na URL fixa uma seed para testar (online, quem escolhe a seed é o servidor).
+A Floresta usa o mesmo gerador com outros tiles: as salas viram clareiras e as paredes, mata fechada. A mesma seed sempre gera o mesmo mapa; no jogo, a seed aparece no canto da tela. No modo offline, `?seed=123` na URL fixa uma seed para testar (online, quem escolhe a seed é o servidor).
 
 ### Coleta e inventário
 
-Os itens ficam em `content/items.json` (todos os do GDD, com raridade e ícone). Em `content/procedural.json`, o bloco `resources` da Gruta define quantos pontos de coleta aparecem, quais itens podem sair, o peso de cada raridade e a faixa de quantidade. São valores provisórios.
+Os itens ficam em `content/items.json` (todos os do GDD, com raridade e ícone). Em `content/procedural.json`, o bloco `resources` de cada área define quantos pontos de coleta aparecem, quais itens podem sair, o peso de cada raridade e a faixa de quantidade. São valores provisórios.
 
 Ao entrar na Gruta, o jogo chama a função `start_exploration` do banco. Ela sorteia a seed e o conteúdo de cada ponto, encerra a exploração anterior do personagem e devolve tudo. O navegador gera o mapa e posiciona os pontos a partir da seed (`packages/shared/src/procgen/resources.ts`). A posição é só visual: o que vale (item e quantidade) fica no servidor. A tecla **E** chama `collect_node`, que confere dono, prazo (30 minutos), intervalo mínimo entre coletas e se o ponto já foi coletado, e soma o item no inventário na mesma transação.
 
@@ -138,7 +139,13 @@ Espaço dispara o Projétil Arcano para onde o Mago está virado. Os números fi
 
 Ao entrar na Gruta, o servidor sorteia quais monstros existem; o navegador os posiciona pela seed e roda o combate. Ao abater um, o jogo chama `kill_monster`: o servidor confere a entrada, se o monstro ainda está vivo e se o ritmo de abates é possível para o nível, e então sorteia cobre e itens e grava XP e nível. Vida e mana ficam só no navegador. Ao cair, `end_exploration` encerra a entrada e o jogador volta à praça com vida cheia, sem perder nada do que já tinha.
 
+Na Floresta, `behavior` em `creatures.json` diz quem foge (Cervo, Coelho) e quem ataca (Lobo, Javali, Urso, Aranha). A Aranha (`hidden`) fica quase invisível até perceber o jogador; o Esqueleto Antigo (`placement: deep`) só aparece no fundo da Gruta. Esquilos (`decorative`) são só enfeite: ficam no bloco `decor` da área, saem da seed e o servidor não sabe deles.
+
 Depois de mudar monstros, curva de XP ou o teto de dano, rode `npm run db:content` (o banco guarda uma cópia).
+
+### Baús
+
+O bloco `chests` de cada área, em `content/procedural.json`, define quantos baús aparecem, a faixa de cobre, a chance da moeda de ouro e os itens possíveis. O servidor decide quantos baús a entrada tem; o navegador os põe no fundo da área pela seed. A tecla **E** perto de um baú chama `open_chest`, que confere dono e prazo, recusa abrir nos primeiros segundos da entrada (`minSecondsAfterStart`, contra entrar e sair só para abrir baús) e então sorteia e grava cobre, itens e, raramente, 1 moeda de ouro. Abrir de novo não dá nada.
 
 ## Arte
 
@@ -161,18 +168,18 @@ Quando houver quadros de caminhada, basta deixar os PNGs mais largos (2, 3, 4...
 
 ### Cidade (arte provisória)
 
-O tileset (`apps/web/public/assets/city/terrain.png`, com os tiles da cidade e da Gruta) e os objetos (`apps/web/public/assets/city/objects/*.png`) foram desenhados por código em `tools/art/city_art.py`. Para trocar pela arte definitiva:
+O tileset (`apps/web/public/assets/city/terrain.png`, com os tiles da cidade, da Gruta e da Floresta) e os objetos (`apps/web/public/assets/city/objects/*.png`) foram desenhados por código em `tools/art/city_art.py`. Para trocar pela arte definitiva:
 
 - **Tileset**: uma fileira de tiles 32×32 na ordem do `index` de `content/tiles.json`.
 - **Prédios e decoração**: um PNG por `sprite` de `content/objects.json`, com o `width`/`height` definidos lá. Se o tamanho mudar, ajuste também `collider` e `door`.
 
 ### Ícones dos itens (arte provisória)
 
-Um PNG 32×32 por `icon` de `content/items.json`, em `apps/web/public/assets/items/`, desenhados por código em `tools/art/item_art.py`. O mesmo ícone aparece no chão da Gruta e no inventário. Itens sem ícone usam `unknown.png`. Para trocar, substitua o PNG mantendo o nome e o tamanho.
+Um PNG 32×32 por `icon` de `content/items.json`, em `apps/web/public/assets/items/`, desenhados por código em `tools/art/item_art.py`. O mesmo ícone aparece no chão das áreas e no inventário. Itens sem ícone usam `unknown.png`. Para trocar, substitua o PNG mantendo o nome e o tamanho.
 
-### Monstros e efeitos (arte provisória)
+### Monstros, animais, baú e efeitos (arte provisória)
 
-Um PNG por `sprite` de `content/creatures.json`, em `apps/web/public/assets/creatures/`: tira horizontal de quadros 32×32 (quadro 0 parado, os demais formam o andar), desenhada virada para a direita (o jogo espelha). O projétil fica em `apps/web/public/assets/effects/`. Desenhados por código em `tools/art/creature_art.py`; para trocar, substitua mantendo nome e altura.
+Um PNG por `sprite` de `content/creatures.json`, em `apps/web/public/assets/creatures/`: tira horizontal de quadros 32×32 (quadro 0 parado, os demais formam o andar), desenhada virada para a direita (o jogo espelha). Os efeitos de ataque e o baú (fechado e aberto) ficam em `apps/web/public/assets/effects/`. Desenhados por código em `tools/art/creature_art.py`; para trocar, substitua mantendo nome e altura.
 
 `npm test` confere tamanhos e a existência de todos os arquivos.
 

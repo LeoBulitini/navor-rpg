@@ -4,6 +4,8 @@ import {
   creatureById,
   levelForXp,
   levelThresholds,
+  rollChestContents,
+  rollChestCount,
   rollKillRewards,
   rollMonsters,
   rollResourceNodes,
@@ -12,9 +14,9 @@ import {
 } from '@navor/shared';
 import { content } from '../content.ts';
 import type { PlaySession } from '../menu/menu.ts';
-import { collectNode, endExploration, killMonster, listInventory, startExploration } from '../services/exploration.ts';
+import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
-/** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá e quais monstros há. */
+/** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
 export interface ExplorationRun {
   /** id no servidor; null no modo offline */
   id: string | null;
@@ -22,6 +24,7 @@ export interface ExplorationRun {
   seed: number;
   nodes: NodeContent[];
   monsters: MonsterSpawn[];
+  chests: number;
 }
 
 export interface CollectResult {
@@ -43,11 +46,21 @@ export interface KillResult {
   drops: { itemId: string; quantity: number; total: number }[];
 }
 
-/** XP, nível e cobre do personagem, como o servidor gravou. */
+export interface ChestResult {
+  opened: boolean;
+  copperGained: number;
+  copper: number;
+  goldGained: number;
+  gold: number;
+  drops: { itemId: string; quantity: number; total: number }[];
+}
+
+/** XP, nível, cobre e ouro do personagem, como o servidor gravou. */
 export interface ProgressState {
   level: number;
   xp: number;
   copper: number;
+  gold: number;
 }
 
 /**
@@ -59,6 +72,7 @@ export interface GameBackend {
   startExploration(areaId: string): Promise<ExplorationRun>;
   collect(run: ExplorationRun, nodeIndex: number): Promise<CollectResult>;
   killMonster(run: ExplorationRun, monsterIndex: number): Promise<KillResult>;
+  openChest(run: ExplorationRun, chestIndex: number): Promise<ChestResult>;
   /** Morte: encerra a entrada no servidor. */
   endExploration(run: ExplorationRun): Promise<void>;
   loadInventory(): Promise<Map<string, number>>;
@@ -76,6 +90,7 @@ class OnlineBackend implements GameBackend {
       seed: Number(r.seed),
       nodes: r.nodes.map((n) => ({ index: n.index, itemId: n.item_id, quantity: n.quantity })),
       monsters: (r.monsters ?? []).map((m) => ({ index: m.index, creatureId: m.creature_id })),
+      chests: Number(r.chests ?? 0),
     };
   }
 
@@ -99,6 +114,18 @@ class OnlineBackend implements GameBackend {
     };
   }
 
+  async openChest(run: ExplorationRun, chestIndex: number): Promise<ChestResult> {
+    const r = await openChest(run.id!, chestIndex);
+    return {
+      opened: r.opened,
+      copperGained: r.copper_gained,
+      copper: Number(r.copper),
+      goldGained: r.gold_gained,
+      gold: Number(r.gold),
+      drops: (r.drops ?? []).map((d) => ({ itemId: d.item_id, quantity: d.quantity, total: Number(d.total) })),
+    };
+  }
+
   async endExploration(run: ExplorationRun): Promise<void> {
     await endExploration(run.id!);
   }
@@ -114,7 +141,9 @@ class OfflineBackend implements GameBackend {
   private readonly inventory = new Map<string, number>();
   private readonly collected = new Set<string>();
   private readonly killed = new Set<string>();
-  private readonly progress: ProgressState = { level: 0, xp: 0, copper: 0 };
+  private readonly opened = new Set<string>();
+  private readonly startedAt = new Map<string, number>();
+  private readonly progress: ProgressState = { level: 0, xp: 0, copper: 0, gold: 0 };
   private readonly thresholds = levelThresholds(content.progression.xpCurve, content.classes.maxLevel);
   private readonly rng = createRng(crypto.getRandomValues(new Uint32Array(1))[0]!);
   private runs = 0;
@@ -128,8 +157,11 @@ class OfflineBackend implements GameBackend {
     const rng = createRng(seed);
     const nodes = area.resources ? rollResourceNodes(area.resources, content.items, rng) : [];
     const monsters = area.creatures ? rollMonsters(area.creatures, rng) : [];
+    const chests = area.chests ? rollChestCount(area.chests, rng) : 0;
     this.runs++;
-    return { id: `offline-${this.runs}`, areaId, seed, nodes, monsters };
+    const id = `offline-${this.runs}`;
+    this.startedAt.set(id, performance.now());
+    return { id, areaId, seed, nodes, monsters, chests };
   }
 
   async collect(run: ExplorationRun, nodeIndex: number): Promise<CollectResult> {
@@ -166,6 +198,28 @@ class OfflineBackend implements GameBackend {
     return { killed: true, creatureId: monster.creatureId, xpGained: reward.xp, xp: p.xp, level: p.level, leveledUp: p.level > before, copperGained: reward.copper, copper: p.copper, drops };
   }
 
+  async openChest(run: ExplorationRun, chestIndex: number): Promise<ChestResult> {
+    const config = content.procedural.areas.find((a) => a.id === run.areaId)?.chests;
+    if (!config || chestIndex < 0 || chestIndex >= run.chests) throw new Error('Baú inválido');
+    const key = `${run.id}:${chestIndex}`;
+    const p = this.progress;
+    if (this.opened.has(key)) return { opened: false, copperGained: 0, copper: p.copper, goldGained: 0, gold: p.gold, drops: [] };
+    // mesma regra de open_chest: o baú só abre alguns segundos depois da entrada
+    if (performance.now() - (this.startedAt.get(run.id!) ?? 0) < config.minSecondsAfterStart * 1000) {
+      throw new Error('O baú está emperrado. Tente de novo em alguns segundos.');
+    }
+    this.opened.add(key);
+    const got = rollChestContents(config, this.rng);
+    p.copper += got.copper;
+    p.gold += got.gold;
+    const drops = got.drops.map((d) => {
+      const total = (this.inventory.get(d.itemId) ?? 0) + d.quantity;
+      this.inventory.set(d.itemId, total);
+      return { ...d, total };
+    });
+    return { opened: true, copperGained: got.copper, copper: p.copper, goldGained: got.gold, gold: p.gold, drops };
+  }
+
   async endExploration(): Promise<void> {}
 
   async loadInventory(): Promise<Map<string, number>> {
@@ -197,7 +251,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
 
 export const getInventory = (scene: Phaser.Scene): Inventory | undefined => scene.registry.get('inventory') as Inventory | undefined;
 
-/** XP, nível e cobre em memória, sempre iguais ao último valor que o servidor devolveu. */
+/** XP, nível, cobre e ouro em memória, sempre iguais ao último valor que o servidor devolveu. */
 export class Progress extends Phaser.Events.EventEmitter {
   constructor(public state: ProgressState) {
     super();
@@ -210,9 +264,9 @@ export class Progress extends Phaser.Events.EventEmitter {
 }
 
 export function initialProgress(session: PlaySession): ProgressState {
-  if (session.mode !== 'online') return { level: 0, xp: 0, copper: 0 };
+  if (session.mode !== 'online') return { level: 0, xp: 0, copper: 0, gold: 0 };
   const c = session.character;
-  return { level: c.level, xp: Number(c.xp), copper: Number(c.copper) };
+  return { level: c.level, xp: Number(c.xp), copper: Number(c.copper), gold: Number(c.gold) };
 }
 
 export const getProgress = (scene: Phaser.Scene): Progress => scene.registry.get('progress') as Progress;

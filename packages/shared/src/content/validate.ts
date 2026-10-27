@@ -27,6 +27,7 @@ import {
 } from './schemas.ts';
 import { exitAt, isWalkable, parseAsciiMap, reachableFrom, type GridPoint, type ParsedMap } from '../map/tilemap.ts';
 import { generateCave } from '../procgen/cave.ts';
+import { placeChests } from '../procgen/chests.ts';
 import { placeResourceNodes } from '../procgen/resources.ts';
 import { placeMonsters } from '../procgen/creatures.ts';
 
@@ -176,9 +177,27 @@ export function loadContent(raw: RawContent): Content {
       for (const x of cr.spawn) {
         if (!creatureIds.has(x.creature)) throw new Error(`${where}: monstro "${x.creature}" não existe em creatures.json`);
       }
-      const map = parseAsciiMap(sample.map, tiles);
-      const nodes = res ? placeResourceNodes(map, sample.seed, res.nodes.max, res) : [];
-      placeMonsters(map, sample.seed, cr.count.max, cr, nodes);
+      const isDecor = new Map(creatures.creatures.map((c) => [c.id, c.decorative]));
+      for (const x of cr.spawn) {
+        if (isDecor.get(x.creature)) throw new Error(`${where}: "${x.creature}" é decorativo; ponha-o em 'decor', não em 'spawn'`);
+      }
+      for (const x of cr.decor) {
+        if (!creatureIds.has(x.creature)) throw new Error(`${where}.decor: "${x.creature}" não existe em creatures.json`);
+        if (!isDecor.get(x.creature)) throw new Error(`${where}.decor: "${x.creature}" precisa de "decorative": true`);
+      }
+    }
+    // O pior caso (máximo de pontos, de monstros, todos no fundo, e de baús) precisa caber no mapa de amostra.
+    const map = parseAsciiMap(sample.map, tiles);
+    const nodes = res ? placeResourceNodes(map, sample.seed, res.nodes.max, res) : [];
+    const monsters = cr ? placeMonsters(map, sample.seed, cr.count.max, cr, nodes, () => true) : [];
+    const ch = area.chests;
+    if (ch) {
+      const where = `procedural.json: ${area.id}.chests`;
+      assertUnique(ch.items.map((x) => x.item), `${where}.items`);
+      for (const x of ch.items) {
+        if (!itemById.has(x.item)) throw new Error(`${where}: item "${x.item}" não existe em items.json`);
+      }
+      placeChests(map, sample.seed, ch.count.max, ch, [...nodes, ...monsters]);
     }
   }
 

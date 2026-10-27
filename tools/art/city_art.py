@@ -566,6 +566,88 @@ def cave_light(from_top):
     return t
 
 
+# ---------------- floresta ----------------
+
+def forest_floor(seed):
+    """Chão da floresta: grama mais escura, folhas caídas e manchas de terra."""
+    rng = random.Random(seed)
+    t = Img(T, T)
+    speckle(t, 0, 0, T, T, P['g1'], [(P['g0'], 60), (P['g2'], 40)], rng)
+    for _ in range(3):
+        cx, cy = rng.randrange(T), rng.randrange(T)
+        for _ in range(10):
+            t.px((cx + rng.randrange(-3, 4)) % T, (cy + rng.randrange(-2, 3)) % T, P['d1'])
+    for _ in range(7):  # folhas caídas
+        x, y = rng.randrange(1, T - 1), rng.randrange(1, T - 1)
+        c = rng.choice([P['k3'], P['k4'], P['y'], P['g3']])
+        t.px(x, y, c); t.px(x + 1, y, c)
+    return t
+
+
+def forest_wall(seed):
+    """Mata fechada vista de cima: copas sobrepostas, escuras nas bordas, com luz no topo esquerdo."""
+    rng = random.Random(seed)
+    t = Img(T, T)
+    t.rect(0, 0, T, T, P['g0'])
+    for _ in range(9):
+        cx, cy, r = rng.randrange(-4, T + 4), rng.randrange(-4, T + 4), rng.randrange(7, 12)
+        for y in range(cy - r, cy + r + 1):
+            for x in range(cx - r, cx + r + 1):
+                e = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r)
+                if e <= 1 and 0 <= x < T and 0 <= y < T:
+                    d = (x - cx) + (y - cy)
+                    c = P['g3'] if d < -r // 2 else P['g2'] if d < r // 3 else P['g1']
+                    if e > 0.85:
+                        c = P['g0']
+                    t.px(x, y, c)
+    for _ in range(14):
+        x, y = rng.randrange(T - 1), rng.randrange(T - 1)
+        t.px(x, y, P['g4']); t.px(x + 1, y + 1, P['g0'])
+    return t
+
+
+def forest_bush():
+    """Arbusto de frutinhas sobre o chão da floresta (sólido)."""
+    t = forest_floor(401)
+    for y in range(T):
+        for x in range(T):
+            if ((x - 16) / 11) ** 2 + ((y - 26) / 3) ** 2 <= 1:
+                t.px(x, y, P['sh'])
+    rng = random.Random(402)
+    blobs = [(16, 15, 9), (9, 19, 6), (23, 19, 6)]
+
+    def inside(x, y, g=0):
+        return any((x - bx) ** 2 + (y - by) ** 2 <= (r + g) ** 2 for bx, by, r in blobs)
+
+    for y in range(T):
+        for x in range(T):
+            if inside(x, y, 1) and not inside(x, y):
+                t.px(x, y, P['ol'])
+            elif inside(x, y):
+                d = (x - 8) + (y - 8)
+                t.px(x, y, P['gr3'] if d < 8 else P['gr2'] if d < 20 else P['gr1'])
+    for _ in range(9):
+        x, y = rng.randrange(6, 26), rng.randrange(8, 24)
+        if inside(x, y):
+            t.px(x, y, P['f2']); t.px(x + 1, y, P['r2'])
+    return t
+
+
+def forest_light(from_top):
+    """Trilha clara onde a mata se abre (entrada em cima, saída embaixo)."""
+    t = forest_floor(403 if from_top else 404)
+    rng = random.Random(405)
+    for _ in range(80):
+        t.px(rng.randrange(T), rng.randrange(T), P['d2'])
+    for y in range(T):
+        k = (T - y) / T if from_top else y / T
+        a = int(90 * k * k)
+        for x in range(T):
+            if a > 0:
+                t.px(x, y, P['light'][:3] + (a,))
+    return t
+
+
 BUILDINGS = {
     'market': dict(w_tiles=6, roof='gr', wall='wood', door='double', icon='coin', awning=('r3', 'f1')),
     'tavern': dict(w_tiles=6, roof='r', wall='mixed', door='double', icon='mug', chimney=True, lit=True),
@@ -598,6 +680,13 @@ TERRAIN = [
     ('cave-down', lambda: cave_light(False)),
     ('cave-floor-b', lambda: cave_floor(13)),
     ('cave-wall-b', lambda: cave_wall(14)),
+    ('forest-floor', lambda: forest_floor(15)),
+    ('forest-wall', lambda: forest_wall(16)),
+    ('forest-bush', forest_bush),
+    ('forest-in', lambda: forest_light(True)),
+    ('forest-out', lambda: forest_light(False)),
+    ('forest-floor-b', lambda: forest_floor(17)),
+    ('forest-wall-b', lambda: forest_wall(18)),
 ]
 
 

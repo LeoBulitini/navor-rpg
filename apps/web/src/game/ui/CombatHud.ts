@@ -12,7 +12,7 @@ const BAR_W = 90;
 const BAR_H = 6;
 const DEPTH = 10000;
 
-/** Barras de vida, mana e XP no canto superior esquerdo, com nível e cobre. */
+/** Barras de vida, mana e XP no canto superior esquerdo, com nível, cobre e ouro. */
 export class CombatHud {
   private readonly g: Phaser.GameObjects.Graphics;
   private readonly label: Phaser.GameObjects.Text;
@@ -34,7 +34,7 @@ export class CombatHud {
     this.bar(1, v.mana / v.maxMana, 0x3b82f6);
     this.bar(2, xpFrac, 0xeab308);
     this.label.setText(
-      `Nv ${progress.level}   Vida ${Math.ceil(v.hp)}/${v.maxHp}   Mana ${Math.floor(v.mana)}/${v.maxMana}   Cobre ${progress.copper}`,
+      `Nv ${progress.level}   Vida ${Math.ceil(v.hp)}/${v.maxHp}   Mana ${Math.floor(v.mana)}/${v.maxMana}   Cobre ${progress.copper}   Ouro ${progress.gold}`,
     );
   }
 

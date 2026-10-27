@@ -5,6 +5,7 @@ import {
   characterSpritePath,
   creatureSpritePath,
   effectSpritePath,
+  effectSprites,
   itemIconPath,
   itemIcons,
   objectSpritePath,
@@ -45,9 +46,7 @@ export class PreloadScene extends Phaser.Scene {
     for (const sprite of new Set(content.creatures.creatures.map((c) => c.sprite))) {
       this.load.spritesheet(TextureKeys.creature(sprite), creatureSpritePath(sprite), { frameWidth: cw, frameHeight: ch });
     }
-    for (const attack of Object.values(content.combat.basicAttacks)) {
-      this.load.image(TextureKeys.effect(attack.sprite), effectSpritePath(attack.sprite));
-    }
+    for (const sprite of effectSprites()) this.load.image(TextureKeys.effect(sprite), effectSpritePath(sprite));
     const classId = sessionClassId(this);
     const { frameWidth, frameHeight } = assets.characters;
     for (const facing of FACINGS) {

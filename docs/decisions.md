@@ -62,6 +62,17 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | Acerto = 85% + 0,5% por ponto de Precisão (máximo 100%); errar mostra "Errou". Monstros têm Defesa Física e Mágica separadas e golpe físico | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Velocidade do Arqueiro 4,25 tiles/s; Mago e Guerreiro 4 | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | No modo offline dá para escolher qualquer classe inicial | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Fase 9: Floresta com o mesmo gerador da Gruta (salas viram clareiras, paredes viram mata fechada), 32×32 tiles, 5 a 7 clareiras; portão no lado leste da cidade | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Pontos de coleta da Floresta: Madeira Comum, Frutas Silvestres, Ervas Medicinais, Madeira Resistente, Flor Azul e Madeira Ancestral (70% comum, 25% incomum, 5% raro). Couro, presas e peles vêm só dos animais | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Animais da Floresta, 5 a 8 por entrada: Cervo (foge, vida 30, Carne e Couro Simples) e Coelho (foge, vida 10, Carne e Pele de Coelho) não atacam; Lobo (vida 40, ataque 9), Javali Selvagem (vida 55, ataque 11, rápido), Aranha Gigante (vida 45, ataque 10, escondida) e Urso (vida 140, ataque 18, 5% das vezes) atacam | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Animais dóceis fogem enquanto o jogador está a até 3,5–4 tiles e depois param onde estão; podem ser abatidos (dão XP e drops) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Aranha Gigante fica com 20% de opacidade até perseguir ou atacar o jogador | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Esquilos (2 a 4 por Floresta) são só enfeite: fogem, não podem ser atacados, não dão nada e não existem no servidor | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Itens novos soltos pelos animais: Carne, Pele de Coelho, Presas de Lobo, Pele de Urso, Presas de Urso, Veneno e Seda de Aranha (Pele de Lobo, Couro Simples e Presas de Javali já estavam no GDD) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Gruta: Morcego (vida 14, ataque 4, rápido, recarga 0,6 s) e Esqueleto Antigo (vida 85, ataque 13, defesa física 5, só na metade mais distante da entrada); sorteio 45% Rato, 25% Morcego, 20% Goblin, 10% Esqueleto. O Morcego não atravessa paredes | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Baús: Gruta com 1 a 2 (3 a 15 de cobre, 25% Pergaminho Simples, 6% Pergaminho Aprimorado, 2% de 1 moeda de ouro); Floresta com 0 a 1 (2 a 10 de cobre, 20% Pergaminho Simples, 1% de ouro). Sempre no fundo da área. Só abrem 10 s depois da entrada | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Moeda de ouro já é gravada no personagem (vem dos baús); conversão com cobre e uso ficam para a Fase 10 | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Mensagens de exploração encerrada dizem "Entre na área de novo" (não citam mais só a Gruta) | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 
