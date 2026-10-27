@@ -7,6 +7,7 @@ try {
   console.log(
     `content/ OK: ${content.rarities.rarities.length} raridades, ` +
       `${content.classes.paths.length} caminhos de classe, ${content.tiles.tiles.length} tiles, ` +
+      `${content.objects.objects.length} objetos, ` +
       `${Object.keys(content.maps).length} mapa(s).`,
   );
 } catch (err) {

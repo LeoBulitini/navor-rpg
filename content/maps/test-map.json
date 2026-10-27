@@ -1,7 +1,7 @@
 {
-  "$comment": "Mapa de teste da Fase 1 (feito à mão). 'P' marca o ponto de nascimento e é desenhado como o tile 'spawnTile'.",
+  "$comment": "Mapa de teste feito à mão; vira a Gruta procedural na Fase 4. 'P' marca o ponto de nascimento padrão e é desenhado como 'spawnTile'. A saída no sul volta para a cidade.",
   "id": "test-map",
-  "name": "Campo de testes",
+  "name": "Área de exploração (teste)",
   "spawnChar": "P",
   "spawnTile": "path",
   "rows": [
@@ -25,8 +25,22 @@
     "#.................TT...........#",
     "#..............................#",
     "#..R.........~~~~~~............#",
-    "#............~~~~~~.......T....#",
-    "#..............................#",
-    "################################"
+    "#........,,..~~~~~~.......T....#",
+    "#........,,....................#",
+    "#########,,#####################"
+  ],
+  "exits": [
+    {
+      "x": 9,
+      "y": 22,
+      "w": 2,
+      "h": 1,
+      "to": "city",
+      "arriveAt": {
+        "x": 19,
+        "y": 27
+      },
+      "label": "Voltar para a cidade"
+    }
   ]
 }

@@ -8,7 +8,13 @@ export const assets = manifest;
 export const TextureKeys = {
   tileset: 'tileset',
   character: (classId: string, facing: Facing) => `character:${classId}:${facing}`,
+  object: (sprite: string) => `object:${sprite}`,
 } as const;
+
+/** PNG de um objeto (prédio, árvore...) pelo 'sprite' de content/objects.json. */
+export function objectSpritePath(sprite: string): string {
+  return `${manifest.objects.path}/${sprite}.png`;
+}
 
 /** Classe usada quando não há personagem online (modo offline). */
 export const OFFLINE_CLASS_ID = 'mage';

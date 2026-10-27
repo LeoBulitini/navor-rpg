@@ -16,6 +16,8 @@ export function readRawContent(): RawContent {
     classes: readJson('classes.json'),
     tiles: readJson('tiles.json'),
     balance: readJson('balance.prototype.json'),
+    objects: readJson('objects.json'),
+    world: readJson('world.json'),
     maps,
   };
 }
