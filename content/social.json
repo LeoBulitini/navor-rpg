@@ -1,0 +1,25 @@
+{
+  "$comment": "Sistemas sociais (GDD 7.1: Salão de Treinamento e Guilda; GDD 17: chat e presença). PROVISÓRIO, decidido por Claude em 2026-10-27. 'training': treino AFK no prédio 'building'; XP por minuto = xpPerMinuteBase + xpPerMinutePerLevel × nível, contado pelo relógio do servidor e limitado a maxHours. Enquanto treina, o personagem não sai da cidade. 'guilds': criar custa createCost de cobre; nome e sigla únicos. 'chat': canal geral e canal da guilda, mensagens curtas com intervalo mínimo; o servidor grava e apaga as antigas. 'ranking': quantos aparecem nas listas. Torneios e guerras entre guildas em tempo real ficam fora (decisão do dono do projeto).",
+  "training": {
+    "building": "training-hall",
+    "maxHours": 8,
+    "xpPerMinuteBase": 1,
+    "xpPerMinutePerLevel": 0.4
+  },
+  "guilds": {
+    "building": "guild",
+    "createCost": 1000,
+    "maxMembers": 20,
+    "nameMin": 3,
+    "nameMax": 20,
+    "tagMin": 2,
+    "tagMax": 4
+  },
+  "chat": {
+    "maxLength": 200,
+    "cooldownSeconds": 2,
+    "history": 50,
+    "keepDays": 7
+  },
+  "ranking": { "size": 20 }
+}

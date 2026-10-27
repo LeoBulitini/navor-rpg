@@ -8,11 +8,13 @@ export interface PanelAction {
   disabled?: boolean;
 }
 
-/** Campo da linha: número (quantidade, preço) ou lista de opções (moeda). */
+/** Campo da linha: número (quantidade, preço), texto (nome) ou lista de opções (moeda). */
 export interface PanelInput {
   id: string;
   label: string;
   value: string;
+  /** texto livre; sem isso, número */
+  text?: { maxLength: number };
   min?: number;
   max?: number;
   options?: { value: string; label: string }[];
@@ -134,6 +136,10 @@ export class ServicePanel {
       const field = input.options ? document.createElement('select') : document.createElement('input');
       if (field instanceof HTMLSelectElement) {
         for (const o of input.options!) field.append(new Option(o.label, o.value));
+      } else if (input.text) {
+        field.type = 'text';
+        field.maxLength = input.text.maxLength;
+        field.className = 'text';
       } else {
         field.type = 'number';
         if (input.min !== undefined) field.min = String(input.min);
@@ -143,6 +149,10 @@ export class ServicePanel {
       field.setAttribute('aria-label', `${input.label}: ${row.name}`);
       field.title = input.label;
       field.addEventListener('input', () => this.values.set(key, field.value));
+      // o jogo escuta o teclado na janela e segura teclas como W, A, S, D e espaço: o campo fica com elas
+      field.addEventListener('keydown', (e: Event) => {
+        if ((e as KeyboardEvent).key !== 'Escape') e.stopPropagation();
+      });
       actions.append(field);
     }
     for (const a of row.actions) {
