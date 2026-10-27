@@ -8,7 +8,7 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
  * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
- * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, habilidades, evolução de classe, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, habilidades, evolução de classe, missões diárias, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
@@ -72,7 +72,7 @@ export function contentSql(content: Content): string {
       .map((a) => {
         const r = a.resources!;
         const m = a.creatures?.count ?? { min: 0, max: 0 };
-        return `  (${q(a.id)}, ${r.nodes.min}, ${r.nodes.max}, ${r.expiresMinutes}, ${r.collectCooldownMs}, ${r.maxStartsPerMinute}, ${m.min}, ${m.max})`;
+        return `  (${q(a.id)}, ${r.nodes.min}, ${r.nodes.max}, ${r.expiresMinutes}, ${r.collectCooldownMs}, ${r.maxStartsPerMinute}, ${m.min}, ${m.max}, ${a.daily}, ${a.minLevel})`;
       })
       .join(',\n');
     const ruleRows = areas
@@ -81,11 +81,12 @@ export function contentSql(content: Content): string {
     const itemRows = areas.flatMap((a) => a.resources!.items.map((id) => `  (${q(a.id)}, ${q(id)})`)).join(',\n');
     lines.push(
       '',
-      'insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max) values',
+      'insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max, daily, min_level) values',
       areaRows,
       'on conflict (id) do update set nodes_min = excluded.nodes_min, nodes_max = excluded.nodes_max,',
       '  expires_minutes = excluded.expires_minutes, collect_cooldown_ms = excluded.collect_cooldown_ms,',
-      '  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max;',
+      '  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max,',
+      '  daily = excluded.daily, min_level = excluded.min_level;',
       '',
       'insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max) values',
       ruleRows,
@@ -220,6 +221,29 @@ export function contentSql(content: Content): string {
     sk.evolution.map((e) => `  (${e.level}, ${e.copper}, ${e.gold})`).join(',\n'),
     'on conflict (level) do update set copper = excluded.copper, gold = excluded.gold;',
   );
+  const qs = content.quests;
+  const rewardItems = qs.templates.flatMap((t) => t.reward.items.map((r) => `  (${q(t.id)}, ${q(r.item)}, ${r.quantity})`));
+  lines.push(
+    '',
+    'insert into public.quest_rules (id, per_day) values',
+    `  (1, ${qs.perDay})`,
+    'on conflict (id) do update set per_day = excluded.per_day;',
+    '',
+    'insert into public.quest_templates (id, name, kind, target, count, min_level, max_level, reward_xp, reward_copper) values',
+    qs.templates
+      .map((t) => `  (${q(t.id)}, ${q(t.name)}, ${q(t.kind)}, ${q(t.target)}, ${t.count}, ${t.minLevel}, ${t.maxLevel ?? 'null'}, ${t.reward.xp}, ${t.reward.copper})`)
+      .join(',\n'),
+    'on conflict (id) do update set name = excluded.name, kind = excluded.kind, target = excluded.target, count = excluded.count,',
+    '  min_level = excluded.min_level, max_level = excluded.max_level, reward_xp = excluded.reward_xp, reward_copper = excluded.reward_copper;',
+  );
+  if (rewardItems.length > 0) {
+    lines.push(
+      '',
+      'insert into public.quest_reward_items (quest_id, item_id, quantity) values',
+      rewardItems.join(',\n'),
+      'on conflict (quest_id, item_id) do update set quantity = excluded.quantity;',
+    );
+  }
   lines.push(
     '',
     'insert into public.level_thresholds (level, total_xp) values',

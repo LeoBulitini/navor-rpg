@@ -301,6 +301,118 @@
         ],
         "minSecondsAfterStart": 10
       }
+    },
+    {
+      "id": "dragon-lair",
+      "name": "Covil do Dragão",
+      "$comment": "Fase 13 (GDD 7.2 e 12). PROVISÓRIO, decidido por Claude em 2026-10-27. Arena do chefe diário: 'daily' deixa entrar uma vez por dia por personagem (o dia vira às 00:00 de Brasília, contado pelo servidor); 'minLevel' é o nível mínimo para entrar.",
+      "width": 24,
+      "height": 24,
+      "rooms": {
+        "min": 3,
+        "max": 4
+      },
+      "roomSize": {
+        "min": 5,
+        "max": 8
+      },
+      "corridorWidth": 2,
+      "extraCorridors": {
+        "min": 0,
+        "max": 1
+      },
+      "rocks": {
+        "min": 2,
+        "max": 5
+      },
+      "spawnChar": "P",
+      "spawnTile": "lair-floor",
+      "chars": {
+        "floor": "_",
+        "wall": "M",
+        "rock": "L",
+        "entrance": "(",
+        "exit": ")"
+      },
+      "returnTo": {
+        "map": "city",
+        "arriveAt": {
+          "x": 2,
+          "y": 23
+        }
+      },
+      "daily": true,
+      "minLevel": 5,
+      "resources": {
+        "nodes": {
+          "min": 2,
+          "max": 3
+        },
+        "minDistance": 3,
+        "clearance": 3,
+        "rarities": [
+          {
+            "rarity": "rare",
+            "weight": 1,
+            "quantity": {
+              "min": 1,
+              "max": 2
+            }
+          }
+        ],
+        "items": [
+          "monster-essence",
+          "ancient-bone",
+          "crystal-blue"
+        ],
+        "expiresMinutes": 30,
+        "collectCooldownMs": 500,
+        "maxStartsPerMinute": 10
+      },
+      "creatures": {
+        "count": {
+          "min": 1,
+          "max": 1
+        },
+        "clearance": 6,
+        "spawn": [
+          {
+            "creature": "dragon",
+            "weight": 1
+          }
+        ]
+      },
+      "chests": {
+        "count": {
+          "min": 1,
+          "max": 1
+        },
+        "clearance": 6,
+        "copper": {
+          "min": 40,
+          "max": 80
+        },
+        "goldChance": 0.25,
+        "items": [
+          {
+            "item": "scroll-improved",
+            "chance": 0.5,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          },
+          {
+            "item": "scroll-rare",
+            "chance": 0.15,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          }
+        ],
+        "minSecondsAfterStart": 10
+      }
     }
   ]
 }

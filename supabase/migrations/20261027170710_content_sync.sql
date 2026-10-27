@@ -49,6 +49,7 @@ insert into public.items (id, name, rarity, category, value, use_hp, use_mana, g
   ('spider-silk', 'Seda de Aranha', 'uncommon', 'resource', 15, 0, 0, null),
   ('bear-pelt', 'Pele de Urso', 'rare', 'resource', 50, 0, 0, null),
   ('bear-fangs', 'Presas de Urso', 'rare', 'resource', 50, 0, 0, null),
+  ('dragon-scale', 'Escama de Dragão', 'epic', 'resource', 120, 0, 0, null),
   ('potion-health-small', 'Poção de Vida Pequena', 'common', 'potion', 15, 40, 0, null),
   ('potion-health', 'Poção de Vida', 'uncommon', 'potion', 40, 100, 0, null),
   ('potion-mana-small', 'Poção de Mana Pequena', 'common', 'potion', 15, 0, 30, null),
@@ -122,12 +123,14 @@ insert into public.gather_tiers (rarity, tier) values
   ('shadow', 4)
 on conflict (rarity) do update set tier = excluded.tier;
 
-insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max) values
-  ('cave', 8, 12, 30, 500, 10, 4, 6),
-  ('forest', 8, 12, 30, 500, 10, 5, 8)
+insert into public.exploration_areas (id, nodes_min, nodes_max, expires_minutes, collect_cooldown_ms, max_starts_per_minute, monsters_min, monsters_max, daily, min_level) values
+  ('cave', 8, 12, 30, 500, 10, 4, 6, false, 0),
+  ('forest', 8, 12, 30, 500, 10, 5, 8, false, 0),
+  ('dragon-lair', 2, 3, 30, 500, 10, 1, 1, true, 5)
 on conflict (id) do update set nodes_min = excluded.nodes_min, nodes_max = excluded.nodes_max,
   expires_minutes = excluded.expires_minutes, collect_cooldown_ms = excluded.collect_cooldown_ms,
-  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max;
+  max_starts_per_minute = excluded.max_starts_per_minute, monsters_min = excluded.monsters_min, monsters_max = excluded.monsters_max,
+  daily = excluded.daily, min_level = excluded.min_level;
 
 insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max) values
   ('cave', 'common', 70, 1, 3),
@@ -135,7 +138,8 @@ insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max)
   ('cave', 'rare', 5, 1, 1),
   ('forest', 'common', 70, 1, 3),
   ('forest', 'uncommon', 25, 1, 2),
-  ('forest', 'rare', 5, 1, 1)
+  ('forest', 'rare', 5, 1, 1),
+  ('dragon-lair', 'rare', 1, 1, 2)
 on conflict (area_id, rarity) do update set weight = excluded.weight, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
 insert into public.area_items (area_id, item_id) values
@@ -156,19 +160,25 @@ insert into public.area_items (area_id, item_id) values
   ('forest', 'medicinal-herbs'),
   ('forest', 'wood-sturdy'),
   ('forest', 'blue-flower'),
-  ('forest', 'wood-ancient')
+  ('forest', 'wood-ancient'),
+  ('dragon-lair', 'monster-essence'),
+  ('dragon-lair', 'ancient-bone'),
+  ('dragon-lair', 'crystal-blue')
 on conflict (area_id, item_id) do nothing;
 
 insert into public.area_chest_rules (area_id, chests_min, chests_max, copper_min, copper_max, gold_chance, min_seconds) values
   ('cave', 1, 2, 3, 15, 0.02, 10),
-  ('forest', 0, 1, 2, 10, 0.01, 10)
+  ('forest', 0, 1, 2, 10, 0.01, 10),
+  ('dragon-lair', 1, 1, 40, 80, 0.25, 10)
 on conflict (area_id) do update set chests_min = excluded.chests_min, chests_max = excluded.chests_max,
   copper_min = excluded.copper_min, copper_max = excluded.copper_max, gold_chance = excluded.gold_chance, min_seconds = excluded.min_seconds;
 
 insert into public.area_chest_items (area_id, item_id, chance, qty_min, qty_max) values
   ('cave', 'scroll-simple', 0.25, 1, 1),
   ('cave', 'scroll-improved', 0.06, 1, 1),
-  ('forest', 'scroll-simple', 0.2, 1, 1)
+  ('forest', 'scroll-simple', 0.2, 1, 1),
+  ('dragon-lair', 'scroll-improved', 0.5, 1, 1),
+  ('dragon-lair', 'scroll-rare', 0.15, 1, 1)
 on conflict (area_id, item_id) do update set chance = excluded.chance, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
 insert into public.creatures (id, name, hp, xp, copper_min, copper_max) values
@@ -182,7 +192,8 @@ insert into public.creatures (id, name, hp, xp, copper_min, copper_max) values
   ('wolf', 'Lobo', 40, 20, 1, 4),
   ('wild-boar', 'Javali Selvagem', 55, 24, 1, 4),
   ('bear', 'Urso', 140, 70, 5, 12),
-  ('giant-spider', 'Aranha Gigante', 45, 26, 0, 3)
+  ('giant-spider', 'Aranha Gigante', 45, 26, 0, 3),
+  ('dragon', 'Dragão', 420, 320, 80, 150)
 on conflict (id) do update set name = excluded.name, hp = excluded.hp, xp = excluded.xp,
   copper_min = excluded.copper_min, copper_max = excluded.copper_max;
 
@@ -207,7 +218,11 @@ insert into public.creature_drops (creature_id, item_id, chance, qty_min, qty_ma
   ('bear', 'bear-pelt', 0.5, 1, 1),
   ('bear', 'bear-fangs', 0.4, 1, 2),
   ('giant-spider', 'spider-venom', 0.4, 1, 1),
-  ('giant-spider', 'spider-silk', 0.5, 1, 2)
+  ('giant-spider', 'spider-silk', 0.5, 1, 2),
+  ('dragon', 'dragon-scale', 1, 1, 2),
+  ('dragon', 'scroll-rare', 0.5, 1, 1),
+  ('dragon', 'scroll-ancient', 0.1, 1, 1),
+  ('dragon', 'mithril', 0.3, 1, 2)
 on conflict (creature_id, item_id) do update set chance = excluded.chance, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
 insert into public.area_creatures (area_id, creature_id, weight) values
@@ -220,7 +235,8 @@ insert into public.area_creatures (area_id, creature_id, weight) values
   ('forest', 'wolf', 18),
   ('forest', 'wild-boar', 15),
   ('forest', 'giant-spider', 13),
-  ('forest', 'bear', 5)
+  ('forest', 'bear', 5),
+  ('dragon-lair', 'dragon', 1)
 on conflict (area_id, creature_id) do update set weight = excluded.weight;
 
 insert into public.shops (id, name, rest_price, exchange, upgrades) values
@@ -628,6 +644,36 @@ insert into public.class_evolution (level, copper, gold) values
   (50, 2000, 2),
   (75, 5000, 5)
 on conflict (level) do update set copper = excluded.copper, gold = excluded.gold;
+
+insert into public.quest_rules (id, per_day) values
+  (1, 3)
+on conflict (id) do update set per_day = excluded.per_day;
+
+insert into public.quest_templates (id, name, kind, target, count, min_level, max_level, reward_xp, reward_copper) values
+  ('rats', 'Ratos no porão', 'kill', 'cave-rat', 6, 0, 6, 40, 12),
+  ('bats', 'Asas na escuridão', 'kill', 'cave-bat', 5, 0, 6, 40, 12),
+  ('rabbits', 'Coelhos na horta', 'kill', 'rabbit', 3, 0, 6, 30, 10),
+  ('mushrooms', 'Cogumelos para o Alquimista', 'collect', 'mushroom-common', 4, 0, 6, 30, 10),
+  ('firewood', 'Lenha para a Taverna', 'collect', 'wood-common', 4, 0, 6, 30, 10),
+  ('goblins', 'Saqueadores goblins', 'kill', 'goblin-raider', 5, 4, 14, 120, 30),
+  ('wolves', 'Matilha na trilha', 'kill', 'wolf', 5, 4, 14, 120, 30),
+  ('boars', 'Javalis na plantação', 'kill', 'wild-boar', 4, 4, 14, 120, 30),
+  ('iron', 'Ferro para o Ferreiro', 'collect', 'iron', 5, 4, 14, 90, 25),
+  ('herbs', 'Ervas para curar', 'collect', 'medicinal-herbs', 3, 4, 14, 90, 25),
+  ('skeletons', 'Ossos que andam', 'kill', 'ancient-skeleton', 4, 10, null, 300, 60),
+  ('bears', 'O urso da floresta', 'kill', 'bear', 3, 10, null, 300, 60),
+  ('spiders', 'Teias na floresta', 'kill', 'giant-spider', 5, 10, null, 260, 55),
+  ('dragon', 'Desafio do Covil', 'kill', 'dragon', 1, 8, null, 600, 150),
+  ('ancient-wood', 'Madeira antiga', 'collect', 'wood-ancient', 2, 10, null, 220, 50)
+on conflict (id) do update set name = excluded.name, kind = excluded.kind, target = excluded.target, count = excluded.count,
+  min_level = excluded.min_level, max_level = excluded.max_level, reward_xp = excluded.reward_xp, reward_copper = excluded.reward_copper;
+
+insert into public.quest_reward_items (quest_id, item_id, quantity) values
+  ('goblins', 'scroll-simple', 1),
+  ('herbs', 'potion-health-small', 2),
+  ('skeletons', 'scroll-improved', 1),
+  ('dragon', 'scroll-rare', 1)
+on conflict (quest_id, item_id) do update set quantity = excluded.quantity;
 
 insert into public.level_thresholds (level, total_xp) values
   (0, 0),

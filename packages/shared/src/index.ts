@@ -13,3 +13,4 @@ export * from './combat/ai.ts';
 export * from './combat/skills.ts';
 export * from './economy/shop.ts';
 export * from './economy/gear.ts';
+export * from './quests/daily.ts';

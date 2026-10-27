@@ -39,6 +39,8 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(16, 10);
     this.body.setOffset(8, 18);
     this.setCollideWorldBounds(true);
+    // Chefes são maiores (o corpo acompanha a escala).
+    if (def.scale !== 1) this.setScale(def.scale);
     this.play(creatureAnimKey(def.sprite, 'idle'));
     if (def.hidden) this.setAlpha(HIDDEN_ALPHA);
   }

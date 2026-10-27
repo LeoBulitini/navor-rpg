@@ -181,6 +181,48 @@ def bear(step):
     return quadruped(step, fur, dark, light, 1.6, 4, head)
 
 
+def dragon(step):
+    """Dragão vermelho de lado (virado para a direita), asas abertas. O jogo desenha em escala 2."""
+    img = Img(32, 32)
+    body, dark, light = hx('#b8321e'), hx('#6e1a10'), hx('#e0603a')
+    belly = hx('#e8b05a')
+    bob = 1 if step else 0
+    # cauda
+    for i, (x, y) in enumerate(((3, 22), (4, 21), (5, 21), (6, 20), (7, 20), (8, 20), (2, 23), (1, 24))):
+        img.px(x, y + bob, body if i < 6 else dark)
+    img.px(1, 25 + bob, light)
+    # asa de trás (sobe e desce com o passo)
+    wing_y = 4 if step else 6
+    for x in range(9, 20):
+        top = wing_y + abs(x - 14) // 2
+        for y in range(top, 16):
+            img.px(x, y, dark if (x + y) % 4 else hx('#4a120a'))
+    # pernas
+    for x in ((10, 18) if step else (11, 19)):
+        img.rect(x, 22, 2, 4, dark)
+        img.px(x + 2, 25, P['f1'])
+    # corpo e barriga
+    blob(img, 14, 19 + bob, 7, 4, body, dark, light)
+    img.rect(10, 21 + bob, 9, 1, belly)
+    # pescoço e cabeça
+    for i in range(5):
+        blob(img, 20 + i, 16 - i + bob, 2, 2, body, dark, light)
+    blob(img, 26, 10 + bob, 3, 2, body, dark, light)
+    img.rect(28, 10 + bob, 3, 2, body)
+    img.px(30, 11 + bob, hx('#ffd36a'))  # bafo de fogo
+    img.px(27, 9 + bob, hx('#ffd36a'))  # olho
+    img.px(24, 7 + bob, P['f1'])  # chifres
+    img.px(23, 6 + bob, P['f1'])
+    # asa da frente
+    for x in range(12, 22):
+        top = wing_y + 2 + abs(x - 17) // 2
+        for y in range(top, top + 4):
+            img.px(x, y, body if y > top else light)
+    outline(img)
+    ground_shadow(img, 16, 28, 10)
+    return img
+
+
 def spider(step):
     body, dark, light = hx('#2d2624'), hx('#120f10'), hx('#52463f')
     img = Img(32, 32)
@@ -320,6 +362,7 @@ CREATURES = {
     'wild-boar': lambda: strip([boar(0), boar(1)]),
     'bear': lambda: strip([bear(0), bear(1)]),
     'giant-spider': lambda: strip([spider(0), spider(1)]),
+    'dragon': lambda: strip([dragon(0), dragon(1)]),
 }
 EFFECTS = {'arcane-bolt': bolt, 'arrow': arrow, 'slash': slash, 'chest': lambda: chest(False), 'chest-open': lambda: chest(True)}
 # Efeitos que o jogo usa sempre, além dos ataques de combat.json.

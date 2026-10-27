@@ -41,12 +41,13 @@ import {
 import { content } from '../../content.ts';
 import { artClassId, itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getGear, getInventory, getProgress, getSkills, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
+import { getBackend, getGear, getInventory, getProgress, getQuests, getSkills, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
 import { ServicePanel } from '../ui/ServicePanel.ts';
 import { shopContent } from '../ui/shopContent.ts';
 import { equipmentContent } from '../ui/gearContent.ts';
 import { skillContent } from '../ui/skillContent.ts';
+import { questContent } from '../ui/questContent.ts';
 import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
 import { Player } from '../entities/Player.ts';
@@ -132,6 +133,7 @@ export class WorldScene extends Phaser.Scene {
   private effects!: SkillEffects;
   /** habilidade ativa pedida neste quadro (índice da etapa de classe) */
   private castPressed: number | null = null;
+  private questsLoading = false;
   private lastCast = new Map<string, number>();
 
   constructor() {
@@ -182,6 +184,7 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-THREE', () => (this.usePressed = 'food'));
     this.input.keyboard?.on('keydown-C', () => this.openEquipment());
     this.input.keyboard?.on('keydown-K', () => this.openSkills());
+    this.input.keyboard?.on('keydown-J', () => this.openQuests());
     this.castPressed = null;
     SKILL_KEYS.forEach((key, i) => this.input.keyboard?.on(`keydown-${key}`, () => (this.castPressed = i)));
     const onChange = () => this.refreshStats();
@@ -366,7 +369,10 @@ export class WorldScene extends Phaser.Scene {
         node.state = 'done';
         node.sprite.destroy();
         getInventory(this)!.set(result.itemId, result.total);
-        if (result.collected) this.floatGain(node, result.itemId, result.quantity);
+        if (result.collected) {
+          this.floatGain(node, result.itemId, result.quantity);
+          this.announceQuests(getQuests(this).advance({ kind: 'collect', itemId: result.itemId, quantity: result.quantity }));
+        }
       })
       .catch((err: unknown) => {
         if (this.run !== run) return;
@@ -523,6 +529,8 @@ export class WorldScene extends Phaser.Scene {
     }
     const level = getProgress(this).state.level;
     this.hud.draw(this.vitals, getProgress(this).state, [THRESHOLDS[level]!, THRESHOLDS[Math.min(level + 1, THRESHOLDS.length - 1)]!]);
+    const boss = this.monsters.find((m) => m.def.boss && m.state === 'alive');
+    this.hud.drawBoss(boss ? { name: boss.def.name, hp: boss.hp, maxHp: boss.def.stats.hp } : null);
   }
 
   /** Ataque básico da classe na direção em que o jogador está virado: projétil (Mago, Arqueiro) ou golpe (Guerreiro). */
@@ -647,6 +655,7 @@ export class WorldScene extends Phaser.Scene {
     getProgress(this).set({ ...getProgress(this).state, level: r.level, xp: r.xp, copper: r.copper });
     for (const d of r.drops) getInventory(this)!.set(d.itemId, d.total);
     if (!r.killed) return;
+    this.announceQuests(getQuests(this).advance({ kind: 'kill', creatureId: r.creatureId }));
     const gains = [`+${r.xpGained} XP`, ...(r.copperGained > 0 ? [`+${r.copperGained} cobre`] : [])];
     this.floatText(m.x, m.y - 14, gains.join('  '), '#fde68a');
     r.drops.forEach((d, i) => {
@@ -654,12 +663,21 @@ export class WorldScene extends Phaser.Scene {
       const color = content.rarities.rarities.find((x) => x.id === def?.rarity)?.color ?? '#e5e7eb';
       this.floatText(m.x, m.y - 26 - i * 12, `+${d.quantity} ${def?.name ?? d.itemId}`, color);
     });
-    if (r.leveledUp) {
-      // Subir de nível recalcula os atributos e enche vida e mana.
-      this.stats = this.currentStats();
-      this.vitals = { hp: this.stats.maxHp, maxHp: this.stats.maxHp, mana: this.stats.maxMana, maxMana: this.stats.maxMana };
-      this.showNotice(`Subiu para o nível ${r.level}!`, '#fde047');
-    }
+    if (r.leveledUp) this.levelUp(r.level);
+  }
+
+  /** Subir de nível recalcula os atributos e enche vida e mana. */
+  private levelUp(level: number): void {
+    this.stats = this.currentStats();
+    this.vitals = { hp: this.stats.maxHp, maxHp: this.stats.maxHp, mana: this.stats.maxMana, maxMana: this.stats.maxMana };
+    this.showNotice(`Subiu para o nível ${level}!`, '#fde047');
+  }
+
+  /** Avisa o avanço das missões do dia (o número oficial vem do servidor ao abrir a janela J). */
+  private announceQuests(changed: { quest: { progress: number }; count: number; name: string }[]): void {
+    changed.forEach((c, i) => this.floatText(this.player.x, this.player.y - 30 - i * 12, `${c.name} ${c.quest.progress}/${c.count}`, '#fde68a'));
+    const done = changed.find((c) => c.quest.progress >= c.count);
+    if (done) this.showNotice(`Missão concluída: ${done.name}. Receba a recompensa na cidade (J).`, '#86efac');
   }
 
   /** Golpe de monstro: Bloqueio pode anular; Resistência, Aparar e Aura reduzem (mínimo 1). */
@@ -786,6 +804,32 @@ export class WorldScene extends Phaser.Scene {
     );
   }
 
+  /** Tecla J: missões do dia e Covil do Dragão. Lê do servidor ao abrir (o sorteio do dia acontece lá). */
+  private openQuests(): void {
+    if (this.dead || this.leaving || this.panel.isOpen() || this.questsLoading) return;
+    this.questsLoading = true;
+    getBackend(this)
+      .loadQuests()
+      .then((board) => {
+        getQuests(this).set(board);
+        if (this.dead || this.leaving || this.panel.isOpen()) return;
+        if (this.input.keyboard) this.input.keyboard.enabled = false;
+        this.player.setVelocity(0, 0);
+        this.panel.open(
+          questContent({
+            backend: getBackend(this),
+            inventory: getInventory(this)!,
+            progress: getProgress(this),
+            quests: getQuests(this),
+            panel: this.panel,
+            onLeveledUp: (level) => this.levelUp(level),
+          }),
+        );
+      })
+      .catch((err: unknown) => this.showNotice(friendlyError(err)))
+      .finally(() => (this.questsLoading = false));
+  }
+
   /** Tecla K: habilidades e evolução. */
   private openSkills(): void {
     if (this.dead || this.leaving || this.panel.isOpen()) return;
@@ -804,6 +848,7 @@ export class WorldScene extends Phaser.Scene {
           const session = getSession(this);
           if (session?.mode === 'online') session.character.class_id = classId;
           else if (session) session.classId = classId;
+          this.player.setClass(artClassId(classId));
           this.refreshStats();
         },
       }),
@@ -877,7 +922,7 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  Q/R/F/G: habilidades  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  K: habilidades  F3: depuração', { ...style, align: 'right' })
+      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  Q/R/F/G: habilidades  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  K: habilidades  J: missões  F3: depuração', { ...style, align: 'right' })
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
@@ -980,6 +1025,17 @@ export class WorldScene extends Phaser.Scene {
       },
       gear: () => getGear(this).list().map((g) => ({ ...g })),
       skills: () => Object.fromEntries(getSkills(this).learned),
+      quests: () => getQuests(this).board,
+      questsOpen: () => this.panel.isOpen() && document.querySelector('.service-panel h2')?.textContent === 'Missões do dia',
+      /** Modo offline: completa uma missão do dia (para testar a recompensa). */
+      completeQuest: (slot: number) => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) backend.testCompleteQuest(slot);
+      },
+      boss: () => {
+        const b = this.monsters.find((m) => m.def.boss);
+        return b ? { creatureId: b.def.id, hp: b.hp, scale: b.scaleX, state: b.state, cell: { x: Math.floor(b.body.center.x / this.map.tileSize), y: Math.floor(b.body.center.y / this.map.tileSize) } } : null;
+      },
       classId: () => sessionClassId(this),
       /** Modo offline: põe o personagem num nível (para testar pontos e evolução). */
       setLevel: (level: number) => {

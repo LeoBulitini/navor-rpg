@@ -1,5 +1,5 @@
 {
-  "$comment": "Monstros e animais (GDD 8.1 e 8.2). Vida, dano, XP, detecção e recompensas eram A DEFINIR; valores PROVISÓRIOS decididos por Claude em 2026-10-27 (autorização de Leonardo). 'drops' e 'copper' são sorteados pelo servidor no abate. 'damageType' diz se o golpe usa a Defesa Física ou a Mágica do jogador. 'behavior': hostile (persegue e ataca) ou flee (dócil, foge). 'placement': deep = só no fundo da área. 'hidden': quase invisível até o jogador chegar perto. 'decorative': só enfeite, não pode ser atacado e não existe no servidor.",
+  "$comment": "Monstros e animais (GDD 8.1 e 8.2). Vida, dano, XP, detecção e recompensas eram A DEFINIR; valores PROVISÓRIOS decididos por Claude em 2026-10-27 (autorização de Leonardo). 'drops' e 'copper' são sorteados pelo servidor no abate. 'damageType' diz se o golpe usa a Defesa Física ou a Mágica do jogador. 'behavior': hostile (persegue e ataca) ou flee (dócil, foge). 'placement': deep = só no fundo da área. 'hidden': quase invisível até o jogador chegar perto. 'decorative': só enfeite, não pode ser atacado e não existe no servidor. 'scale' aumenta o desenho e o corpo (chefes). 'boss' mostra a barra de vida no topo da tela.",
   "creatures": [
     {
       "id": "cave-rat",
@@ -420,6 +420,64 @@
         {
           "item": "spider-silk",
           "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "dragon",
+      "name": "Dragão",
+      "sprite": "dragon",
+      "stats": {
+        "hp": 420,
+        "attack": 13,
+        "damageType": "magical",
+        "physDefense": 5,
+        "magDefense": 4
+      },
+      "moveSpeedTilesPerSecond": 2.2,
+      "detectTiles": 7,
+      "attackRangeTiles": 1.8,
+      "attackCooldownMs": 1600,
+      "placement": "deep",
+      "scale": 2,
+      "boss": true,
+      "xp": 320,
+      "copper": {
+        "min": 80,
+        "max": 150
+      },
+      "drops": [
+        {
+          "item": "dragon-scale",
+          "chance": 1,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item": "scroll-rare",
+          "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "scroll-ancient",
+          "chance": 0.1,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "mithril",
+          "chance": 0.3,
           "quantity": {
             "min": 1,
             "max": 2

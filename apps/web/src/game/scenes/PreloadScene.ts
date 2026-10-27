@@ -14,7 +14,7 @@ import {
 } from '../../assets/index.ts';
 import { creatureAnimKey } from '../entities/Monster.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { GearBag, getBackend, Inventory, SkillBook } from '../backend.ts';
+import { GearBag, getBackend, Inventory, QuestLog, SkillBook } from '../backend.ts';
 import { content } from '../../content.ts';
 import { sessionClassId } from '../session.ts';
 
@@ -48,29 +48,39 @@ export class PreloadScene extends Phaser.Scene {
       this.load.spritesheet(TextureKeys.creature(sprite), creatureSpritePath(sprite), { frameWidth: cw, frameHeight: ch });
     }
     for (const sprite of effectSprites()) this.load.image(TextureKeys.effect(sprite), effectSpritePath(sprite));
-    const classId = artClassId(sessionClassId(this));
+    // Todas as classes do caminho: ao evoluir (Fase 12), a arte da classe nova já está carregada.
     const { frameWidth, frameHeight } = assets.characters;
-    for (const facing of FACINGS) {
-      this.load.spritesheet(TextureKeys.character(classId, facing), characterSpritePath(classId, facing), {
-        frameWidth,
-        frameHeight,
-      });
+    for (const classId of this.lineArt()) {
+      for (const facing of FACINGS) {
+        this.load.spritesheet(TextureKeys.character(classId, facing), characterSpritePath(classId, facing), {
+          frameWidth,
+          frameHeight,
+        });
+      }
     }
   }
 
+  /** Arte de cada etapa do caminho da classe do personagem (sem repetir). */
+  private lineArt(): string[] {
+    const classId = sessionClassId(this);
+    const path = content.classes.paths.find((p) => p.stages.some((st) => st.classId === classId));
+    return [...new Set((path?.stages.map((st) => st.classId) ?? [classId]).map(artClassId))];
+  }
+
   create(): void {
-    const classId = artClassId(sessionClassId(this));
-    const loaded = FACINGS.every((f) => this.textures.exists(TextureKeys.character(classId, f)));
+    const classes = this.lineArt();
+    const loaded = classes.every((id) => FACINGS.every((f) => this.textures.exists(TextureKeys.character(id, f))));
     if (!loaded || !this.textures.exists(TextureKeys.tileset)) return;
-    this.createCharacterAnimations(classId);
+    for (const id of classes) this.createCharacterAnimations(id);
     this.createCreatureAnimations();
     const label = this.label.setText('Carregando inventário...');
     const backend = getBackend(this);
-    Promise.all([backend.loadInventory(), backend.loadGear(), backend.loadSkills()])
-      .then(([counts, gear, skills]) => {
+    Promise.all([backend.loadInventory(), backend.loadGear(), backend.loadSkills(), backend.loadQuests()])
+      .then(([counts, gear, skills, quests]) => {
         this.registry.set('inventory', new Inventory(counts));
         this.registry.set('gear', new GearBag(gear));
         this.registry.set('skills', new SkillBook(skills));
+        this.registry.set('quests', new QuestLog(quests));
         this.scene.start('World', { mapId: content.world.startMap });
       })
       .catch((err: unknown) => {

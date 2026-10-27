@@ -325,6 +325,10 @@ export const creaturesSchema = z.object({
         hidden: z.boolean().default(false),
         /** só enfeite: não pode ser atacado e não dá nada (Esquilo, GDD 8.1) */
         decorative: z.boolean().default(false),
+        /** tamanho do desenho e do corpo (chefes, ex.: Dragão = 2) */
+        scale: z.number().min(1).max(4).default(1),
+        /** chefe: barra de vida no topo da tela (Dragão, GDD 12) */
+        boss: z.boolean().default(false),
         xp: z.number().int().min(0),
         copper: range,
         drops: z.array(
@@ -423,6 +427,10 @@ export const caveConfigSchema = z.object({
   resources: resourcesConfigSchema.optional(),
   creatures: creaturesConfigSchema.optional(),
   chests: chestsConfigSchema.optional(),
+  /** uma entrada por dia por personagem; o dia vira às 00:00 de Brasília (Covil do Dragão, GDD 12) */
+  daily: z.boolean().default(false),
+  /** nível mínimo para entrar */
+  minLevel: z.number().int().min(0).default(0),
 });
 /** Lojas da cidade (GDD 7.1 e 11). O servidor confere preço, saldo e estoque do jogador. */
 export const shopsSchema = z.object({
@@ -442,6 +450,30 @@ export const shopsSchema = z.object({
         exchange: z.boolean().default(false),
         /** melhora equipamentos (equipment.json upgrade) */
         upgrades: z.boolean().default(false),
+      }),
+    )
+    .min(1),
+});
+
+/** Missões diárias (GDD 12). O servidor sorteia as do dia, conta o progresso e entrega a recompensa. */
+export const questsSchema = z.object({
+  perDay: z.number().int().min(1).max(10),
+  templates: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9-]+$/),
+        name: z.string().min(1),
+        /** kill: abates da criatura 'target'; collect: unidades do item 'target' em pontos de coleta */
+        kind: z.enum(['kill', 'collect']),
+        target: z.string().min(1),
+        count: z.number().int().min(1),
+        minLevel: z.number().int().min(0),
+        maxLevel: z.number().int().min(0).optional(),
+        reward: z.object({
+          xp: z.number().int().min(0),
+          copper: z.number().int().min(0),
+          items: z.array(z.object({ item: z.string().min(1), quantity: z.number().int().min(1) })).default([]),
+        }),
       }),
     )
     .min(1),
@@ -470,6 +502,8 @@ export type Equipment = z.infer<typeof equipmentSchema>;
 export type Recipes = z.infer<typeof recipesSchema>;
 export type RecipeDef = Recipes['recipes'][number];
 export type Skills = z.infer<typeof skillsSchema>;
+export type Quests = z.infer<typeof questsSchema>;
+export type QuestTemplate = Quests['templates'][number];
 export type ActiveSkill = z.infer<typeof activeSkillSchema>;
 export type PassiveSkill = z.infer<typeof passiveSkillSchema>;
 export type SkillEffectKind = (typeof SKILL_EFFECT_KINDS)[number];

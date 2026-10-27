@@ -101,6 +101,13 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | O teto de dano por segundo do servidor cresce 8% por ponto de habilidade gasto; um teste garante que fica acima do dano possível com a melhor distribuição de pontos | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Teclas: K abre as habilidades; Q, R, F e G usam a habilidade ativa de cada etapa da classe (base, 25, 50 e 75) | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Classes evoluídas sem arte própria usam a arte da classe base do caminho | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Missões diárias: 3 por dia, sorteadas no primeiro acesso do dia entre as do nível do personagem; não mudam se ele subir de nível no mesmo dia | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Tipos de missão: derrotar N de uma criatura ou coletar N de um item em pontos de coleta; 15 modelos em três faixas de nível (0 a 6, 4 a 14, 10 em diante), com XP, cobre e às vezes itens | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Contra abuso: o progresso só conta abates e coletas aceitos pelo servidor (abate repetido não conta), não passa da quantidade pedida e a recompensa sai uma vez, só na cidade | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Covil do Dragão: portão oeste da cidade, nível mínimo 5, uma entrada por personagem por dia (entrar gasta a vez, mesmo morrendo); arena gerada de 24×24 com o Dragão no fundo, 1 baú e 2 a 3 pontos de coleta raros | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Dragão: 420 de vida, ataque mágico 13, 320 XP, 80 a 150 de cobre, sempre 1 ou 2 Escamas de Dragão, chance de Pergaminho Raro, Pergaminho Ancestral e Mithril | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Fase 12 corrigida: a arte de todas as classes do caminho é carregada no início, e o personagem troca de arte na hora em que evolui | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | No modo offline, as recusas de regra (cobre insuficiente, Covil já usado etc.) mostram a mensagem em português em vez de "Algo deu errado" | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 

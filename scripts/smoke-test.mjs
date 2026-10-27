@@ -363,9 +363,58 @@ try {
     (await nav(() => window.__navor.classId())) === 'sorcerer' && (await wallet()).copper === w3.copper - 500);
   check('o Feiticeiro vê a árvore nova e mantém a do Mago',
     await page.getByRole('heading', { name: /Feiticeiro/ }).first().isVisible() && (await nav(() => window.__navor.skills()))['arcane-burst'] === 2);
-  check('o Feiticeiro usa a arte do Mago até ter a própria', (await nav(() => window.__navor.player().texture)).startsWith('character:mage:'));
+  check('o Feiticeiro passa a usar a própria arte', (await nav(() => window.__navor.player().texture)).startsWith('character:sorcerer:'));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
+
+  // Missões do dia e Covil do Dragão (Fase 13): tecla J, recompensa na cidade, chefe com uma entrada por dia
+  const QUESTS = readContent('quests.json');
+  await page.keyboard.press('j');
+  await page.waitForTimeout(300);
+  check('a tecla J abre as missões do dia', await nav(() => window.__navor.questsOpen()));
+  const board = await nav(() => window.__navor.quests());
+  check(`o dia tem ${QUESTS.perDay} missões diferentes`, board.quests.length === QUESTS.perDay && new Set(board.quests.map((q) => q.questId)).size === QUESTS.perDay);
+  // o sorteio usa o nível do começo do dia (0 neste teste); subir de nível não troca as missões do dia
+  check('as missões combinam com o nível do sorteio', board.quests.every((q) => QUESTS.templates.find((x) => x.id === q.questId).minLevel === 0),
+    board.quests.map((q) => q.questId).join(','));
+  const q0 = QUESTS.templates.find((x) => x.id === board.quests[0].questId);
+  check('missão por fazer não deixa receber', await button(`Receber: ${q0.name}`).isDisabled());
+  await page.screenshot({ path: join(OUT, 'missoes.png') });
+  await page.keyboard.press('Escape');
+  await nav(() => window.__navor.completeQuest(0));
+  const w4 = await wallet();
+  const xp4 = (await nav(() => window.__navor.progress())).xp;
+  await page.keyboard.press('j');
+  await page.waitForTimeout(300);
+  await button(`Receber: ${q0.name}`).click();
+  await page.waitForTimeout(200);
+  check('a missão concluída paga cobre e XP uma vez', (await wallet()).copper === w4.copper + q0.reward.copper
+    && (await nav(() => window.__navor.progress())).xp === xp4 + q0.reward.xp && (await nav(() => window.__navor.quests())).quests[0].claimed);
+  check('depois de receber, o botão some', (await button(`Receber: ${q0.name}`).count()) === 0);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  await nav(() => window.__navor.heal());
+  await nav(() => window.__navor.teleport(2, 23));
+  await hold(['ArrowLeft'], 700);
+  await waitForMap('dragon-lair').catch(() => {});
+  check('o portão oeste leva ao Covil do Dragão', (await nav(() => window.__navor.mapId)) === 'dragon-lair');
+  const boss = await nav(() => window.__navor.boss());
+  check('o Covil tem o Dragão, em tamanho de chefe', boss?.creatureId === 'dragon' && boss.scale === 2, JSON.stringify(boss));
+  check('o Feiticeiro entra numa área nova com a própria arte', (await nav(() => window.__navor.player().texture)).startsWith('character:sorcerer:'),
+    await nav(() => window.__navor.player().texture));
+  await nav(([x, y]) => window.__navor.teleport(x, y), [boss.cell.x - 2, boss.cell.y]);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: join(OUT, 'covil-dragao.png') });
+  await nav(() => window.__navor.hurtPlayer(9999));
+  await waitForMap('city').catch(() => {});
+  await page.waitForTimeout(300);
+  await nav(() => window.__navor.teleport(2, 23));
+  await hold(['ArrowLeft'], 700);
+  await page.waitForTimeout(600);
+  check('no mesmo dia o Covil não abre de novo', (await nav(() => window.__navor.mapId)) === 'city'
+    && /já entrou aqui hoje/.test((await nav(() => window.__navor.notice())) ?? ''), await nav(() => window.__navor.notice()));
+  await nav(() => window.__navor.teleport(19, 16));
+  await page.waitForTimeout(200);
 
   // Floresta (Fase 9): portão leste da cidade, animais que fogem, Esquilos de enfeite, recursos da floresta
   await nav(() => window.__navor.teleport(37, 23));

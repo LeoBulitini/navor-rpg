@@ -21,6 +21,10 @@ import {
   spentPoints,
   totalPoints,
   type LearnedSkills,
+  gameDay,
+  pickDailyQuests,
+  questProgress,
+  type QuestEvent,
   rollChestContents,
   rollChestCount,
   rollKillRewards,
@@ -37,6 +41,7 @@ import type { PlaySession } from '../menu/menu.ts';
 import { exchangeCurrency, shopBuy, shopSell, tavernRest, useItem } from '../services/economy.ts';
 import { craftItem, equipGear, listGear, sellGear, unequipGear, upgradeGear, type GearRow } from '../services/gear.ts';
 import { evolveClass, learnSkill, listSkills } from '../services/skills.ts';
+import { claimQuest, listDailyQuests } from '../services/quests.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -123,6 +128,33 @@ export interface EvolveResult extends Wallet {
   classId: string;
 }
 
+/** Uma missão do dia: qual é (quests.json), quanto já foi feito e se a recompensa já saiu. */
+export interface DailyQuest {
+  slot: number;
+  questId: string;
+  progress: number;
+  claimed: boolean;
+}
+
+export interface QuestBoard {
+  /** dia do jogo ('AAAA-MM-DD', Brasília) */
+  day: string;
+  quests: DailyQuest[];
+  /** áreas diárias já usadas hoje (Covil do Dragão) */
+  dailyAreas: string[];
+}
+
+export interface ClaimResult extends Wallet {
+  slot: number;
+  questId: string;
+  xpGained: number;
+  xp: number;
+  level: number;
+  leveledUp: boolean;
+  copperGained: number;
+  items: { itemId: string; quantity: number; total: number }[];
+}
+
 export interface EquipResult {
   gear: GearPiece;
   /** peça que saiu do espaço, se havia */
@@ -171,6 +203,13 @@ export interface GameBackend {
   loadSkills(): Promise<LearnedSkills>;
   learn(skillId: string): Promise<LearnResult>;
   evolve(): Promise<EvolveResult>;
+  loadQuests(): Promise<QuestBoard>;
+  claimQuest(slot: number): Promise<ClaimResult>;
+}
+
+/** Recusa de uma regra do jogo no modo offline, com o mesmo código dos erros das funções do banco (P0001). */
+class RuleError extends Error {
+  readonly code = 'P0001';
 }
 
 const fromRow = (r: GearRow): GearPiece => ({ id: r.id, itemId: r.item_id, upgrade: r.upgrade, slot: r.slot });
@@ -305,6 +344,31 @@ class OnlineBackend implements GameBackend {
     const r = await evolveClass(this.characterId);
     return { classId: r.class_id, copper: Number(r.copper), gold: Number(r.gold) };
   }
+
+  async loadQuests(): Promise<QuestBoard> {
+    const r = await listDailyQuests(this.characterId);
+    return {
+      day: r.day,
+      quests: r.quests.map((q) => ({ slot: q.slot, questId: q.quest_id, progress: q.progress, claimed: q.claimed })),
+      dailyAreas: r.daily_areas,
+    };
+  }
+
+  async claimQuest(slot: number): Promise<ClaimResult> {
+    const r = await claimQuest(this.characterId, slot);
+    return {
+      slot: r.slot,
+      questId: r.quest_id,
+      xpGained: r.xp_gained,
+      xp: Number(r.xp),
+      level: r.level,
+      leveledUp: r.leveled_up,
+      copperGained: r.copper_gained,
+      copper: Number(r.copper),
+      gold: Number(r.gold),
+      items: r.items.map((i) => ({ itemId: i.item_id, quantity: i.quantity, total: Number(i.total) })),
+    };
+  }
 }
 
 export class OfflineBackend implements GameBackend {
@@ -315,6 +379,9 @@ export class OfflineBackend implements GameBackend {
   private pieces = 0;
 
   private readonly learned: LearnedSkills = new Map();
+  private readonly dailyEntries = new Set<string>();
+  private questDay = '';
+  private quests: DailyQuest[] = [];
 
   /** `classId`: classe escolhida (as armas e as habilidades conferem). */
   constructor(private classId: string) {}
@@ -340,7 +407,14 @@ export class OfflineBackend implements GameBackend {
 
   async startExploration(areaId: string): Promise<ExplorationRun> {
     const area = content.procedural.areas.find((a) => a.id === areaId);
-    if (!area) throw new Error(`Área desconhecida: ${areaId}`);
+    if (!area) throw new RuleError(`Área desconhecida: ${areaId}`);
+    // mesmas regras de start_exploration (migration daily): nível mínimo e uma entrada por dia
+    if (this.progress.level < area.minLevel) throw new RuleError(`Você precisa estar no nível ${area.minLevel} para entrar aqui.`);
+    if (area.daily) {
+      const key = `${gameDay(new Date())}:${areaId}`;
+      if (this.dailyEntries.has(key)) throw new RuleError('Você já entrou aqui hoje. Volte amanhã (o dia vira à meia-noite, horário de Brasília).');
+      this.dailyEntries.add(key);
+    }
     // ?seed=N fixa o mapa (para testes); sem ela, uma seed nova a cada entrada
     const urlSeed = new URLSearchParams(window.location.search).get('seed');
     const seed = urlSeed !== null ? Number(urlSeed) >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!;
@@ -357,29 +431,31 @@ export class OfflineBackend implements GameBackend {
 
   async collect(run: ExplorationRun, nodeIndex: number): Promise<CollectResult> {
     const node = run.nodes[nodeIndex];
-    if (!node) throw new Error('Ponto de coleta inválido');
+    if (!node) throw new RuleError('Ponto de coleta inválido');
     const key = `${run.id}:${nodeIndex}`;
     const collected = !this.collected.has(key);
     // mesma regra de collect_node: depósito raro pede a ferramenta equipada
     if (collected && gatherBlock(this.itemById.get(node.itemId)!, this.gear, this.itemById, content.equipment)) {
-      throw new Error('Você precisa de uma ferramenta melhor equipada para este depósito.');
+      throw new RuleError('Você precisa de uma ferramenta melhor equipada para este depósito.');
     }
     if (collected) {
       this.collected.add(key);
       this.inventory.set(node.itemId, (this.inventory.get(node.itemId) ?? 0) + node.quantity);
+      this.advanceQuests({ kind: 'collect', itemId: node.itemId, quantity: node.quantity });
     }
     return { itemId: node.itemId, quantity: node.quantity, collected, total: this.inventory.get(node.itemId) ?? 0 };
   }
 
   async killMonster(run: ExplorationRun, monsterIndex: number): Promise<KillResult> {
     const monster = run.monsters[monsterIndex];
-    if (!monster) throw new Error('Monstro inválido');
+    if (!monster) throw new RuleError('Monstro inválido');
     const key = `${run.id}:${monsterIndex}`;
     const p = this.progress;
     if (this.killed.has(key)) {
       return { killed: false, creatureId: monster.creatureId, xpGained: 0, xp: p.xp, level: p.level, leveledUp: false, copperGained: 0, copper: p.copper, drops: [] };
     }
     this.killed.add(key);
+    this.advanceQuests({ kind: 'kill', creatureId: monster.creatureId });
     const reward = rollKillRewards(creatureById(content.creatures, monster.creatureId), this.rng, this.dropMultiplier());
     const before = p.level;
     p.xp += reward.xp;
@@ -395,13 +471,13 @@ export class OfflineBackend implements GameBackend {
 
   async openChest(run: ExplorationRun, chestIndex: number): Promise<ChestResult> {
     const config = content.procedural.areas.find((a) => a.id === run.areaId)?.chests;
-    if (!config || chestIndex < 0 || chestIndex >= run.chests) throw new Error('Baú inválido');
+    if (!config || chestIndex < 0 || chestIndex >= run.chests) throw new RuleError('Baú inválido');
     const key = `${run.id}:${chestIndex}`;
     const p = this.progress;
     if (this.opened.has(key)) return { opened: false, copperGained: 0, copper: p.copper, goldGained: 0, gold: p.gold, drops: [] };
     // mesma regra de open_chest: o baú só abre alguns segundos depois da entrada
     if (performance.now() - (this.startedAt.get(run.id!) ?? 0) < config.minSecondsAfterStart * 1000) {
-      throw new Error('O baú está emperrado. Tente de novo em alguns segundos.');
+      throw new RuleError('O baú está emperrado. Tente de novo em alguns segundos.');
     }
     this.opened.add(key);
     const got = rollChestContents(config, this.rng, this.dropMultiplier());
@@ -440,32 +516,32 @@ export class OfflineBackend implements GameBackend {
 
   /** Mesmas regras de shop_buy, shop_sell, use_item, tavern_rest e exchange_currency (migration economy). */
   private inTown(): void {
-    if (this.activeRun) throw new Error('Volte para a cidade para usar este serviço.');
+    if (this.activeRun) throw new RuleError('Volte para a cidade para usar este serviço.');
   }
 
   private shop(shopId: string) {
     const shop = content.shops.shops.find((s) => s.id === shopId);
-    if (!shop) throw new Error('Loja desconhecida');
+    if (!shop) throw new RuleError('Loja desconhecida');
     return shop;
   }
 
   private addItem(itemId: string, delta: number): number {
     const total = (this.inventory.get(itemId) ?? 0) + delta;
-    if (total < 0) throw new Error('Você não tem itens suficientes.');
+    if (total < 0) throw new RuleError('Você não tem itens suficientes.');
     this.inventory.set(itemId, total);
     return total;
   }
 
   async buy(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
     this.inTown();
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error('Quantidade inválida');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new RuleError('Quantidade inválida');
     const offer = this.shop(shopId).sells.find((x) => x.item === itemId);
-    if (!offer) throw new Error('Este item não está à venda aqui.');
+    if (!offer) throw new RuleError('Este item não está à venda aqui.');
     const isGear = Boolean(this.itemById.get(itemId)?.equip);
-    if (isGear && quantity !== 1) throw new Error('Equipamentos são comprados um de cada vez.');
+    if (isGear && quantity !== 1) throw new RuleError('Equipamentos são comprados um de cada vez.');
     const cost = offer.price * quantity;
     const p = this.progress;
-    if (p[offer.currency] < cost) throw new Error(offer.currency === 'gold' ? 'Ouro insuficiente.' : 'Cobre insuficiente.');
+    if (p[offer.currency] < cost) throw new RuleError(offer.currency === 'gold' ? 'Ouro insuficiente.' : 'Cobre insuficiente.');
     if (isGear) {
       const gear = this.addGear(itemId);
       p[offer.currency] -= cost;
@@ -477,9 +553,9 @@ export class OfflineBackend implements GameBackend {
 
   async sell(shopId: string, itemId: string, quantity: number): Promise<TradeResult> {
     this.inTown();
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new Error('Quantidade inválida');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new RuleError('Quantidade inválida');
     const item = content.items.items.find((i) => i.id === itemId);
-    if (!item || item.equip || !shopBuys(this.shop(shopId), item)) throw new Error('Este NPC não compra esse item.');
+    if (!item || item.equip || !shopBuys(this.shop(shopId), item)) throw new RuleError('Este NPC não compra esse item.');
     const total = this.addItem(itemId, -quantity);
     const earned = sellPrice(item, content.rarities, content.shops) * quantity;
     this.progress.copper += earned;
@@ -488,22 +564,22 @@ export class OfflineBackend implements GameBackend {
 
   async useItem(itemId: string): Promise<UseResult> {
     const item = content.items.items.find((i) => i.id === itemId);
-    if (!item?.use || (item.use.hp === 0 && item.use.mana === 0)) throw new Error('Este item não pode ser usado.');
+    if (!item?.use || (item.use.hp === 0 && item.use.mana === 0)) throw new RuleError('Este item não pode ser usado.');
     return { itemId, total: this.addItem(itemId, -1), hp: item.use.hp, mana: item.use.mana };
   }
 
   async rest(shopId: string): Promise<Wallet> {
     this.inTown();
     const price = this.shop(shopId).rest?.price;
-    if (price === undefined) throw new Error('Não há dormitório aqui.');
-    if (this.progress.copper < price) throw new Error('Cobre insuficiente.');
+    if (price === undefined) throw new RuleError('Não há dormitório aqui.');
+    if (this.progress.copper < price) throw new RuleError('Cobre insuficiente.');
     this.progress.copper -= price;
     return { copper: this.progress.copper, gold: this.progress.gold };
   }
 
   async exchange(shopId: string, to: 'gold' | 'copper', amount: number): Promise<Wallet> {
     this.inTown();
-    if (!this.shop(shopId).exchange) throw new Error('Não há câmbio aqui.');
+    if (!this.shop(shopId).exchange) throw new RuleError('Não há câmbio aqui.');
     const w = exchange(this.progress, to, amount, content.shops.copperPerGold);
     Object.assign(this.progress, w);
     return w;
@@ -515,7 +591,7 @@ export class OfflineBackend implements GameBackend {
 
   /** Mesmas regras de craft_item, upgrade_gear, sell_gear, equip_gear e unequip_gear (migration equipment). */
   private addGear(itemId: string): GearPiece {
-    if (this.gear.length >= content.equipment.maxPieces) throw new Error('Sua bolsa de equipamentos está cheia. Venda alguma peça no Ferreiro.');
+    if (this.gear.length >= content.equipment.maxPieces) throw new RuleError('Sua bolsa de equipamentos está cheia. Venda alguma peça no Ferreiro.');
     const piece: GearPiece = { id: `offline-gear-${++this.pieces}`, itemId, upgrade: 0, slot: null };
     this.gear.push(piece);
     return piece;
@@ -523,7 +599,7 @@ export class OfflineBackend implements GameBackend {
 
   private piece(gearId: string): GearPiece {
     const g = this.gear.find((x) => x.id === gearId);
-    if (!g) throw new Error('Peça não encontrada');
+    if (!g) throw new RuleError('Peça não encontrada');
     return g;
   }
 
@@ -534,11 +610,11 @@ export class OfflineBackend implements GameBackend {
   async craft(recipeId: string): Promise<CraftResult> {
     this.inTown();
     const recipe = content.recipes.recipes.find((r) => r.id === recipeId);
-    if (!recipe) throw new Error('Receita desconhecida.');
+    if (!recipe) throw new RuleError('Receita desconhecida.');
     const p = this.progress;
-    if (p.copper < recipe.copper) throw new Error('Cobre insuficiente.');
-    if (p.gold < recipe.gold) throw new Error('Ouro insuficiente.');
-    if (recipe.materials.some((m) => (this.inventory.get(m.item) ?? 0) < m.quantity)) throw new Error('Faltam materiais para esta receita.');
+    if (p.copper < recipe.copper) throw new RuleError('Cobre insuficiente.');
+    if (p.gold < recipe.gold) throw new RuleError('Ouro insuficiente.');
+    if (recipe.materials.some((m) => (this.inventory.get(m.item) ?? 0) < m.quantity)) throw new RuleError('Faltam materiais para esta receita.');
     const isGear = Boolean(this.itemById.get(recipe.item)?.equip);
     const gear = isGear ? this.addGear(recipe.item) : undefined;
     const materials = [...recipe.materials].sort((a, b) => a.item.localeCompare(b.item)).map((m) => ({ itemId: m.item, total: this.addItem(m.item, -m.quantity) }));
@@ -550,16 +626,16 @@ export class OfflineBackend implements GameBackend {
 
   async upgrade(shopId: string, gearId: string): Promise<UpgradeResult> {
     this.inTown();
-    if (!this.shop(shopId).upgrades) throw new Error('Este NPC não melhora equipamentos.');
+    if (!this.shop(shopId).upgrades) throw new RuleError('Este NPC não melhora equipamentos.');
     const g = this.piece(gearId);
     const item = this.itemById.get(g.itemId)!;
-    if (!item.equip?.upgradeMaterial) throw new Error('Esta peça não pode ser melhorada.');
-    if (!canUpgrade(item, g.upgrade, content.equipment)) throw new Error('Esta peça já está no nível máximo.');
+    if (!item.equip?.upgradeMaterial) throw new RuleError('Esta peça não pode ser melhorada.');
+    if (!canUpgrade(item, g.upgrade, content.equipment)) throw new RuleError('Esta peça já está no nível máximo.');
     const cost = upgradeCost(item, g.upgrade, content.equipment)!;
     const p = this.progress;
-    if (p.copper < cost.copper) throw new Error('Cobre insuficiente.');
-    if (p.gold < cost.gold) throw new Error('Ouro insuficiente.');
-    if ((this.inventory.get(cost.material) ?? 0) < cost.materials) throw new Error('Faltam materiais para a melhoria.');
+    if (p.copper < cost.copper) throw new RuleError('Cobre insuficiente.');
+    if (p.gold < cost.gold) throw new RuleError('Ouro insuficiente.');
+    if ((this.inventory.get(cost.material) ?? 0) < cost.materials) throw new RuleError('Faltam materiais para a melhoria.');
     const total = this.addItem(cost.material, -cost.materials);
     p.copper -= cost.copper;
     p.gold -= cost.gold;
@@ -571,7 +647,7 @@ export class OfflineBackend implements GameBackend {
     this.inTown();
     const g = this.piece(gearId);
     const item = this.itemById.get(g.itemId)!;
-    if (!shopBuys(this.shop(shopId), item)) throw new Error('Este NPC não compra esse item.');
+    if (!shopBuys(this.shop(shopId), item)) throw new RuleError('Este NPC não compra esse item.');
     const earned = gearSellPrice(item, g.upgrade, content.rarities, content.shops, content.equipment);
     this.gear.splice(this.gear.indexOf(g), 1);
     this.progress.copper += earned;
@@ -581,7 +657,7 @@ export class OfflineBackend implements GameBackend {
   async equip(gearId: string): Promise<EquipResult> {
     const g = this.piece(gearId);
     const item = this.itemById.get(g.itemId)!;
-    if (!canEquip(item, this.pathId)) throw new Error('Sua classe não usa esta peça.');
+    if (!canEquip(item, this.pathId)) throw new RuleError('Sua classe não usa esta peça.');
     const slot = item.equip!.slot;
     const old = this.gear.find((x) => x.slot === slot && x !== g);
     if (old) old.slot = null;
@@ -602,7 +678,7 @@ export class OfflineBackend implements GameBackend {
 
   async learn(skillId: string): Promise<LearnResult> {
     const block = learnBlock(content.skills, content.classes, this.classId, this.progress.level, this.learned, skillId, (id) => (this.inventory.get(id) ?? 0) > 0);
-    if (block) throw new Error(block);
+    if (block) throw new RuleError(block);
     const grade = (this.learned.get(skillId) ?? 0) + 1;
     const cost = gradeCost(content.skills, findSkill(content.skills, skillId)!.def, grade);
     const scroll = cost.scroll ? { itemId: cost.scroll, total: this.addItem(cost.scroll, -1) } : null;
@@ -614,16 +690,62 @@ export class OfflineBackend implements GameBackend {
   async evolve(): Promise<EvolveResult> {
     this.inTown();
     const next = nextClass(content.classes, this.classId);
-    if (!next) throw new Error('Sua classe já é a última do caminho.');
-    if (this.progress.level < next.level) throw new Error('Nível insuficiente para evoluir.');
+    if (!next) throw new RuleError('Sua classe já é a última do caminho.');
+    if (this.progress.level < next.level) throw new RuleError('Nível insuficiente para evoluir.');
     const cost = evolutionCost(content.skills, next.level);
-    if (!cost) throw new Error('Evolução indisponível.');
-    if (this.progress.copper < cost.copper) throw new Error('Cobre insuficiente.');
-    if (this.progress.gold < cost.gold) throw new Error('Ouro insuficiente.');
+    if (!cost) throw new RuleError('Evolução indisponível.');
+    if (this.progress.copper < cost.copper) throw new RuleError('Cobre insuficiente.');
+    if (this.progress.gold < cost.gold) throw new RuleError('Ouro insuficiente.');
     this.progress.copper -= cost.copper;
     this.progress.gold -= cost.gold;
     this.classId = next.classId;
     return { classId: next.classId, copper: this.progress.copper, gold: this.progress.gold };
+  }
+
+  /** Mesmas regras de ensure_daily_quests, quest_advance, list_daily_quests e claim_quest (migration daily). */
+  private todayQuests(): DailyQuest[] {
+    const day = gameDay(new Date());
+    if (day !== this.questDay) {
+      this.questDay = day;
+      this.quests = pickDailyQuests(content.quests, this.progress.level, this.rng).map((t, slot) => ({ slot, questId: t.id, progress: 0, claimed: false }));
+    }
+    return this.quests;
+  }
+
+  private advanceQuests(e: QuestEvent): void {
+    for (const q of this.todayQuests()) {
+      const t = content.quests.templates.find((x) => x.id === q.questId)!;
+      if (!q.claimed) q.progress = Math.min(t.count, q.progress + questProgress(t, e));
+    }
+  }
+
+  async loadQuests(): Promise<QuestBoard> {
+    const quests = this.todayQuests().map((q) => ({ ...q }));
+    const prefix = `${this.questDay}:`;
+    return { day: this.questDay, quests, dailyAreas: [...this.dailyEntries].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length)) };
+  }
+
+  async claimQuest(slot: number): Promise<ClaimResult> {
+    this.inTown();
+    const q = this.todayQuests().find((x) => x.slot === slot);
+    if (!q) throw new RuleError('Missão não encontrada.');
+    if (q.claimed) throw new RuleError('Você já recebeu esta recompensa.');
+    const t = content.quests.templates.find((x) => x.id === q.questId)!;
+    if (q.progress < t.count) throw new RuleError('A missão ainda não foi concluída.');
+    q.claimed = true;
+    const p = this.progress;
+    const before = p.level;
+    p.xp += t.reward.xp;
+    p.level = levelForXp(p.xp, this.thresholds);
+    p.copper += t.reward.copper;
+    const items = [...t.reward.items].sort((a, b) => a.item.localeCompare(b.item)).map((r) => ({ itemId: r.item, quantity: r.quantity, total: this.addItem(r.item, r.quantity) }));
+    return { slot, questId: t.id, xpGained: t.reward.xp, xp: p.xp, level: p.level, leveledUp: p.level > before, copperGained: t.reward.copper, copper: p.copper, gold: p.gold, items };
+  }
+
+  /** Só para o teste de fumaça: completa uma missão do dia. */
+  testCompleteQuest(slot: number): void {
+    const q = this.todayQuests().find((x) => x.slot === slot);
+    if (q) q.progress = content.quests.templates.find((x) => x.id === q.questId)!.count;
   }
 }
 
@@ -697,6 +819,35 @@ export class SkillBook extends Phaser.Events.EventEmitter {
 }
 
 export const getSkills = (scene: Phaser.Scene): SkillBook => scene.registry.get('skills') as SkillBook;
+
+/** Missões do dia em memória. O progresso vem do servidor; `advance` só adianta o número na tela entre uma leitura e outra. */
+export class QuestLog extends Phaser.Events.EventEmitter {
+  constructor(public board: QuestBoard) {
+    super();
+  }
+
+  set(board: QuestBoard): void {
+    this.board = board;
+    this.emit('change');
+  }
+
+  /** Avança as missões que o evento conta; devolve as que mudaram (para avisar o jogador). */
+  advance(e: QuestEvent): { quest: DailyQuest; count: number; name: string }[] {
+    const changed: { quest: DailyQuest; count: number; name: string }[] = [];
+    for (const q of this.board.quests) {
+      const t = content.quests.templates.find((x) => x.id === q.questId);
+      if (!t || q.claimed || q.progress >= t.count) continue;
+      const n = questProgress(t, e);
+      if (n === 0) continue;
+      q.progress = Math.min(t.count, q.progress + n);
+      changed.push({ quest: q, count: t.count, name: t.name });
+    }
+    if (changed.length) this.emit('change');
+    return changed;
+  }
+}
+
+export const getQuests = (scene: Phaser.Scene): QuestLog => scene.registry.get('quests') as QuestLog;
 
 /** XP, nível, cobre e ouro em memória, sempre iguais ao último valor que o servidor devolveu. */
 export class Progress extends Phaser.Events.EventEmitter {
