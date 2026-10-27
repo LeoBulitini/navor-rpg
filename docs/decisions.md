@@ -51,6 +51,11 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | Vida e mana não são gravadas no servidor: enchem na cidade e ao subir de nível; entre mapas seguem iguais | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Morte: a exploração é encerrada e o jogador volta à praça da cidade com vida cheia; não perde itens, XP nem cobre, só o que ainda não coletou naquela Gruta | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Arte dos monstros e do projétil desenhada por código (tools/art/creature_art.py), como a dos itens | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | App Windows com Tauri 2 (não Electron): instalador de poucos MB, usa o WebView2 que já vem no Windows 10/11; empacota o build web, sem dados locais | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Instalador de teste gerado pelo GitHub Actions e baixado pelos artifacts da execução; sem assinatura digital (certificado é pago) e sem atualização automática por enquanto | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Testes automáticos (typecheck, unitários, fumaça, banco) no GitHub Actions a cada PR; gratuito por o repositório ser público | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | As chaves públicas do Supabase (URL e publishable) ficam no workflow do Windows como valor padrão, porque o ambiente do Claude não consegue criar variáveis do repositório; podem ser trocadas por variáveis do repositório | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Ícone provisório do app feito do sprite do Mago | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 
@@ -59,4 +64,4 @@ Ver a seção "Decisões em aberto" do GDD. Próximas a decidir, por fase:
 - Fase 2: confirmação de e-mail no protótipo (SMTP próprio ou desligar).
 - Reconexão: voltar para a mesma Gruta depois de recarregar a página.
 - Revisar as decisões provisórias de combate da Fase 6 (tabela acima) depois de jogar.
-- Fase 7: Tauri ou Electron.
+- Assinatura digital do instalador Windows (certificado pago) e atualização automática do app.

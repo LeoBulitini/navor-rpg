@@ -16,7 +16,8 @@ Documento completo (requisitos, conflitos, stack, fases): https://claude.ai/arti
   Na Fase 6, o combate roda no navegador e o servidor valida o abate (`kill_monster`): monstro sorteado por ele, ainda vivo,
   e ritmo de abates possível para o nível. Ele sorteia e grava XP, cobre e itens. Simular o combate no servidor depende do
   modelo de multiplayer (A DEFINIR).
-- **Hospedagem**: Vercel (build estático). **Windows**: Tauri carregando o mesmo build web.
+- **Hospedagem**: Vercel (build estático). **Windows**: Tauri 2 (`apps/desktop`) empacotando o mesmo build web, gerado
+  pelo GitHub Actions (`windows-latest`). O app fala direto com o mesmo Supabase; não há servidor nem banco próprios.
 
 ## Plano de fases
 
@@ -25,5 +26,5 @@ Documento completo (requisitos, conflitos, stack, fases): https://claude.ai/arti
 3. Cidade pequena e transição de cena
 4. Gruta procedural com seed e validação de caminho
 5. Coleta e inventário validados no servidor
-6. Combate simples, XP, nível, morte e retorno (atual)
-7. Fechamento do MVP P1 e executável Windows de teste
+6. Combate simples, XP, nível, morte e retorno
+7. Fechamento do MVP P1 e executável Windows de teste (atual; ver [mvp-p1.md](mvp-p1.md))
