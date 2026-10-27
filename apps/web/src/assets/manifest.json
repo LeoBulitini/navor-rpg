@@ -22,5 +22,10 @@
   "objects": {
     "$comment": "Um PNG por 'sprite' de content/objects.json, com o 'width'/'height' definidos lá.",
     "path": "assets/city/objects"
+  },
+  "items": {
+    "$comment": "Um PNG 32x32 por 'icon' de content/items.json. Itens sem ícone usam o 'fallback'. O mesmo ícone aparece no chão da Gruta e no inventário.",
+    "path": "assets/items",
+    "fallback": "unknown"
   }
 }

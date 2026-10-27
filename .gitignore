@@ -6,3 +6,4 @@ test-results/
 !.env.example
 .DS_Store
 *.log
+__pycache__/

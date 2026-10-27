@@ -1,7 +1,7 @@
 // Teste de fumaça no navegador (Chromium via Playwright). Requer `npm run build` antes.
 // Sobe o `vite preview`, entra no modo offline, abre o jogo com ?test e verifica: carregamento na cidade, escala
 // inteira, movimento, diagonal, colisão com prédio e borda, aviso da porta, ida e volta da Gruta gerada por seed
-// e Gruta nova a cada entrada. Uso: npm run smoke
+// e Gruta nova a cada entrada, coleta de recursos e inventário (modo offline). Uso: npm run smoke
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { preview } from 'vite';
@@ -120,6 +120,31 @@ try {
   check('a Gruta não muda enquanto o jogador está dentro', JSON.stringify(await nav(() => window.__navor.rows)) === JSON.stringify(rowsBefore));
   await page.screenshot({ path: join(OUT, 'gruta.png') });
 
+  // Pontos de coleta e inventário (no modo offline o sorteio roda no navegador e nada é salvo)
+  const nodes = await nav(() => window.__navor.nodes());
+  check('a Gruta tem de 8 a 12 pontos de coleta', nodes.length >= 8 && nodes.length <= 12, String(nodes.length));
+  const first = nodes[0];
+  await nav(([x, y]) => window.__navor.teleport(x, y), [first.x, first.y]);
+  await page.waitForTimeout(200);
+  const prompt = await nav(() => window.__navor.collectPrompt());
+  check('perto do ponto aparece "E: coletar"', /^E: coletar /.test(prompt ?? ''), String(prompt));
+  await page.screenshot({ path: join(OUT, 'gruta-coleta.png') });
+  await page.keyboard.press('e');
+  await page.waitForTimeout(300);
+  const afterCollect = await nav(() => ({ node: window.__navor.nodes()[0], inv: window.__navor.inventory() }));
+  check('o ponto some depois da coleta', afterCollect.node.state === 'done');
+  check('o item entra no inventário com a quantidade do ponto', afterCollect.inv[first.itemId] === first.quantity, JSON.stringify(afterCollect.inv));
+  await page.keyboard.press('e');
+  await page.waitForTimeout(300);
+  check('apertar E de novo não duplica o item', (await nav(() => window.__navor.inventory()))[first.itemId] === first.quantity);
+  await page.keyboard.press('i');
+  await page.waitForTimeout(200);
+  check('a tecla I abre o inventário', await nav(() => window.__navor.inventoryOpen()));
+  await page.screenshot({ path: join(OUT, 'inventario.png') });
+  await page.keyboard.press('i');
+  await page.waitForTimeout(200);
+  check('a tecla I fecha o inventário', !(await nav(() => window.__navor.inventoryOpen())));
+
   // Sai pela saída de baixo e volta ao portão da cidade
   const caveExit = (await nav(() => window.__navor.exits))[1];
   await nav(([x, y]) => window.__navor.teleport(x, y), [caveExit.x, caveExit.y - 2]);
@@ -135,6 +160,8 @@ try {
   await waitForMap('cave').catch(() => {});
   const seed2 = await nav(() => window.__navor.seed);
   check('nova entrada gera outra Gruta', seed2 !== caveSeed, `${caveSeed} -> ${seed2}`);
+  check('o inventário continua com o item depois de sair e entrar', (await nav(() => window.__navor.inventory()))[first.itemId] === first.quantity);
+  check('a nova entrada traz pontos de coleta novos', (await nav(() => window.__navor.nodes())).every((n) => n.state === 'ready'));
 
   await page.keyboard.press('F3');
   await page.waitForTimeout(200);
