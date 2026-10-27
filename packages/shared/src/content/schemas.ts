@@ -143,6 +143,77 @@ export const resourcesConfigSchema = z.object({
   maxStartsPerMinute: z.number().int().positive(),
 });
 
+/** Monstros por entrada numa área. O servidor sorteia o tipo; o cliente posiciona. */
+export const creaturesConfigSchema = z.object({
+  count: range,
+  /** distância mínima (em tiles) da entrada, da saída e do nascimento */
+  clearance: z.number().int().min(0),
+  spawn: z.array(z.object({ creature: z.string().min(1), weight: z.number().int().positive() })).min(1),
+});
+
+const stats = z.object({
+  hp: z.number().positive(),
+  attack: z.number().min(0),
+  defense: z.number().min(0),
+});
+
+export const creaturesSchema = z.object({
+  creatures: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9-]+$/, 'use letras minúsculas, números e hífen'),
+        name: z.string().min(1),
+        sprite: z.string().min(1),
+        stats: stats.extend({ hp: z.number().int().positive() }),
+        moveSpeedTilesPerSecond: z.number().positive(),
+        detectTiles: z.number().positive(),
+        attackRangeTiles: z.number().positive(),
+        attackCooldownMs: z.number().int().positive(),
+        xp: z.number().int().min(0),
+        copper: range,
+        drops: z.array(
+          z.object({
+            item: z.string().min(1),
+            chance: z.number().gt(0).max(1),
+            quantity: range.refine((r) => r.min >= 1, 'quantidade mínima é 1'),
+          }),
+        ),
+      }),
+    )
+    .min(1),
+});
+
+export const progressionSchema = z.object({
+  xpCurve: z.object({ base: z.number().positive(), exponent: z.number().positive() }),
+  classStats: z
+    .array(
+      z.object({
+        classId: z.string().min(1),
+        base: stats.extend({ mana: z.number().min(0) }),
+        perLevel: z.object({ hp: z.number().min(0), mana: z.number().min(0), attack: z.number().min(0), defense: z.number().min(0) }),
+      }),
+    )
+    .min(1),
+});
+
+export const combatSchema = z.object({
+  basicAttack: z.object({
+    name: z.string().min(1),
+    sprite: z.string().min(1),
+    manaCost: z.number().min(0),
+    cooldownMs: z.number().int().positive(),
+    projectileSpeedTilesPerSecond: z.number().positive(),
+    rangeTiles: z.number().positive(),
+  }),
+  manaRegenPerSecond: z.number().min(0),
+  critChance: z.number().min(0).max(1),
+  critMultiplier: z.number().min(1),
+  damageVariance: z.number().min(0).max(0.9),
+  defenseFactor: z.number().min(0),
+  invulnerableAfterHitMs: z.number().int().min(0),
+  server: z.object({ maxDamagePerSecond: z.object({ base: z.number().positive(), perLevel: z.number().min(0) }) }),
+});
+
 /** Parâmetros de uma área gerada por seed. Valores provisórios (GDD 7.3: tamanhos e densidades A DEFINIR). */
 export const caveConfigSchema = z.object({
   id: z.string().min(1),
@@ -165,6 +236,7 @@ export const caveConfigSchema = z.object({
   }),
   returnTo: z.object({ map: z.string().min(1), arriveAt: gridPoint }),
   resources: resourcesConfigSchema.optional(),
+  creatures: creaturesConfigSchema.optional(),
 });
 export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
 
@@ -182,3 +254,9 @@ export type Procedural = z.infer<typeof proceduralSchema>;
 export type Items = z.infer<typeof itemsSchema>;
 export type ItemDef = Items['items'][number];
 export type ResourcesConfig = z.infer<typeof resourcesConfigSchema>;
+export type CreaturesConfig = z.infer<typeof creaturesConfigSchema>;
+export type Creatures = z.infer<typeof creaturesSchema>;
+export type CreatureDef = Creatures['creatures'][number];
+export type Progression = z.infer<typeof progressionSchema>;
+export type ClassStats = Progression['classStats'][number];
+export type Combat = z.infer<typeof combatSchema>;

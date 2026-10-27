@@ -33,6 +33,15 @@
         "expiresMinutes": 30,
         "collectCooldownMs": 500,
         "maxStartsPerMinute": 10
+      },
+      "creatures": {
+        "$comment": "Monstros por entrada (Fase 6). PROVISÓRIO. O servidor sorteia o tipo de cada um pelo 'weight'; o navegador posiciona a partir da seed, longe da entrada e da saída ('clearance' em tiles).",
+        "count": { "min": 4, "max": 6 },
+        "clearance": 6,
+        "spawn": [
+          { "creature": "cave-rat", "weight": 70 },
+          { "creature": "goblin-raider", "weight": 30 }
+        ]
       }
     }
   ]

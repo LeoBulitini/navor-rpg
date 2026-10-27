@@ -1,7 +1,7 @@
 // Teste de fumaça no navegador (Chromium via Playwright). Requer `npm run build` antes.
 // Sobe o `vite preview`, entra no modo offline, abre o jogo com ?test e verifica: carregamento na cidade, escala
 // inteira, movimento, diagonal, colisão com prédio e borda, aviso da porta, ida e volta da Gruta gerada por seed
-// e Gruta nova a cada entrada, coleta de recursos e inventário (modo offline). Uso: npm run smoke
+// e Gruta nova a cada entrada, coleta de recursos e inventário, combate e derrota (modo offline). Uso: npm run smoke
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { preview } from 'vite';
@@ -162,6 +162,42 @@ try {
   check('nova entrada gera outra Gruta', seed2 !== caveSeed, `${caveSeed} -> ${seed2}`);
   check('o inventário continua com o item depois de sair e entrar', (await nav(() => window.__navor.inventory()))[first.itemId] === first.quantity);
   check('a nova entrada traz pontos de coleta novos', (await nav(() => window.__navor.nodes())).every((n) => n.state === 'ready'));
+
+  // Combate (Fase 6): monstros, Projétil Arcano, XP, cobre e morte
+  const monsters = await nav(() => window.__navor.monsters());
+  check('a Gruta tem de 4 a 6 monstros', monsters.length >= 4 && monsters.length <= 6, String(monsters.length));
+  const full = await nav(() => window.__navor.vitals());
+  check('entra na Gruta com vida e mana cheias', full.hp === full.maxHp && full.mana === full.maxMana, JSON.stringify(full));
+  const target = monsters.find((m) => m.creatureId === 'cave-rat') ?? monsters[0];
+  await nav(([x, y]) => window.__navor.teleport(x, y), [target.cell.x, target.cell.y]);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(100);
+  check('atacar gasta mana', (await nav(() => window.__navor.vitals())).mana < full.maxMana);
+  await page.screenshot({ path: join(OUT, 'gruta-combate.png') });
+  for (let i = 0; i < 40; i++) {
+    const m = (await nav(() => window.__navor.monsters())).find((x) => x.index === target.index);
+    if (m.state !== 'alive') break;
+    await nav(([x, y]) => window.__navor.teleport(x, y), [m.cell.x, m.cell.y]);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(500);
+  }
+  await page.waitForTimeout(500);
+  const killed = (await nav(() => window.__navor.monsters())).find((x) => x.index === target.index);
+  check('o Projétil Arcano abate o monstro', killed.state === 'dead', `${killed.state}, vida ${killed.hp}`);
+  const progress = await nav(() => window.__navor.progress());
+  const xpByCreature = { 'cave-rat': 8, 'goblin-raider': 22 };
+  check('o abate dá o XP do monstro', progress.xp === xpByCreature[target.creatureId], JSON.stringify(progress));
+  check('levar dano dos monstros não passa da vida máxima', (await nav(() => window.__navor.vitals())).hp <= full.maxHp);
+  await nav(() => window.__navor.hurtPlayer(9999));
+  check('vida zerada derruba o jogador', await nav(() => window.__navor.dead()));
+  await page.waitForTimeout(500);
+  check('mostra a mensagem de derrota', /derrotado/.test((await nav(() => window.__navor.notice())) ?? ''));
+  await waitForMap('city').catch(() => {});
+  check('depois da derrota, volta para a cidade', (await nav(() => window.__navor.mapId)) === 'city');
+  const revived = await nav(() => window.__navor.vitals());
+  check('volta com vida cheia', revived.hp === revived.maxHp, JSON.stringify(revived));
+  check('a derrota não tira XP nem itens', (await nav(() => window.__navor.progress())).xp === progress.xp
+    && (await nav(() => window.__navor.inventory()))[first.itemId] >= first.quantity);
 
   await page.keyboard.press('F3');
   await page.waitForTimeout(200);

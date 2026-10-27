@@ -4,6 +4,7 @@ export interface StartedExploration {
   exploration_id: string;
   seed: number;
   nodes: { index: number; item_id: string; quantity: number }[];
+  monsters: { index: number; creature_id: string }[];
 }
 
 export interface CollectedNode {
@@ -39,4 +40,30 @@ export async function listInventory(characterId: string): Promise<{ item_id: str
   const { data, error } = await client().from('inventory_items').select('item_id, quantity').eq('character_id', characterId);
   if (error) throw error;
   return data;
+}
+
+export interface KilledMonster {
+  /** false quando o monstro já tinha sido abatido: nada foi somado de novo */
+  killed: boolean;
+  creature_id: string;
+  xp_gained: number;
+  xp: number;
+  level: number;
+  leveled_up: boolean;
+  copper_gained: number;
+  copper: number;
+  drops: { item_id: string; quantity: number; total: number }[];
+}
+
+/** Abate validado no servidor (função kill_monster): ele sorteia cobre e itens e grava XP e nível. */
+export async function killMonster(explorationId: string, monsterIndex: number): Promise<KilledMonster> {
+  const { data, error } = await client().rpc('kill_monster', { p_exploration_id: explorationId, p_monster_index: monsterIndex });
+  if (error) throw error;
+  return data as KilledMonster;
+}
+
+/** Encerra a entrada (morte): depois disso o servidor recusa coletas e abates nela. */
+export async function endExploration(explorationId: string): Promise<void> {
+  const { error } = await client().rpc('end_exploration', { p_exploration_id: explorationId });
+  if (error) throw error;
 }

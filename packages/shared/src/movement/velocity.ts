@@ -37,3 +37,11 @@ export function facingFromVelocity(v: Velocity, current: Facing): Facing {
 export function tilesPerSecondToPixels(tilesPerSecond: number, tileSize: number): number {
   return tilesPerSecond * tileSize;
 }
+
+/** Vetor unitário de uma direção (para onde o jogador está virado, ex.: direção do projétil). */
+export function facingVector(facing: Facing): Velocity {
+  const dx = facing.includes('east') ? 1 : facing.includes('west') ? -1 : 0;
+  const dy = facing.includes('south') ? 1 : facing.includes('north') ? -1 : 0;
+  const len = Math.hypot(dx, dy);
+  return { vx: dx / len, vy: dy / len };
+}

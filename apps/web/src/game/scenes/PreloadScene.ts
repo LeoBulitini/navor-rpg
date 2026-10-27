@@ -1,6 +1,16 @@
 import * as Phaser from 'phaser';
 import { FACINGS, type Facing } from '@navor/shared';
-import { assets, characterSpritePath, itemIconPath, itemIcons, objectSpritePath, TextureKeys } from '../../assets/index.ts';
+import {
+  assets,
+  characterSpritePath,
+  creatureSpritePath,
+  effectSpritePath,
+  itemIconPath,
+  itemIcons,
+  objectSpritePath,
+  TextureKeys,
+} from '../../assets/index.ts';
+import { creatureAnimKey } from '../entities/Monster.ts';
 import { friendlyError } from '../../services/errors.ts';
 import { getBackend, Inventory } from '../backend.ts';
 import { content } from '../../content.ts';
@@ -31,6 +41,12 @@ export class PreloadScene extends Phaser.Scene {
       this.load.image(TextureKeys.object(sprite), objectSpritePath(sprite));
     }
     for (const icon of itemIcons()) this.load.image(TextureKeys.item(icon), itemIconPath(icon));
+    const { frameWidth: cw, frameHeight: ch } = assets.creatures;
+    for (const sprite of new Set(content.creatures.creatures.map((c) => c.sprite))) {
+      this.load.spritesheet(TextureKeys.creature(sprite), creatureSpritePath(sprite), { frameWidth: cw, frameHeight: ch });
+    }
+    const bolt = content.combat.basicAttack.sprite;
+    this.load.image(TextureKeys.effect(bolt), effectSpritePath(bolt));
     const classId = sessionClassId(this);
     const { frameWidth, frameHeight } = assets.characters;
     for (const facing of FACINGS) {
@@ -46,6 +62,7 @@ export class PreloadScene extends Phaser.Scene {
     const loaded = FACINGS.every((f) => this.textures.exists(TextureKeys.character(classId, f)));
     if (!loaded || !this.textures.exists(TextureKeys.tileset)) return;
     this.createCharacterAnimations(classId);
+    this.createCreatureAnimations();
     const label = this.label.setText('Carregando inventário...');
     getBackend(this)
       .loadInventory()
@@ -56,6 +73,21 @@ export class PreloadScene extends Phaser.Scene {
       .catch((err: unknown) => {
         label.setText(`Não foi possível carregar o inventário.\n${friendlyError(err)}\nRecarregue a página.`).setColor('#fca5a5').setAlign('center');
       });
+  }
+
+  /** Quadro 0 parado; os demais quadros da tira formam o andar. */
+  private createCreatureAnimations(): void {
+    for (const sprite of new Set(content.creatures.creatures.map((c) => c.sprite))) {
+      const key = TextureKeys.creature(sprite);
+      const frames = this.textures.get(key).frameTotal - 1; // frameTotal inclui o quadro __BASE
+      this.anims.create({ key: creatureAnimKey(sprite, 'idle'), frames: [{ key, frame: 0 }] });
+      this.anims.create({
+        key: creatureAnimKey(sprite, 'walk'),
+        frames: this.anims.generateFrameNumbers(key, { start: 0, end: Math.max(0, frames - 1) }),
+        frameRate: assets.creatures.walkFrameRate,
+        repeat: -1,
+      });
+    }
   }
 
   /** Cada direção é uma tira horizontal: "idle" e "walk" escolhem colunas dela. */

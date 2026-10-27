@@ -1,0 +1,18 @@
+{
+  "$comment": "Combate em tempo real (GDD 17: tempo real ou turnos era A DEFINIR). Valores PROVISÓRIOS decididos por Claude em 2026-10-27. Dano = max(1, ataque * variação - defesa * defenseFactor), com crítico. 'server.maxDamagePerSecond' é o teto (base + perLevel × nível) que o servidor aceita ao validar abates: cerca de 1,5× o máximo possível do Mago.",
+  "basicAttack": {
+    "name": "Projétil Arcano",
+    "sprite": "arcane-bolt",
+    "manaCost": 3,
+    "cooldownMs": 450,
+    "projectileSpeedTilesPerSecond": 9,
+    "rangeTiles": 6
+  },
+  "manaRegenPerSecond": 4,
+  "critChance": 0.05,
+  "critMultiplier": 1.5,
+  "damageVariance": 0.1,
+  "defenseFactor": 0.5,
+  "invulnerableAfterHitMs": 500,
+  "server": { "maxDamagePerSecond": { "base": 60, "perLevel": 8 } }
+}

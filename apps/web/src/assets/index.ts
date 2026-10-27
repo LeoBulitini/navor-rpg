@@ -11,6 +11,8 @@ export const TextureKeys = {
   character: (classId: string, facing: Facing) => `character:${classId}:${facing}`,
   object: (sprite: string) => `object:${sprite}`,
   item: (icon: string) => `item:${icon}`,
+  creature: (sprite: string) => `creature:${sprite}`,
+  effect: (sprite: string) => `effect:${sprite}`,
 } as const;
 
 /** PNG de um objeto (prédio, árvore...) pelo 'sprite' de content/objects.json. */
@@ -31,6 +33,15 @@ export function itemIconPath(icon: string): string {
 export function itemTexture(itemId: string): string {
   const icon = content.items.items.find((i) => i.id === itemId)?.icon ?? manifest.items.fallback;
   return TextureKeys.item(icon);
+}
+
+/** Tira de quadros de um monstro pelo 'sprite' de content/creatures.json. */
+export function creatureSpritePath(sprite: string): string {
+  return `${manifest.creatures.path}/${sprite}.png`;
+}
+
+export function effectSpritePath(sprite: string): string {
+  return `${manifest.effects.path}/${sprite}.png`;
 }
 
 /** Classe usada quando não há personagem online (modo offline). */

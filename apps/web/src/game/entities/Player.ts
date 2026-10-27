@@ -37,6 +37,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play(animKey(this.classId, moving ? 'walk' : 'idle', this.facing), true);
   }
 
+  /** Piscar em vermelho ao levar dano. */
+  flash(): void {
+    this.setTint(0xff5555).setTintMode(Phaser.TintModes.FILL);
+    this.scene.time.delayedCall(90, () => this.clearTint().setTintMode(Phaser.TintModes.MULTIPLY));
+  }
+
   getFacing(): Facing {
     return this.facing;
   }

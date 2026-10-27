@@ -6,6 +6,9 @@ import tiles from '@content/tiles.json';
 import balance from '@content/balance.prototype.json';
 import objects from '@content/objects.json';
 import items from '@content/items.json';
+import creatures from '@content/creatures.json';
+import progression from '@content/progression.json';
+import combat from '@content/combat.json';
 import world from '@content/world.json';
 import procedural from '@content/procedural.json';
 
@@ -18,6 +21,9 @@ export const content: Content = loadContent({
   balance,
   objects,
   items,
+  creatures,
+  progression,
+  combat,
   world,
   procedural,
   maps: Object.fromEntries(Object.entries(mapFiles).map(([path, data]) => [path.split('/').pop()!, data])),

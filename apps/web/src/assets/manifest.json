@@ -27,5 +27,16 @@
     "$comment": "Um PNG 32x32 por 'icon' de content/items.json. Itens sem ícone usam o 'fallback'. O mesmo ícone aparece no chão da Gruta e no inventário.",
     "path": "assets/items",
     "fallback": "unknown"
+  },
+  "creatures": {
+    "$comment": "Um PNG por 'sprite' de content/creatures.json: tira horizontal de quadros 32x32 (0 parado, 1 andando), desenhada virada para a direita. Arte provisória (tools/art/creature_art.py).",
+    "path": "assets/creatures",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walkFrameRate": 6
+  },
+  "effects": {
+    "$comment": "Efeitos de combate, um PNG por 'sprite' (ex.: basicAttack.sprite de content/combat.json). Arte provisória.",
+    "path": "assets/effects"
   }
 }

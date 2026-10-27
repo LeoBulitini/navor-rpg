@@ -3,7 +3,7 @@ import { content } from '../content.ts';
 import { PreloadScene } from './scenes/PreloadScene.ts';
 import { WorldScene } from './scenes/WorldScene.ts';
 import type { PlaySession } from '../menu/menu.ts';
-import { createBackend } from './backend.ts';
+import { createBackend, initialProgress, Progress } from './backend.ts';
 
 export function createGameConfig(parent: string, session: PlaySession): Phaser.Types.Core.GameConfig {
   const { width, height } = content.balance.viewport;
@@ -32,6 +32,7 @@ export function createGameConfig(parent: string, session: PlaySession): Phaser.T
       preBoot: (game) => {
         game.registry.set('session', session);
         game.registry.set('backend', createBackend(session));
+        game.registry.set('progress', new Progress(initialProgress(session)));
       },
     },
   };

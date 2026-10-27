@@ -2,6 +2,8 @@
 
 Cada linha registra o que foi decidido, quando e por quem. Itens "A DEFINIR" do GDD só entram aqui depois de aprovados.
 
+Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir até o fim do MVP. Essas decisões estão marcadas "Decidida por Claude" e são provisórias: valem até Leonardo revisar.
+
 | Data | Decisão | Status |
 | --- | --- | --- |
 | 2026-10-26 | Stack: TypeScript, Phaser + Vite, Supabase (Auth, Postgres/RLS, RPC, Edge Functions), Vercel, Tauri para Windows numa fase posterior | Aprovada por Leonardo |
@@ -37,12 +39,24 @@ Cada linha registra o que foi decidido, quando e por quem. Itens "A DEFINIR" do 
 | 2026-10-27 | A exploração vence ao entrar de novo na Gruta ou após 30 minutos; os pontos não coletados se perdem; voltar à mesma Gruta após recarregar fica para a decisão de reconexão | Aprovada por Leonardo (provisória) |
 | 2026-10-27 | Contra abuso: intervalo mínimo de 0,5 s entre coletas e no máximo 10 entradas na Gruta por minuto. O servidor não acompanha a posição do jogador (depende do modelo de multiplayer, A DEFINIR) | Decisão técnica da Fase 5 |
 | 2026-10-27 | Todos os 41 itens do GDD (seções 9.2 a 9.5) entram em `content/items.json`; usos, preços e receitas continuam A DEFINIR | Decisão técnica da Fase 5 |
+| 2026-10-27 | Combate em tempo real: o Mago dispara o Projétil Arcano (Espaço) na direção em que está virado; o projétil para nas paredes | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Atributos do Mago no nível 0: vida 60, mana 30, ataque 10, defesa 3; por nível: +6 vida, +3 mana, +1,5 ataque, +0,5 defesa. Uma defesa única até existirem Defesa Física e Mágica separadas | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Projétil Arcano: custa 3 de mana, recarga 0,45 s, 9 tiles/s, alcance 6 tiles; mana volta 4 por segundo | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Dano = ataque × (1 ± 10%) − defesa × 0,5, mínimo 1; crítico 5% de chance, ×1,5; 0,5 s de invulnerabilidade depois de levar dano | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Curva de XP: passar do nível L ao L+1 custa round(40 × (L+1)^1,6) XP (nível 1 = 40 XP, nível 10 ≈ 6 mil XP acumulados) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Monstros da Gruta: Rato das Cavernas (vida 18, ataque 5, 8 XP, 0 a 2 de cobre, Pele de Rato 50%) e Goblin Saqueador (vida 42, ataque 8, defesa 2, 22 XP, 2 a 6 de cobre, Presas de Goblin 40%); 4 a 6 por Gruta, 70% ratos | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Monstros perseguem quem chega a 5–6 tiles e desistem quando se afastam o dobro disso de onde nasceram; andam em linha reta (sem desviar de paredes) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Monstros soltam cobre; XP, cobre e itens do abate são sorteados e gravados pelo servidor (`kill_monster`) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | O servidor não simula o combate em tempo real: confere dono, prazo, monstro ainda vivo e se o total de vida abatida cabe em (60 + 8 × nível) de dano por segundo desde a entrada, cerca de 1,5× o máximo do Mago | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Vida e mana não são gravadas no servidor: enchem na cidade e ao subir de nível; entre mapas seguem iguais | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Morte: a exploração é encerrada e o jogador volta à praça da cidade com vida cheia; não perde itens, XP nem cobre, só o que ainda não coletou naquela Gruta | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Arte dos monstros e do projétil desenhada por código (tools/art/creature_art.py), como a dos itens | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 
 Ver a seção "Decisões em aberto" do GDD. Próximas a decidir, por fase:
 
 - Fase 2: confirmação de e-mail no protótipo (SMTP próprio ou desligar).
-- Reconexão: voltar para a mesma Gruta depois de recarregar a página; perda de itens ao morrer (Fase 6).
-- Fase 6: combate em tempo real ou por turnos, fórmulas, curva de XP, penalidade de morte; nível de validação de combate no servidor.
+- Reconexão: voltar para a mesma Gruta depois de recarregar a página.
+- Revisar as decisões provisórias de combate da Fase 6 (tabela acima) depois de jogar.
 - Fase 7: Tauri ou Electron.

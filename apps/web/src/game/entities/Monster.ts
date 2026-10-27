@@ -1,0 +1,71 @@
+import * as Phaser from 'phaser';
+import { monsterIntent, type CreatureDef, type GridPoint, type MonsterIntent } from '@navor/shared';
+import { TextureKeys } from '../../assets/index.ts';
+import { content } from '../../content.ts';
+
+export const creatureAnimKey = (sprite: string, state: 'idle' | 'walk') => `creature-${sprite}-${state}`;
+
+/**
+ * Um monstro da Gruta. A IA (monsterIntent) decide; aqui só se move e anima.
+ * O dano que ele causa e recebe é calculado na cena; a recompensa do abate vem do servidor.
+ */
+export class Monster extends Phaser.Physics.Arcade.Sprite {
+  declare body: Phaser.Physics.Arcade.Body;
+  hp: number;
+  state: 'alive' | 'dying' | 'dead' = 'alive';
+  intent: MonsterIntent = 'idle';
+  private lastAttack = -Infinity;
+  private readonly speed: number;
+  private readonly home: { x: number; y: number };
+
+  constructor(
+    scene: Phaser.Scene,
+    readonly index: number,
+    readonly def: CreatureDef,
+    cell: GridPoint,
+  ) {
+    const T = content.balance.tileSize;
+    super(scene, cell.x * T + T / 2, cell.y * T + T / 2, TextureKeys.creature(def.sprite), 0);
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+    this.hp = def.stats.hp;
+    this.speed = def.moveSpeedTilesPerSecond * T;
+    this.home = { x: this.x, y: this.y };
+    // Corpo pequeno nos pés, como o do jogador.
+    this.body.setSize(16, 10);
+    this.body.setOffset(8, 18);
+    this.setCollideWorldBounds(true);
+    this.play(creatureAnimKey(def.sprite, 'idle'));
+  }
+
+  /** Um passo da IA. Devolve true quando o monstro desfere um golpe neste quadro. */
+  think(now: number, player: { x: number; y: number } | null): boolean {
+    if (this.state !== 'alive') return false;
+    const T = content.balance.tileSize;
+    const c = this.body.center;
+    const tiles = (p: { x: number; y: number }) => ({ x: p.x / T, y: p.y / T });
+    this.intent = monsterIntent(this.def, tiles(c), tiles(this.home), player && tiles(player), this.intent === 'chase' || this.intent === 'attack');
+    let target: { x: number; y: number } | null = null;
+    if (this.intent === 'chase') target = player;
+    if (this.intent === 'return') target = this.home;
+    if (target) {
+      const angle = Phaser.Math.Angle.Between(c.x, c.y, target.x, target.y);
+      this.setVelocity(Math.cos(angle) * this.speed, Math.sin(angle) * this.speed);
+      this.setFlipX(target.x < c.x);
+    } else {
+      this.setVelocity(0, 0);
+    }
+    if (player && this.intent === 'attack') this.setFlipX(player.x < c.x);
+    this.play(creatureAnimKey(this.def.sprite, target ? 'walk' : 'idle'), true);
+    this.setDepth(this.body.bottom);
+    if (this.intent !== 'attack' || now - this.lastAttack < this.def.attackCooldownMs) return false;
+    this.lastAttack = now;
+    return true;
+  }
+
+  /** Piscar em branco ao levar dano. */
+  flash(): void {
+    this.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+    this.scene.time.delayedCall(80, () => this.state === 'alive' && this.clearTint().setTintMode(Phaser.TintModes.MULTIPLY));
+  }
+}
