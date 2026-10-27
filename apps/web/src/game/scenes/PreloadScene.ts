@@ -45,8 +45,9 @@ export class PreloadScene extends Phaser.Scene {
     for (const sprite of new Set(content.creatures.creatures.map((c) => c.sprite))) {
       this.load.spritesheet(TextureKeys.creature(sprite), creatureSpritePath(sprite), { frameWidth: cw, frameHeight: ch });
     }
-    const bolt = content.combat.basicAttack.sprite;
-    this.load.image(TextureKeys.effect(bolt), effectSpritePath(bolt));
+    for (const attack of Object.values(content.combat.basicAttacks)) {
+      this.load.image(TextureKeys.effect(attack.sprite), effectSpritePath(attack.sprite));
+    }
     const classId = sessionClassId(this);
     const { frameWidth, frameHeight } = assets.characters;
     for (const facing of FACINGS) {

@@ -7,7 +7,7 @@ import { animKey } from '../scenes/PreloadScene.ts';
 export class Player extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
   private facing: Facing = 'south';
-  private readonly speed: number;
+  private speed: number;
 
   constructor(
     scene: Phaser.Scene,
@@ -41,6 +41,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   flash(): void {
     this.setTint(0xff5555).setTintMode(Phaser.TintModes.FILL);
     this.scene.time.delayedCall(90, () => this.clearTint().setTintMode(Phaser.TintModes.MULTIPLY));
+  }
+
+  /** Velocidade de movimento do atributo da classe. */
+  setSpeedTiles(tilesPerSecond: number): void {
+    this.speed = tilesPerSecond * content.balance.tileSize;
   }
 
   getFacing(): Facing {

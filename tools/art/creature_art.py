@@ -74,6 +74,28 @@ def bolt():
     return img
 
 
+def arrow():
+    img = Img(16, 16)
+    for x in range(2, 12):
+        img.px(x, 8, hx('#8a5a32'))
+    for x, y in ((12, 8), (11, 7), (11, 9), (13, 8), (10, 6), (10, 10)):
+        img.px(x, y, hx('#c8ccd4'))
+    for x, y in ((2, 7), (3, 6), (2, 9), (3, 10), (1, 7), (1, 9)):
+        img.px(x, y, hx('#e5e7eb'))
+    return img
+
+
+def slash():
+    """Arco de golpe virado para a direita (o jogo gira conforme a direção)."""
+    import math
+    img = Img(32, 32)
+    for i in range(-50, 51, 2):
+        a = math.radians(i)
+        for r, c in ((11, hx('#ffffff', 230)), (12, hx('#dbeafe', 200)), (13, hx('#93c5fd', 140))):
+            img.px(round(10 + r * math.cos(a)), round(16 + r * math.sin(a)), c)
+    return img
+
+
 def strip(frames):
     out = Img(32 * len(frames), 32)
     for i, f in enumerate(frames):
@@ -85,14 +107,14 @@ CREATURES = {
     'cave-rat': lambda: strip([rat(0), rat(1)]),
     'goblin-raider': lambda: strip([goblin(0), goblin(1)]),
 }
-EFFECTS = {'arcane-bolt': bolt}
+EFFECTS = {'arcane-bolt': bolt, 'arrow': arrow, 'slash': slash}
 
 
 def main():
     with open(os.path.join(ROOT, 'content', 'creatures.json'), encoding='utf8') as f:
         wanted = {c['sprite'] for c in json.load(f)['creatures']}
     with open(os.path.join(ROOT, 'content', 'combat.json'), encoding='utf8') as f:
-        effects = {json.load(f)['basicAttack']['sprite']}
+        effects = {a['sprite'] for a in json.load(f)['basicAttacks'].values()}
     for kind, have in (('monstros', wanted - CREATURES.keys()), ('efeitos', effects - EFFECTS.keys())):
         if have:
             raise SystemExit(f'Sem desenho para {kind}: {", ".join(sorted(have))}')

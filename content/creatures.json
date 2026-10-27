@@ -1,31 +1,67 @@
 {
-  "$comment": "Monstros (GDD 8.2). Vida, dano, XP, detecção e recompensas eram A DEFINIR; valores PROVISÓRIOS decididos por Claude em 2026-10-27 (autorização de Leonardo). 'drops' e 'copper' são sorteados pelo servidor no abate.",
+  "$comment": "Monstros (GDD 8.2). Vida, dano, XP, detecção e recompensas eram A DEFINIR; valores PROVISÓRIOS decididos por Claude em 2026-10-27 (autorização de Leonardo). 'drops' e 'copper' são sorteados pelo servidor no abate. 'damageType' diz se o golpe do monstro usa a Defesa Física ou a Mágica do jogador.",
   "creatures": [
     {
       "id": "cave-rat",
       "name": "Rato das Cavernas",
       "sprite": "cave-rat",
-      "stats": { "hp": 18, "attack": 5, "defense": 0 },
+      "stats": {
+        "hp": 18,
+        "attack": 5,
+        "damageType": "physical",
+        "physDefense": 0,
+        "magDefense": 0
+      },
       "moveSpeedTilesPerSecond": 3.2,
       "detectTiles": 5,
       "attackRangeTiles": 0.9,
       "attackCooldownMs": 900,
       "xp": 8,
-      "copper": { "min": 0, "max": 2 },
-      "drops": [{ "item": "rat-pelt", "chance": 0.5, "quantity": { "min": 1, "max": 1 } }]
+      "copper": {
+        "min": 0,
+        "max": 2
+      },
+      "drops": [
+        {
+          "item": "rat-pelt",
+          "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
     },
     {
       "id": "goblin-raider",
       "name": "Goblin Saqueador",
       "sprite": "goblin-raider",
-      "stats": { "hp": 42, "attack": 8, "defense": 2 },
+      "stats": {
+        "hp": 42,
+        "attack": 8,
+        "damageType": "physical",
+        "physDefense": 2,
+        "magDefense": 2
+      },
       "moveSpeedTilesPerSecond": 2.4,
       "detectTiles": 6,
       "attackRangeTiles": 1,
       "attackCooldownMs": 1200,
       "xp": 22,
-      "copper": { "min": 2, "max": 6 },
-      "drops": [{ "item": "goblin-fangs", "chance": 0.4, "quantity": { "min": 1, "max": 2 } }]
+      "copper": {
+        "min": 2,
+        "max": 6
+      },
+      "drops": [
+        {
+          "item": "goblin-fangs",
+          "chance": 0.4,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
     }
   ]
 }

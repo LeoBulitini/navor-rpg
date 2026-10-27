@@ -32,7 +32,7 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | Tecla | Ação |
 | --- | --- |
 | Setas ou WASD | Mover (8 direções) |
-| Espaço | Projétil Arcano na direção em que o Mago está virado (gasta mana) |
+| Espaço | Ataque básico da classe na direção em que o personagem está virado: Projétil Arcano (Mago, gasta mana), Golpe de Espada (Guerreiro) ou Flecha (Arqueiro) |
 | E | Coletar o recurso mais próximo |
 | I | Abrir e fechar o inventário |
 | F3 | Liga/desliga a depuração: caixas de colisão, células bloqueadas em vermelho, posição e FPS |

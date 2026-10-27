@@ -32,8 +32,8 @@ select lives_ok($$ select public.create_character('Aldric', 'mage') $$, 'A cria 
 select is((select count(*)::int from public.characters), 1, 'A vê 1 personagem');
 select is((select level from public.characters where name = 'Aldric'), 0, 'personagem começa no nível 0');
 select is((select copper + gold from public.characters where name = 'Aldric'), 0::bigint, 'personagem começa sem moedas');
-select throws_ok($$ select public.create_character('Bruna', 'warrior') $$,
-  '22023', null, 'classe não liberada no protótipo é recusada');
+select throws_ok($$ select public.create_character('Bruna', 'dragao') $$,
+  '22023', null, 'classe que não existe é recusada');
 select throws_ok($$ select public.create_character('Feiticeiro1', 'sorcerer') $$,
   '22023', null, 'classe de evolução não pode ser criada direto');
 select throws_ok($$ select public.create_character('a b', 'mage') $$,

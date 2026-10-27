@@ -120,15 +120,16 @@ export function loadContent(raw: RawContent): Content {
   const creatureIds = new Set(creatures.creatures.map((c) => c.id));
 
   const progression = parseWith(progressionSchema, raw.progression, 'progression.json');
-  assertUnique(progression.classStats.map((c) => c.classId), 'progression.json (classId)');
-  const classIds = new Set(classes.paths.flatMap((p) => p.stages.map((st) => st.classId)));
-  for (const cs of progression.classStats) {
-    if (!classIds.has(cs.classId)) throw new Error(`progression.json: classe "${cs.classId}" não existe em classes.json`);
-  }
-  // as classes iniciais jogáveis precisam de atributos (hoje só o Mago)
-  if (!progression.classStats.some((c) => c.classId === 'mage')) throw new Error('progression.json: faltam os atributos do Mago');
-
+  assertUnique(progression.pathStats.map((c) => c.pathId), 'progression.json (pathId)');
   const combat = parseWith(combatSchema, raw.combat, 'combat.json');
+  // todo caminho de classe precisa de atributos e de um ataque básico
+  for (const path of classes.paths) {
+    if (!progression.pathStats.some((ps) => ps.pathId === path.id)) throw new Error(`progression.json: faltam os atributos do caminho "${path.id}"`);
+    if (!combat.basicAttacks[path.id]) throw new Error(`combat.json: falta o ataque básico do caminho "${path.id}"`);
+  }
+  for (const id of [...progression.pathStats.map((p) => p.pathId), ...Object.keys(combat.basicAttacks)]) {
+    if (!classes.paths.some((p) => p.id === id)) throw new Error(`progression.json/combat.json: caminho "${id}" não existe em classes.json`);
+  }
 
   const maps: Record<string, AsciiMap> = {};
   const parsed: Record<string, ParsedMap> = {};

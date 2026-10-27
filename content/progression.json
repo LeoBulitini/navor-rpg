@@ -1,11 +1,21 @@
 {
-  "$comment": "Experiência e atributos por nível. Curva e valores eram A DEFINIR (GDD 5 e 17); PROVISÓRIOS, decididos por Claude em 2026-10-27. XP para passar do nível L ao L+1 = round(base * (L+1)^exponent). 'attack' é o Ataque Mágico do Mago; 'defense' é uma defesa única até existirem Defesa Física e Mágica separadas.",
+  "$comment": "Experiência e atributos por nível (GDD 5 e 17: A DEFINIR). PROVISÓRIOS, decididos por Claude em 2026-10-27. XP para passar do nível L ao L+1 = round(base * (L+1)^exponent). Atributos por CAMINHO de classe (Magia, Corpo a corpo, Distância): as classes evoluídas do mesmo caminho partem dos mesmos números e somam os bônus da própria classe (Fase 12). critChance é probabilidade (0 a 1); critDamage é o multiplicador do crítico.",
   "xpCurve": { "base": 40, "exponent": 1.6 },
-  "classStats": [
+  "pathStats": [
     {
-      "classId": "mage",
-      "base": { "hp": 60, "mana": 30, "attack": 10, "defense": 3 },
-      "perLevel": { "hp": 6, "mana": 3, "attack": 1.5, "defense": 0.5 }
+      "pathId": "magic",
+      "base": { "hp": 60, "mana": 40, "physAttack": 4, "physDefense": 3, "magAttack": 10, "magDefense": 5, "precision": 10, "critChance": 0.05, "critDamage": 1.5, "moveSpeedTilesPerSecond": 4 },
+      "perLevel": { "hp": 6, "mana": 3, "physAttack": 0.4, "physDefense": 0.4, "magAttack": 1.5, "magDefense": 0.6, "precision": 0.3, "critChance": 0.001, "critDamage": 0.005 }
+    },
+    {
+      "pathId": "melee",
+      "base": { "hp": 90, "mana": 15, "physAttack": 11, "physDefense": 6, "magAttack": 2, "magDefense": 3, "precision": 8, "critChance": 0.05, "critDamage": 1.5, "moveSpeedTilesPerSecond": 4 },
+      "perLevel": { "hp": 9, "mana": 1, "physAttack": 1.6, "physDefense": 0.9, "magAttack": 0.2, "magDefense": 0.4, "precision": 0.2, "critChance": 0.001, "critDamage": 0.005 }
+    },
+    {
+      "pathId": "ranged",
+      "base": { "hp": 70, "mana": 20, "physAttack": 9, "physDefense": 4, "magAttack": 2, "magDefense": 3, "precision": 14, "critChance": 0.08, "critDamage": 1.6, "moveSpeedTilesPerSecond": 4.25 },
+      "perLevel": { "hp": 7, "mana": 1.5, "physAttack": 1.4, "physDefense": 0.5, "magAttack": 0.2, "magDefense": 0.4, "precision": 0.5, "critChance": 0.0015, "critDamage": 0.006 }
     }
   ]
 }

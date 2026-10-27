@@ -44,9 +44,6 @@ export function effectSpritePath(sprite: string): string {
   return `${manifest.effects.path}/${sprite}.png`;
 }
 
-/** Classe usada quando não há personagem online (modo offline). */
-export const OFFLINE_CLASS_ID = 'mage';
-
 export function hasCharacterArt(classId: string): boolean {
   return characterArt.classIds.includes(classId);
 }

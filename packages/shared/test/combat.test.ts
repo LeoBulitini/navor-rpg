@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   createRng,
   creatureById,
+  attackFor,
   facingVector,
+  hitChance,
+  pathOfClass,
+  pathStatsFor,
   FACINGS,
   generateCave,
   levelForXp,
@@ -25,7 +29,7 @@ import { readRawContent } from '../node/fs-content.ts';
 const content = loadContent(readRawContent());
 const { combat, progression, creatures } = content;
 const cave = content.procedural.areas.find((a) => a.id === 'cave')!;
-const mage = progression.classStats.find((c) => c.classId === 'mage')!;
+const mage = pathStatsFor(progression, 'magic');
 const thresholds = levelThresholds(progression.xpCurve, content.classes.maxLevel);
 
 describe('progressão', () => {
@@ -49,35 +53,56 @@ describe('progressão', () => {
   it('atributos do Mago crescem com o nível', () => {
     const l0 = statsForLevel(mage, 0);
     const l10 = statsForLevel(mage, 10);
-    expect(l0).toEqual({ maxHp: mage.base.hp, maxMana: mage.base.mana, attack: mage.base.attack, defense: mage.base.defense });
+    expect(l0.maxHp).toBe(mage.base.hp);
+    expect(l0.magAttack).toBe(mage.base.magAttack);
     expect(l10.maxHp).toBeGreaterThan(l0.maxHp);
-    expect(l10.attack).toBeGreaterThan(l0.attack);
+    expect(l10.magAttack).toBeGreaterThan(l0.magAttack);
+  });
+
+  it('cada classe inicial tem caminho, atributos e ataque básico', () => {
+    for (const classId of ['mage', 'warrior', 'archer', 'necromancer', 'assassin']) {
+      const path = pathOfClass(content.classes, classId);
+      expect(pathStatsFor(progression, path)).toBeDefined();
+      expect(combat.basicAttacks[path]).toBeDefined();
+    }
+    expect(combat.basicAttacks.magic!.damageType).toBe('magical');
+    expect(combat.basicAttacks.melee!.kind).toBe('melee');
   });
 });
 
 describe('dano', () => {
   it('fica dentro da variação, com mínimo 1, e o crítico multiplica', () => {
     const rng = createRng(1);
+    const crit = { critChance: 0.1, critDamage: 1.7 };
     let crits = 0;
     for (let i = 0; i < 5000; i++) {
-      const hit = rollDamage(20, 4, combat, rng);
+      const hit = rollDamage(20, 4, crit, combat, rng);
       const base = (v: number) => 20 * v - 4 * combat.defenseFactor;
       const lo = Math.round(base(1 - combat.damageVariance));
-      const hi = Math.round(base(1 + combat.damageVariance) * combat.critMultiplier);
+      const hi = Math.round(base(1 + combat.damageVariance) * crit.critDamage);
       expect(hit.amount).toBeGreaterThanOrEqual(lo);
       expect(hit.amount).toBeLessThanOrEqual(hi);
       if (hit.crit) crits++;
     }
-    expect(crits / 5000).toBeCloseTo(combat.critChance, 1);
-    expect(rollDamage(1, 100, combat, rng).amount).toBe(1);
+    expect(crits / 5000).toBeCloseTo(crit.critChance, 1);
+    expect(rollDamage(1, 100, crit, combat, rng).amount).toBe(1);
   });
 
-  it('o teto do servidor fica acima do maior dano por segundo possível do Mago', () => {
-    for (const level of [0, 10, 40, content.classes.maxLevel]) {
-      const { attack } = statsForLevel(mage, level);
-      const maxHit = attack * (1 + combat.damageVariance) * combat.critMultiplier;
-      const maxDps = maxHit * (1000 / combat.basicAttack.cooldownMs);
-      expect(serverMaxDps(combat, level)).toBeGreaterThan(maxDps);
+  it('precisão aumenta a chance de acerto até 100%', () => {
+    expect(hitChance(0, combat)).toBe(combat.baseHitChance);
+    expect(hitChance(20, combat)).toBeGreaterThan(hitChance(0, combat));
+    expect(hitChance(10_000, combat)).toBe(1);
+  });
+
+  it('o teto do servidor fica acima do maior dano por segundo possível de qualquer caminho', () => {
+    for (const ps of progression.pathStats) {
+      const attack = combat.basicAttacks[ps.pathId]!;
+      for (let level = 0; level <= content.classes.maxLevel; level++) {
+        const stats = statsForLevel(ps, level);
+        const maxHit = attackFor(stats, attack.damageType) * (1 + combat.damageVariance) * stats.critDamage;
+        const maxDps = maxHit * (1000 / attack.cooldownMs);
+        expect(serverMaxDps(combat, level), `${ps.pathId} nível ${level}`).toBeGreaterThan(maxDps);
+      }
     }
   });
 });

@@ -39,7 +39,7 @@ try {
 
   await page.goto(URL);
   // Sem backend configurado no build, o menu oferece o modo offline.
-  await page.getByRole('button', { name: /Jogar offline/ }).click({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Jogar offline: Mago' }).click({ timeout: 10000 });
   await page.waitForFunction(() => window.__navor?.ready, null, { timeout: 15000 });
   await page.click('canvas');
   const p = () => page.evaluate(() => window.__navor.player());
@@ -208,6 +208,45 @@ try {
   await page.waitForTimeout(300);
   const zoomSmall = await page.evaluate(() => window.__navor.zoom());
   check('reajusta escala inteira em 1366x768', zoomSmall === 2, `zoom ${zoomSmall}`);
+
+  // Guerreiro (golpe corpo a corpo) e Arqueiro (flecha): cada um abate um monstro na Gruta
+  for (const [name, classId, hp] of [['Guerreiro', 'warrior', 90], ['Arqueiro', 'archer', 70]]) {
+    const pg = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    pg.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
+    pg.on('console', (m) => m.type() === 'error' && errors.push(`${name}: ${m.text()}`));
+    await pg.goto(URL);
+    await pg.getByRole('button', { name: `Jogar offline: ${name}` }).click({ timeout: 10000 });
+    await pg.waitForFunction(() => window.__navor?.ready, null, { timeout: 15000 });
+    await pg.click('canvas');
+    const ev = (fn, arg) => pg.evaluate(fn, arg);
+    check(`${name}: usa a arte da classe`, (await ev(() => window.__navor.player().texture)).startsWith(`character:${classId}:`));
+    check(`${name}: vida inicial ${hp}`, (await ev(() => window.__navor.vitals())).maxHp === hp);
+    await ev(() => window.__navor.teleport(19, 27));
+    await pg.keyboard.down('ArrowDown');
+    await pg.waitForTimeout(900);
+    await pg.keyboard.up('ArrowDown');
+    await pg.waitForFunction(() => window.__navor?.mapId === 'cave', null, { timeout: 5000 });
+    await pg.waitForTimeout(400);
+    const target = (await ev(() => window.__navor.monsters()))[0];
+    const mana0 = (await ev(() => window.__navor.vitals())).mana;
+    for (let i = 0; i < 60; i++) {
+      const m = (await ev(() => window.__navor.monsters())).find((x) => x.index === target.index);
+      if (m.state !== 'alive') break;
+      await ev(([x, y]) => window.__navor.teleport(x, y), [m.cell.x, m.cell.y]);
+      await pg.keyboard.press('Space');
+      await pg.waitForTimeout(600);
+      // repõe a vida para o teste não depender da sorte nos golpes do monstro
+      await ev(() => window.__navor.heal());
+    }
+    await pg.waitForTimeout(500);
+    const dead = (await ev(() => window.__navor.monsters())).find((x) => x.index === target.index);
+    check(`${name}: o ataque básico abate o monstro`, dead.state === 'dead', `${dead.state}, vida ${dead.hp}`);
+    check(`${name}: o ataque básico não gasta mana`, (await ev(() => window.__navor.vitals())).mana >= mana0);
+    check(`${name}: o abate dá XP`, (await ev(() => window.__navor.progress())).xp > 0);
+    await pg.screenshot({ path: join(OUT, `gruta-${classId}.png`) });
+    await pg.close();
+  }
+
   check('sem erros durante o teste', errors.length === 0, errors.join(' | '));
 
   await browser.close();

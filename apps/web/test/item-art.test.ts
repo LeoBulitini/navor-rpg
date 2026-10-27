@@ -39,8 +39,8 @@ describe('sprites de combate', () => {
     expect(w % manifest.creatures.frameWidth).toBe(0);
   });
 
-  it('o projétil do ataque básico tem PNG', () => {
-    expect(existsSync(join(PUBLIC, manifest.effects.path, `${combat.basicAttack.sprite}.png`))).toBe(true);
+  it.each(Object.values(combat.basicAttacks).map((a) => a.sprite))('efeito %s tem PNG', (sprite) => {
+    expect(existsSync(join(PUBLIC, manifest.effects.path, `${sprite}.png`))).toBe(true);
   });
 
   it('todo item que um monstro solta tem ícone próprio', () => {
