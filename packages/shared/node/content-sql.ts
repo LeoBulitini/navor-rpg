@@ -7,9 +7,9 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
- * itens, regras das áreas, pesos das raridades e itens de cada área. Pode rodar várias vezes:
- * itens são atualizados (nunca apagados, porque o inventário aponta para eles) e as regras
- * das áreas são substituídas.
+ * itens, regras das áreas, pesos das raridades e itens de cada área. Pode rodar várias vezes.
+ * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
+ * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
 export function contentSql(content: Content): string {
   const items = content.items.items
@@ -24,7 +24,6 @@ export function contentSql(content: Content): string {
     'on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, category = excluded.category;',
   ];
   if (areas.length > 0) {
-    const ids = areas.map((a) => q(a.id)).join(', ');
     const areaRows = areas
       .map((a) => {
         const r = a.resources!;
@@ -43,13 +42,13 @@ export function contentSql(content: Content): string {
       '  expires_minutes = excluded.expires_minutes, collect_cooldown_ms = excluded.collect_cooldown_ms,',
       '  max_starts_per_minute = excluded.max_starts_per_minute;',
       '',
-      `delete from public.area_rarity_rules where area_id in (${ids});`,
       'insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max) values',
-      `${ruleRows};`,
+      ruleRows,
+      'on conflict (area_id, rarity) do update set weight = excluded.weight, qty_min = excluded.qty_min, qty_max = excluded.qty_max;',
       '',
-      `delete from public.area_items where area_id in (${ids});`,
       'insert into public.area_items (area_id, item_id) values',
-      `${itemRows};`,
+      itemRows,
+      'on conflict (area_id, item_id) do nothing;',
     );
   }
   return `${lines.join('\n')}\n`;

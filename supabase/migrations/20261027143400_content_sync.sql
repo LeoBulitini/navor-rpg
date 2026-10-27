@@ -50,13 +50,12 @@ on conflict (id) do update set nodes_min = excluded.nodes_min, nodes_max = exclu
   expires_minutes = excluded.expires_minutes, collect_cooldown_ms = excluded.collect_cooldown_ms,
   max_starts_per_minute = excluded.max_starts_per_minute;
 
-delete from public.area_rarity_rules where area_id in ('cave');
 insert into public.area_rarity_rules (area_id, rarity, weight, qty_min, qty_max) values
   ('cave', 'common', 70, 1, 3),
   ('cave', 'uncommon', 25, 1, 2),
-  ('cave', 'rare', 5, 1, 1);
+  ('cave', 'rare', 5, 1, 1)
+on conflict (area_id, rarity) do update set weight = excluded.weight, qty_min = excluded.qty_min, qty_max = excluded.qty_max;
 
-delete from public.area_items where area_id in ('cave');
 insert into public.area_items (area_id, item_id) values
   ('cave', 'mushroom-common'),
   ('cave', 'bones'),
@@ -69,4 +68,5 @@ insert into public.area_items (area_id, item_id) values
   ('cave', 'crystal-blue'),
   ('cave', 'ancient-bone'),
   ('cave', 'gold-ore'),
-  ('cave', 'quartz');
+  ('cave', 'quartz')
+on conflict (area_id, item_id) do nothing;

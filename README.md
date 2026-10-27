@@ -95,7 +95,7 @@ Os itens ficam em `content/items.json` (todos os do GDD, com raridade e ícone).
 
 Ao entrar na Gruta, o jogo chama a função `start_exploration` do banco. Ela sorteia a seed e o conteúdo de cada ponto, encerra a exploração anterior do personagem e devolve tudo. O navegador gera o mapa e posiciona os pontos a partir da seed (`packages/shared/src/procgen/resources.ts`). A posição é só visual: o que vale (item e quantidade) fica no servidor. A tecla **E** chama `collect_node`, que confere dono, prazo (30 minutos), intervalo mínimo entre coletas e se o ponto já foi coletado, e soma o item no inventário na mesma transação.
 
-O banco guarda uma cópia dos itens e das regras de coleta. Depois de mudar `items.json` ou o bloco `resources`, rode `npm run db:content`: ele cria uma migration `*_content_sync.sql` com os dados novos. Aplique-a no Supabase e faça commit. `npm test` falha se a cópia do banco estiver diferente de `content/`.
+O banco guarda uma cópia dos itens e das regras de coleta. Depois de mudar `items.json` ou o bloco `resources`, rode `npm run db:content`: ele cria uma migration `*_content_sync.sql` com os dados novos. Aplique-a no Supabase e faça commit. Ela só insere e atualiza: para tirar um item ou uma raridade de uma área, escreva uma migration com o `delete`. `npm test` falha se a cópia do banco estiver diferente de `content/`.
 
 Em `content/objects.json`, cada objeto define o tamanho do sprite, a parte sólida (`collider`, a base; o telhado fica por cima do jogador) e, nos prédios, a área da porta com a mensagem.
 
