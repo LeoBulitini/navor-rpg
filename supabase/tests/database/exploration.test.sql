@@ -66,7 +66,12 @@ select is((select count(*)::int from public.exploration_nodes n
 -- ---------------------------------------------------------------------------
 -- Coleta
 -- ---------------------------------------------------------------------------
-reset role; set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
+reset role;
+-- Depósito raro pede ferramenta equipada (Fase 11, testado em gear.test.sql); aqui a coleta usa um item sem ferramenta.
+update public.exploration_nodes set item_id = 'mushroom-common'
+  where exploration_id = (select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1')
+    and item_id in (select i.id from public.items i join public.gather_tiers g on g.rarity = i.rarity where i.gather_tool is not null);
+set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 insert into t select 'c0', public.collect_node((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1'), 0)::text;
 select is((select (v::jsonb ->> 'collected')::boolean from t where k = 'c0'), true, 'A coleta o ponto 0');
 select is((select quantity from public.inventory_items where item_id = (select v::jsonb ->> 'item_id' from t where k = 'c0')),
@@ -120,6 +125,12 @@ reset role; set local role authenticated; select set_config('request.jwt.claims'
 insert into t select 'run2', public.start_exploration((select v::uuid from t where k = 'char_a'), 'cave')::text;
 select throws_ok($$ select public.collect_node((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1'), 2) $$,
   'P0001', 'Esta exploração terminou. Entre na área de novo.', 'entrar de novo encerra a exploração anterior');
+reset role;
+-- Depósito raro pede ferramenta equipada (Fase 11, testado em gear.test.sql); aqui a coleta usa um item sem ferramenta.
+update public.exploration_nodes set item_id = 'mushroom-common'
+  where exploration_id = (select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run2')
+    and item_id in (select i.id from public.items i join public.gather_tiers g on g.rarity = i.rarity where i.gather_tool is not null);
+set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 select is((public.collect_node((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run2'), 0) ->> 'collected')::boolean, true,
   'na exploração nova a coleta funciona');
 reset role;
