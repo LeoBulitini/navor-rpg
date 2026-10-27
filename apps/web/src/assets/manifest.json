@@ -1,16 +1,16 @@
 {
-  "$comment": "Chave lógica -> arquivo. Para trocar a arte, coloque o PNG em public/assets/final/ e mude só o 'path' (e 'placeholder' para false).",
+  "$comment": "Chave lógica -> arquivo. Para trocar a arte, substitua os PNGs (mesmo nome) ou mude o 'path'.",
   "tileset": {
     "path": "assets/placeholder/tileset.png",
     "placeholder": true
   },
-  "mage": {
-    "path": "assets/placeholder/mage.png",
+  "characters": {
+    "$comment": "Uma pasta por classe com <direção>.png; cada PNG é uma tira horizontal de quadros. Quais classes têm arte vem de characters.json (npm run sprites:import).",
+    "path": "assets/characters",
+    "placeholderPath": "assets/placeholder/character",
     "frameWidth": 32,
     "frameHeight": 32,
-    "rows": ["down", "left", "right", "up"],
-    "frames": { "idle": 0, "walk": [1, 0, 2, 0] },
-    "walkFrameRate": 8,
-    "placeholder": true
+    "frames": { "idle": 0, "walk": [0] },
+    "walkFrameRate": 8
   }
 }

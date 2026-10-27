@@ -1,0 +1,16 @@
+{
+  "$comment": "Gerado por npm run sprites:import. Classes sem arte usam o placeholder.",
+  "classIds": [
+    "mage",
+    "sorcerer",
+    "elementalist",
+    "necromancer",
+    "warrior",
+    "paladin",
+    "berserker",
+    "archer",
+    "hunter",
+    "thief",
+    "assassin"
+  ]
+}

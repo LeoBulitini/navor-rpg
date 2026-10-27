@@ -1,13 +1,29 @@
+import type { Facing } from '@navor/shared';
 import manifest from './manifest.json';
+import characterArt from './characters.json';
 
 export const assets = manifest;
 
 /** Chaves de textura usadas no Phaser. */
 export const TextureKeys = {
   tileset: 'tileset',
-  mage: 'mage',
+  character: (classId: string, facing: Facing) => `character:${classId}:${facing}`,
 } as const;
 
-export const usesPlaceholderArt = Object.values(manifest).some(
-  (entry) => typeof entry === 'object' && entry !== null && 'placeholder' in entry && entry.placeholder,
-);
+/** Classe usada quando não há personagem online (modo offline). */
+export const OFFLINE_CLASS_ID = 'mage';
+
+export function hasCharacterArt(classId: string): boolean {
+  return characterArt.classIds.includes(classId);
+}
+
+/** Caminho do PNG de uma direção; classes ainda sem arte usam o placeholder. */
+export function characterSpritePath(classId: string, facing: Facing): string {
+  const { path, placeholderPath } = manifest.characters;
+  return hasCharacterArt(classId) ? `${path}/${classId}/${facing}.png` : `${placeholderPath}/${facing}.png`;
+}
+
+/** Há arte placeholder na tela? (tileset ou o personagem desta classe) */
+export function usesPlaceholderArt(classId: string): boolean {
+  return manifest.tileset.placeholder || !hasCharacterArt(classId);
+}

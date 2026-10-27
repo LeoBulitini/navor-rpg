@@ -15,6 +15,8 @@ Cada linha registra o que foi decidido, quando e por quem. Itens "A DEFINIR" do 
 | 2026-10-26 | Nome de personagem: 3 a 16 letras/números, único sem diferenciar maiúsculas | Provisório (política de nomes A DEFINIR) |
 | 2026-10-26 | Máximo de 3 personagens por conta | Provisório (regras de conta A DEFINIR) |
 | 2026-10-26 | Só o Mago pode ser criado no protótipo (MVP P1) | Conforme GDD seção 15 |
+| 2026-10-27 | Arte real dos personagens (Leonardo): 8 direções, 1 quadro por direção; o sprite segue a direção do movimento, inclusive diagonais | Decisão técnica a partir da arte entregue |
+| 2026-10-27 | Caixa de colisão subiu 2 px (offsetY 19 → 17) para coincidir com os pés da arte real | Ajuste de protótipo |
 
 ## Pendentes (não decidir sem o dono do projeto)
 

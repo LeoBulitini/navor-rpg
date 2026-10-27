@@ -1,8 +1,9 @@
 import * as Phaser from 'phaser';
-import type { Facing } from '@navor/shared';
-import { assets, TextureKeys } from '../../assets/index.ts';
+import { FACINGS, type Facing } from '@navor/shared';
+import { assets, characterSpritePath, TextureKeys } from '../../assets/index.ts';
+import { sessionClassId } from '../session.ts';
 
-export const animKey = (state: 'idle' | 'walk', facing: Facing) => `mage-${state}-${facing}`;
+export const animKey = (classId: string, state: 'idle' | 'walk', facing: Facing) => `${classId}-${state}-${facing}`;
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -20,30 +21,37 @@ export class PreloadScene extends Phaser.Scene {
     });
 
     this.load.image(TextureKeys.tileset, assets.tileset.path);
-    this.load.spritesheet(TextureKeys.mage, assets.mage.path, {
-      frameWidth: assets.mage.frameWidth,
-      frameHeight: assets.mage.frameHeight,
-    });
+    const classId = sessionClassId(this);
+    const { frameWidth, frameHeight } = assets.characters;
+    for (const facing of FACINGS) {
+      this.load.spritesheet(TextureKeys.character(classId, facing), characterSpritePath(classId, facing), {
+        frameWidth,
+        frameHeight,
+      });
+    }
   }
 
   create(): void {
-    if (!this.textures.exists(TextureKeys.mage) || !this.textures.exists(TextureKeys.tileset)) return;
-    this.createMageAnimations();
+    const classId = sessionClassId(this);
+    const loaded = FACINGS.every((f) => this.textures.exists(TextureKeys.character(classId, f)));
+    if (!loaded || !this.textures.exists(TextureKeys.tileset)) return;
+    this.createCharacterAnimations(classId);
     this.scene.start('Test');
   }
 
-  private createMageAnimations(): void {
-    const { rows, frames, walkFrameRate } = assets.mage;
-    const columns = frames.walk.length > 0 ? Math.max(frames.idle, ...frames.walk) + 1 : 1;
-    rows.forEach((facing, row) => {
-      const at = (col: number) => ({ key: TextureKeys.mage, frame: row * columns + col });
-      this.anims.create({ key: animKey('idle', facing as Facing), frames: [at(frames.idle)] });
+  /** Cada direção é uma tira horizontal: "idle" e "walk" escolhem colunas dela. */
+  private createCharacterAnimations(classId: string): void {
+    const { frames, walkFrameRate } = assets.characters;
+    for (const facing of FACINGS) {
+      const key = TextureKeys.character(classId, facing);
+      const at = (frame: number) => ({ key, frame });
+      this.anims.create({ key: animKey(classId, 'idle', facing), frames: [at(frames.idle)] });
       this.anims.create({
-        key: animKey('walk', facing as Facing),
+        key: animKey(classId, 'walk', facing),
         frames: frames.walk.map(at),
         frameRate: walkFrameRate,
         repeat: -1,
       });
-    });
+    }
   }
 }

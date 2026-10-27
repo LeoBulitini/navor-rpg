@@ -62,7 +62,8 @@ try {
   await hold(['ArrowLeft'], 500);
   const afterLeft = await p();
   check('anda para a esquerda com a seta', afterLeft.x < start.x - 20, `dx ${Math.round(afterLeft.x - start.x)}`);
-  check('vira para a esquerda', afterLeft.facing === 'left');
+  check('vira para a esquerda (west)', afterLeft.facing === 'west');
+  check('usa a arte real do Mago', afterLeft.texture === 'character:mage:west', afterLeft.texture);
 
   // 4 tiles/s = 128 px/s: em 500 ms deve andar ~64 px (tolerância para o tempo do navegador)
   const dx = start.x - afterLeft.x;
@@ -75,6 +76,7 @@ try {
   const ddy = afterDiag.y - beforeDiag.y;
   const diag = Math.hypot(ddx, ddy);
   check('WASD funciona na diagonal', ddx > 10 && ddy > 10, `dx ${Math.round(ddx)} dy ${Math.round(ddy)}`);
+  check('usa o sprite da diagonal (south-east)', afterDiag.facing === 'south-east', afterDiag.facing);
   check('diagonal não é mais rápida que linha reta', diag < dx * 1.15, `${Math.round(diag)} px vs ${Math.round(dx)} px`);
 
   // Sobe até o muro do topo: segura a seta para cima por 6 s
