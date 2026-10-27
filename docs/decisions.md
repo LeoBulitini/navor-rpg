@@ -26,12 +26,23 @@ Cada linha registra o que foi decidido, quando e por quem. Itens "A DEFINIR" do 
 | 2026-10-27 | Na Fase 4 a seed é sorteada no cliente; o gerador fica em packages/shared para o servidor emitir a seed e validar coletas na Fase 5 | Decisão técnica da Fase 4 |
 | 2026-10-27 | As duas saídas da Gruta (entrada e fundo) voltam ao portão da cidade; andares mais fundos ficam para depois | Provisório |
 | 2026-10-27 | Mapa de teste da Fase 1 removido; a Gruta assume o papel de área de exploração | Decisão técnica da Fase 4 |
+| 2026-10-27 | Coleta validada por funções SQL no banco (`start_exploration`, `collect_node`) em vez de Edge Function: o servidor sorteia a seed e o conteúdo de cada ponto; o cliente só posiciona | Aprovada por Leonardo |
+| 2026-10-27 | O item entra no inventário na hora da coleta (fechar o jogo no meio da Gruta não perde o que já foi coletado) | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | Na Gruta aparecem só recursos e minérios Comum, Incomum e Raro; os que vêm de monstros ficam para a Fase 6 | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | Chance por raridade: Comum 70%, Incomum 25%, Raro 5% | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | 8 a 12 pontos de coleta por Gruta; Comum dá 1 a 3 unidades, Incomum 1 a 2, Raro 1 | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | Coletar não exige ferramenta por enquanto (picaretas chegam com o ferreiro na P2) | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | Inventário sem limite de espaços, com o mesmo item empilhado | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | No modo offline a coleta funciona no navegador e nada é salvo | Aprovada por Leonardo |
+| 2026-10-27 | A exploração vence ao entrar de novo na Gruta ou após 30 minutos; os pontos não coletados se perdem; voltar à mesma Gruta após recarregar fica para a decisão de reconexão | Aprovada por Leonardo (provisória) |
+| 2026-10-27 | Contra abuso: intervalo mínimo de 0,5 s entre coletas e no máximo 10 entradas na Gruta por minuto. O servidor não acompanha a posição do jogador (depende do modelo de multiplayer, A DEFINIR) | Decisão técnica da Fase 5 |
+| 2026-10-27 | Todos os 41 itens do GDD (seções 9.2 a 9.5) entram em `content/items.json`; usos, preços e receitas continuam A DEFINIR | Decisão técnica da Fase 5 |
 
 ## Pendentes (não decidir sem o dono do projeto)
 
 Ver a seção "Decisões em aberto" do GDD. Próximas a decidir, por fase:
 
 - Fase 2: confirmação de e-mail no protótipo (SMTP próprio ou desligar).
-- Fase 5: reconexão e perda de progresso ao sair da Gruta (com recursos coletados).
+- Reconexão: voltar para a mesma Gruta depois de recarregar a página; perda de itens ao morrer (Fase 6).
 - Fase 6: combate em tempo real ou por turnos, fórmulas, curva de XP, penalidade de morte; nível de validação de combate no servidor.
 - Fase 7: Tauri ou Electron.

@@ -17,6 +17,7 @@ export function readRawContent(): RawContent {
     tiles: readJson('tiles.json'),
     balance: readJson('balance.prototype.json'),
     objects: readJson('objects.json'),
+    items: readJson('items.json'),
     world: readJson('world.json'),
     procedural: readJson('procedural.json'),
     maps,

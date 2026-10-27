@@ -4,3 +4,4 @@ export * from './map/tilemap.ts';
 export * from './movement/velocity.ts';
 export * from './procgen/rng.ts';
 export * from './procgen/cave.ts';
+export * from './procgen/resources.ts';

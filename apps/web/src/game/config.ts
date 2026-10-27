@@ -3,6 +3,7 @@ import { content } from '../content.ts';
 import { PreloadScene } from './scenes/PreloadScene.ts';
 import { WorldScene } from './scenes/WorldScene.ts';
 import type { PlaySession } from '../menu/menu.ts';
+import { createBackend } from './backend.ts';
 
 export function createGameConfig(parent: string, session: PlaySession): Phaser.Types.Core.GameConfig {
   const { width, height } = content.balance.viewport;
@@ -25,7 +26,13 @@ export function createGameConfig(parent: string, session: PlaySession): Phaser.T
       arcade: { gravity: { x: 0, y: 0 }, debug: false },
     },
     scene: [PreloadScene, WorldScene],
-    // A sessão (personagem escolhido ou modo offline) fica no registry, visível a todas as cenas.
-    callbacks: { preBoot: (game) => game.registry.set('session', session) },
+    // A sessão (personagem escolhido ou modo offline) e o acesso ao servidor ficam no registry,
+    // visíveis a todas as cenas.
+    callbacks: {
+      preBoot: (game) => {
+        game.registry.set('session', session);
+        game.registry.set('backend', createBackend(session));
+      },
+    },
   };
 }

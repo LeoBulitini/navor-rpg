@@ -14,7 +14,26 @@
       "spawnChar": "P",
       "spawnTile": "cave-floor",
       "chars": { "floor": ":", "wall": "%", "rock": "o", "entrance": "^", "exit": "v" },
-      "returnTo": { "map": "city", "arriveAt": { "x": 19, "y": 27 } }
+      "returnTo": { "map": "city", "arriveAt": { "x": 19, "y": 27 } },
+      "resources": {
+        "$comment": "Pontos de coleta (Fase 5). Valores PROVISÓRIOS aprovados em 2026-10-27. O servidor sorteia o item de cada ponto: primeiro a raridade pelo 'weight', depois um item dessa raridade em 'items', e a quantidade pela faixa da raridade.",
+        "nodes": { "min": 8, "max": 12 },
+        "minDistance": 3,
+        "clearance": 3,
+        "rarities": [
+          { "rarity": "common", "weight": 70, "quantity": { "min": 1, "max": 3 } },
+          { "rarity": "uncommon", "weight": 25, "quantity": { "min": 1, "max": 2 } },
+          { "rarity": "rare", "weight": 5, "quantity": { "min": 1, "max": 1 } }
+        ],
+        "items": [
+          "mushroom-common", "bones", "iron", "copper", "coal",
+          "mushroom-medicinal", "silver", "aluminum",
+          "crystal-blue", "ancient-bone", "gold-ore", "quartz"
+        ],
+        "expiresMinutes": 30,
+        "collectCooldownMs": 500,
+        "maxStartsPerMinute": 10
+      }
     }
   ]
 }

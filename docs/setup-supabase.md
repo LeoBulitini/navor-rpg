@@ -24,6 +24,19 @@ O schema está em `supabase/migrations/`. Na Fase 2:
 
 Valores provisórios (A DEFINIR no GDD, marcados na migration): nome de 3 a 16 letras/números, máximo de 3 personagens por conta, só o Mago jogável.
 
+Na Fase 5:
+
+- `items`: catálogo de itens (cópia de `content/items.json`). Leitura pública, sem escrita.
+- `exploration_areas`, `area_rarity_rules`, `area_items`: regras de sorteio de cada área (cópia do bloco `resources` de
+  `content/procedural.json`). Só o servidor lê.
+- `explorations` e `exploration_nodes`: cada entrada na Gruta, com a seed e o conteúdo de cada ponto de coleta. Só o servidor lê.
+- `inventory_items`: inventário por personagem, um item por linha. O jogador **só lê** o dos próprios personagens.
+- `start_exploration(p_character_id, p_area_id)`: encerra a exploração anterior, sorteia seed e pontos e devolve tudo.
+- `collect_node(p_exploration_id, p_node_index)`: confere dono, prazo, intervalo entre coletas e se o ponto já foi
+  coletado, e soma no inventário. Repetir a chamada não soma de novo.
+
+Os dados de catálogo entram por migrations `*_content_sync.sql`, geradas com `npm run db:content` a partir de `content/`.
+
 ## Aplicar as migrations num projeto novo
 
 Com a [CLI do Supabase](https://supabase.com/docs/guides/local-development) (já instalada como dependência de desenvolvimento):
@@ -34,8 +47,8 @@ npx supabase link --project-ref SEU_PROJECT_REF
 npx supabase db push
 ```
 
-O advisor de segurança do Supabase avisa que `create_character` é `SECURITY DEFINER` executável por usuários logados.
-Isso é intencional: é a única forma de o cliente criar personagem, e a função valida tudo e usa `auth.uid()` como dono.
+O advisor de segurança do Supabase avisa que `create_character`, `start_exploration` e `collect_node` são `SECURITY DEFINER` executáveis por usuários logados.
+Isso é intencional: são a única forma de o cliente criar personagem, entrar na Gruta e coletar, e as funções validam tudo e usam `auth.uid()` para conferir o dono.
 
 ## Desenvolvimento local
 
@@ -47,6 +60,9 @@ Opção B, sem backend: deixe o `.env.local` vazio e escolha "Jogar offline" no 
 
 `supabase/tests/database/characters.test.sql` (pgTAP) verifica, entre outros: RLS ligado, usuário A não vê nem altera dados de B,
 cliente não altera as próprias moedas/nível, anônimo não cria personagem.
+`supabase/tests/database/exploration.test.sql` verifica a coleta: o mesmo ponto não soma duas vezes, B não vê o inventário
+nem coleta na exploração de A, o cliente não grava no inventário direto, exploração vencida ou encerrada não aceita coleta,
+o intervalo entre coletas, o limite de entradas por minuto e que o sorteio só usa os itens e raridades da Gruta.
 
 ```bash
 npx supabase test db   # com o Supabase local (Docker)

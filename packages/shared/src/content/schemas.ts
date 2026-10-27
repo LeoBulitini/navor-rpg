@@ -112,6 +112,37 @@ const range = z
   .object({ min: z.number().int().min(0), max: z.number().int().min(0) })
   .refine((r) => r.min <= r.max, 'min deve ser menor ou igual a max');
 
+export const itemsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9-]+$/, 'use letras minúsculas, números e hífen'),
+        name: z.string().min(1),
+        rarity: z.string().min(1),
+        category: z.enum(['ore', 'resource', 'scroll']),
+        /** PNG em apps/web/public/assets/items/; sem ele, o jogo mostra o ícone genérico. */
+        icon: z.string().min(1).optional(),
+      }),
+    )
+    .min(1),
+});
+
+/** Pontos de coleta de uma área. O servidor sorteia o conteúdo; o cliente só posiciona. */
+export const resourcesConfigSchema = z.object({
+  nodes: range,
+  /** distância mínima (em tiles, Chebyshev) entre dois pontos */
+  minDistance: z.number().int().min(1),
+  /** distância mínima (em tiles) da entrada, da saída e do nascimento */
+  clearance: z.number().int().min(0),
+  rarities: z
+    .array(z.object({ rarity: z.string().min(1), weight: z.number().int().positive(), quantity: range.refine((r) => r.min >= 1, 'quantidade mínima é 1') }))
+    .min(1),
+  items: z.array(z.string().min(1)).min(1),
+  expiresMinutes: z.number().int().positive(),
+  collectCooldownMs: z.number().int().min(0),
+  maxStartsPerMinute: z.number().int().positive(),
+});
+
 /** Parâmetros de uma área gerada por seed. Valores provisórios (GDD 7.3: tamanhos e densidades A DEFINIR). */
 export const caveConfigSchema = z.object({
   id: z.string().min(1),
@@ -133,6 +164,7 @@ export const caveConfigSchema = z.object({
     exit: z.string().length(1),
   }),
   returnTo: z.object({ map: z.string().min(1), arriveAt: gridPoint }),
+  resources: resourcesConfigSchema.optional(),
 });
 export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
 
@@ -147,3 +179,6 @@ export type ObjectDef = ObjectDefs['objects'][number];
 export type World = z.infer<typeof worldSchema>;
 export type CaveConfig = z.infer<typeof caveConfigSchema>;
 export type Procedural = z.infer<typeof proceduralSchema>;
+export type Items = z.infer<typeof itemsSchema>;
+export type ItemDef = Items['items'][number];
+export type ResourcesConfig = z.infer<typeof resourcesConfigSchema>;

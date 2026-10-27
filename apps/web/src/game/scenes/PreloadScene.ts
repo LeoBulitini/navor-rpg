@@ -1,12 +1,16 @@
 import * as Phaser from 'phaser';
 import { FACINGS, type Facing } from '@navor/shared';
-import { assets, characterSpritePath, objectSpritePath, TextureKeys } from '../../assets/index.ts';
+import { assets, characterSpritePath, itemIconPath, itemIcons, objectSpritePath, TextureKeys } from '../../assets/index.ts';
+import { friendlyError } from '../../services/errors.ts';
+import { getBackend, Inventory } from '../backend.ts';
 import { content } from '../../content.ts';
 import { sessionClassId } from '../session.ts';
 
 export const animKey = (classId: string, state: 'idle' | 'walk', facing: Facing) => `${classId}-${state}-${facing}`;
 
 export class PreloadScene extends Phaser.Scene {
+  private label!: Phaser.GameObjects.Text;
+
   constructor() {
     super('Preload');
   }
@@ -15,6 +19,7 @@ export class PreloadScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const label = this.add.text(width / 2, height / 2, 'Carregando...', { fontSize: '12px', color: '#e5e7eb' });
     label.setOrigin(0.5);
+    this.label = label;
 
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
       label.setText(`Erro ao carregar "${file.key}" (${file.url}).`);
@@ -25,6 +30,7 @@ export class PreloadScene extends Phaser.Scene {
     for (const sprite of new Set(content.objects.objects.map((o) => o.sprite))) {
       this.load.image(TextureKeys.object(sprite), objectSpritePath(sprite));
     }
+    for (const icon of itemIcons()) this.load.image(TextureKeys.item(icon), itemIconPath(icon));
     const classId = sessionClassId(this);
     const { frameWidth, frameHeight } = assets.characters;
     for (const facing of FACINGS) {
@@ -40,7 +46,16 @@ export class PreloadScene extends Phaser.Scene {
     const loaded = FACINGS.every((f) => this.textures.exists(TextureKeys.character(classId, f)));
     if (!loaded || !this.textures.exists(TextureKeys.tileset)) return;
     this.createCharacterAnimations(classId);
-    this.scene.start('World', { mapId: content.world.startMap });
+    const label = this.label.setText('Carregando inventário...');
+    getBackend(this)
+      .loadInventory()
+      .then((counts) => {
+        this.registry.set('inventory', new Inventory(counts));
+        this.scene.start('World', { mapId: content.world.startMap });
+      })
+      .catch((err: unknown) => {
+        label.setText(`Não foi possível carregar o inventário.\n${friendlyError(err)}\nRecarregue a página.`).setColor('#fca5a5').setAlign('center');
+      });
   }
 
   /** Cada direção é uma tira horizontal: "idle" e "walk" escolhem colunas dela. */

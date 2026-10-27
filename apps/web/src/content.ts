@@ -5,6 +5,7 @@ import classes from '@content/classes.json';
 import tiles from '@content/tiles.json';
 import balance from '@content/balance.prototype.json';
 import objects from '@content/objects.json';
+import items from '@content/items.json';
 import world from '@content/world.json';
 import procedural from '@content/procedural.json';
 
@@ -16,6 +17,7 @@ export const content: Content = loadContent({
   tiles,
   balance,
   objects,
+  items,
   world,
   procedural,
   maps: Object.fromEntries(Object.entries(mapFiles).map(([path, data]) => [path.split('/').pop()!, data])),

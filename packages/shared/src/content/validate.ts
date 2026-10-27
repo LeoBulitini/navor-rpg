@@ -3,6 +3,7 @@ import {
   asciiMapSchema,
   balanceSchema,
   classesSchema,
+  itemsSchema,
   objectsSchema,
   proceduralSchema,
   raritiesSchema,
@@ -11,6 +12,7 @@ import {
   type AsciiMap,
   type Balance,
   type Classes,
+  type Items,
   type ObjectDefs,
   type Procedural,
   type Rarities,
@@ -19,6 +21,7 @@ import {
 } from './schemas.ts';
 import { exitAt, isWalkable, parseAsciiMap, reachableFrom, type GridPoint, type ParsedMap } from '../map/tilemap.ts';
 import { generateCave } from '../procgen/cave.ts';
+import { placeResourceNodes } from '../procgen/resources.ts';
 
 export interface RawContent {
   rarities: unknown;
@@ -26,6 +29,7 @@ export interface RawContent {
   tiles: unknown;
   balance: unknown;
   objects: unknown;
+  items: unknown;
   world: unknown;
   procedural: unknown;
   maps: Record<string, unknown>;
@@ -37,6 +41,7 @@ export interface Content {
   tiles: TileDefs;
   balance: Balance;
   objects: ObjectDefs;
+  items: Items;
   world: World;
   procedural: Procedural;
   maps: Record<string, AsciiMap>;
@@ -84,6 +89,14 @@ export function loadContent(raw: RawContent): Content {
   assertUnique(objects.objects.map((o) => o.id), 'objects.json (id)');
   const world = parseWith(worldSchema, raw.world, 'world.json');
 
+  const items = parseWith(itemsSchema, raw.items, 'items.json');
+  assertUnique(items.items.map((i) => i.id), 'items.json (id)');
+  const rarityIds = new Set(rarities.rarities.map((r) => r.id));
+  for (const item of items.items) {
+    if (!rarityIds.has(item.rarity)) throw new Error(`items.json: raridade "${item.rarity}" de "${item.id}" não existe em rarities.json`);
+  }
+  const itemById = new Map(items.items.map((i) => [i.id, i]));
+
   const maps: Record<string, AsciiMap> = {};
   const parsed: Record<string, ParsedMap> = {};
   for (const [file, value] of Object.entries(raw.maps)) {
@@ -103,7 +116,25 @@ export function loadContent(raw: RawContent): Content {
       if (!known.has(ch)) throw new Error(`procedural.json: ${area.id}.chars.${role} "${ch}" não existe em tiles.json`);
     }
     // uma geração de amostra garante que a configuração consegue produzir um mapa válido
-    generateCave(area, tiles, 1);
+    const sample = generateCave(area, tiles, 1);
+    const res = area.resources;
+    if (res) {
+      const where = `procedural.json: ${area.id}.resources`;
+      assertUnique(res.items, `${where}.items`);
+      assertUnique(res.rarities.map((r) => r.rarity), `${where}.rarities`);
+      const ruled = new Set(res.rarities.map((r) => r.rarity));
+      for (const id of res.items) {
+        const item = itemById.get(id);
+        if (!item) throw new Error(`${where}: item "${id}" não existe em items.json`);
+        if (!ruled.has(item.rarity)) throw new Error(`${where}: item "${id}" é ${item.rarity}, mas essa raridade não tem regra em 'rarities'`);
+      }
+      for (const r of res.rarities) {
+        if (!rarityIds.has(r.rarity)) throw new Error(`${where}: raridade "${r.rarity}" não existe em rarities.json`);
+        if (!res.items.some((id) => itemById.get(id)?.rarity === r.rarity)) throw new Error(`${where}: nenhum item da raridade "${r.rarity}"`);
+      }
+      // o maior número de pontos precisa caber no mapa de amostra
+      placeResourceNodes(parseAsciiMap(sample.map, tiles), sample.seed, res.nodes.max, res);
+    }
   }
 
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
@@ -125,5 +156,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, world, procedural, maps };
+  return { rarities, classes, tiles, balance, objects, items, world, procedural, maps };
 }

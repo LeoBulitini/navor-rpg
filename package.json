@@ -22,6 +22,7 @@
     "placeholders": "node scripts/gen-placeholders.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "test:db": "bash scripts/test-db.sh",
+    "db:content": "node --experimental-strip-types scripts/db-content.ts",
     "sprites:import": "node scripts/import-character-sprites.mjs"
   },
   "devDependencies": {

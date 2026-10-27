@@ -3,10 +3,11 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e, no futuro, Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 4, Gruta procedural.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
+**Estado atual: Fase 5, coleta e inventário.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
 protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função, mostram "em breve"
-na porta) e um portão que leva à Gruta. A Gruta é gerada por seed a cada entrada, validada antes de aparecer e não muda
-enquanto o jogador está dentro. Sem backend configurado, o jogo abre em modo offline.
+na porta) e um portão que leva à Gruta. A cada entrada o servidor sorteia a seed da Gruta e o conteúdo dos pontos de
+coleta; o jogador coleta com **E** e vê o inventário com **I**. O servidor confere cada coleta e grava o inventário, e
+coletar de novo o mesmo ponto não duplica o item. Sem backend configurado, o jogo abre em modo offline (nada é salvo).
 
 ## Requisitos
 
@@ -36,7 +37,8 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | --- | --- |
 | `npm run dev` | Servidor de desenvolvimento com recarga automática |
 | `npm test` | Testes automatizados (Vitest): dados de conteúdo, mapas, alcance, Gruta procedural (500 seeds), movimento, arte |
-| `npm run test:db` | Testes de acesso do banco (pgTAP) num Postgres local, sem Docker; ver docs/setup-supabase.md |
+| `npm run test:db` | Testes do banco (pgTAP) num Postgres local, sem Docker: acesso, coleta, inventário; ver docs/setup-supabase.md |
+| `npm run db:content` | Cria uma migration com os itens e regras de coleta de `content/` quando eles mudam (veja abaixo) |
 | `npm run content:check` | Valida os JSON de `content/` (também roda antes do build) |
 | `npm run typecheck` | Checagem de tipos do TypeScript |
 | `npm run build` | Build de produção em `apps/web/dist` |
@@ -44,6 +46,7 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | `npm run smoke` | Teste de fumaça no navegador real (requer `npm run build` e `npx playwright install chromium` uma vez) |
 | `npm run placeholders` | Regenera o personagem temporário em `apps/web/public/assets/placeholder/` |
 | `python3 tools/art/city_art.py` | Regenera a arte da cidade (tiles e prédios); requer Python 3 e Pillow |
+| `python3 tools/art/item_art.py` | Regenera os ícones dos itens; requer Python 3 e Pillow |
 | `npm run sprites:import -- "<pasta>"` | Copia a arte dos personagens da pasta do artista para o jogo (veja abaixo) |
 
 ## Estrutura
@@ -52,14 +55,14 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 apps/web/            cliente Phaser 4 + Vite
   src/game/          cenas, entidades, sistemas (input), UI de depuração
   src/assets/        manifest.json: chave lógica -> arquivo de arte
-  public/assets/     characters/ (personagens), city/ (tiles e prédios) e placeholder/ (personagem temporário)
+  public/assets/     characters/ (personagens), city/ (tiles e prédios), items/ (ícones) e placeholder/ (personagem temporário)
 packages/shared/     lógica pura em TypeScript, sem Phaser (será usada também pelo backend)
-content/             dados configuráveis: raridades, classes, tiles, objetos (prédios), mapas, valores de protótipo
   src/menu/          menu HTML: login, lista e criação de personagem
-  src/services/      cliente Supabase, autenticação, personagens
+  src/services/      cliente Supabase, autenticação, personagens, exploração e inventário
+content/             dados configuráveis: raridades, classes, tiles, objetos (prédios), itens, mapas, áreas geradas, valores de protótipo
 supabase/            migrations (schema + RLS), testes pgTAP, config da CLI
 scripts/             validação de conteúdo, importação de sprites, placeholders, testes de fumaça e de banco
-tools/art/           gerador da arte provisória da cidade (Python + Pillow)
+tools/art/           geradores da arte provisória da cidade e dos ícones (Python + Pillow)
 docs/                arquitetura, decisões, setup do Supabase e da Vercel
 ```
 
@@ -84,7 +87,15 @@ O mapa inicial é o de `content/world.json`. `npm run content:check` (também ro
 
 Os parâmetros ficam em `content/procedural.json` (tamanho, número e tamanho das salas, largura dos corredores, atalhos, rochas e para onde as saídas levam); são valores provisórios.
 O gerador (`packages/shared/src/procgen/cave.ts`) monta salas, liga todas por corredores (mais alguns atalhos que criam desvios), abre a entrada no topo e a saída embaixo, e valida antes de mostrar: tamanho, número de salas, todas as salas alcançáveis e caminho da entrada até a saída. Se uma seed não servir, tenta a seguinte.
-A mesma seed sempre gera a mesma Gruta; no jogo, a seed aparece no canto da tela, e `?seed=123` na URL fixa uma seed para testar.
+A mesma seed sempre gera a mesma Gruta; no jogo, a seed aparece no canto da tela. No modo offline, `?seed=123` na URL fixa uma seed para testar (online, quem escolhe a seed é o servidor).
+
+### Coleta e inventário
+
+Os itens ficam em `content/items.json` (todos os do GDD, com raridade e ícone). Em `content/procedural.json`, o bloco `resources` da Gruta define quantos pontos de coleta aparecem, quais itens podem sair, o peso de cada raridade e a faixa de quantidade. São valores provisórios.
+
+Ao entrar na Gruta, o jogo chama a função `start_exploration` do banco. Ela sorteia a seed e o conteúdo de cada ponto, encerra a exploração anterior do personagem e devolve tudo. O navegador gera o mapa e posiciona os pontos a partir da seed (`packages/shared/src/procgen/resources.ts`). A posição é só visual: o que vale (item e quantidade) fica no servidor. A tecla **E** chama `collect_node`, que confere dono, prazo (30 minutos), intervalo mínimo entre coletas e se o ponto já foi coletado, e soma o item no inventário na mesma transação.
+
+O banco guarda uma cópia dos itens e das regras de coleta. Depois de mudar `items.json` ou o bloco `resources`, rode `npm run db:content`: ele cria uma migration `*_content_sync.sql` com os dados novos. Aplique-a no Supabase e faça commit. `npm test` falha se a cópia do banco estiver diferente de `content/`.
 
 Em `content/objects.json`, cada objeto define o tamanho do sprite, a parte sólida (`collider`, a base; o telhado fica por cima do jogador) e, nos prédios, a área da porta com a mensagem.
 
@@ -113,6 +124,10 @@ O tileset (`apps/web/public/assets/city/terrain.png`, com os tiles da cidade e d
 
 - **Tileset**: uma fileira de tiles 32×32 na ordem do `index` de `content/tiles.json`.
 - **Prédios e decoração**: um PNG por `sprite` de `content/objects.json`, com o `width`/`height` definidos lá. Se o tamanho mudar, ajuste também `collider` e `door`.
+
+### Ícones dos itens (arte provisória)
+
+Um PNG 32×32 por `icon` de `content/items.json`, em `apps/web/public/assets/items/`, desenhados por código em `tools/art/item_art.py`. O mesmo ícone aparece no chão da Gruta e no inventário. Itens sem ícone usam `unknown.png`. Para trocar, substitua o PNG mantendo o nome e o tamanho.
 
 `npm test` confere tamanhos e a existência de todos os arquivos.
 
