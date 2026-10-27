@@ -174,6 +174,67 @@ export const equipmentSchema = z.object({
   gatherTiers: z.record(z.string(), z.number().int().min(1)),
 });
 
+/** Efeitos que um aprimoramento de atributo pode dar (o jogo aplica cada um; ver combat/skills.ts). */
+export const SKILL_EFFECT_KINDS = [
+  'hp',
+  'mana',
+  'physAttack',
+  'magAttack',
+  'defense',
+  'precision',
+  'critChance',
+  'critDamage',
+  'attackSpeedPercent',
+  'manaCostPercent',
+  'manaRegenPercent',
+  'moveSpeedPercent',
+  'damageReductionPercent',
+  'blockChance',
+  'penetrationPercent',
+  'dropChancePercent',
+  'lifeStealPercent',
+  'lowHpDamagePercent',
+  'executeDamagePercent',
+  'stealthPercent',
+] as const;
+
+const activeSkillBase = {
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  /** efeito de basicAttacks reaproveitado (arte provisória) */
+  sprite: z.string().min(1),
+  /** dano = ataque × (damageMultiplier + perFocus × (foco − 1)) */
+  damageMultiplier: z.number().positive(),
+  perFocus: z.number().min(0),
+  manaCost: z.number().min(0),
+  cooldownMs: z.number().int().positive(),
+  rangeTiles: z.number().positive(),
+};
+
+export const activeSkillSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('projectile'), ...activeSkillBase, projectileSpeedTilesPerSecond: z.number().positive(), scale: z.number().positive().default(1) }),
+  z.object({ kind: z.literal('melee'), ...activeSkillBase, arcDegrees: z.number().positive().max(360) }),
+]);
+
+export const passiveSkillSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  effect: z.object({ kind: z.enum(SKILL_EFFECT_KINDS), values: z.array(z.number().positive()).min(1) }),
+});
+
+/** Habilidades por classe e evolução (GDD 4 e 6). */
+export const skillsSchema = z.object({
+  pointsPerLevel: z.number().int().positive(),
+  /** pontos de cada graduação de um aprimoramento (1.ª, 2.ª, 3.ª) */
+  gradeCosts: z.array(z.number().int().positive()).min(1),
+  focusPointCost: z.number().int().positive(),
+  /** pergaminho pedido em cada foco (1.º = aprender); null = nenhum */
+  focusScrolls: z.array(z.string().min(1).nullable()).min(1),
+  evolution: z.array(z.object({ level: z.number().int().positive(), copper: z.number().int().min(0), gold: z.number().int().min(0) })),
+  classes: z.record(z.string(), z.object({ active: activeSkillSchema, passives: z.array(passiveSkillSchema) })),
+});
+
 /** Receitas de fabricação (GDD 10: A DEFINIR, conjunto inicial provisório). */
 export const recipesSchema = z.object({
   recipes: z.array(
@@ -327,7 +388,15 @@ export const combatSchema = z.object({
   damageVariance: z.number().min(0).max(0.9),
   defenseFactor: z.number().min(0),
   invulnerableAfterHitMs: z.number().int().min(0),
-  server: z.object({ maxDamagePerSecond: z.object({ base: z.number().positive(), perLevel: z.number().min(0), perAttackBonus: z.number().min(0).default(0) }) }),
+  server: z.object({
+    maxDamagePerSecond: z.object({
+      base: z.number().positive(),
+      perLevel: z.number().min(0),
+      perAttackBonus: z.number().min(0).default(0),
+      /** % a mais no teto por ponto de habilidade gasto */
+      perSkillPointPercent: z.number().min(0).default(0),
+    }),
+  }),
 });
 
 /** Parâmetros de uma área gerada por seed. Valores provisórios (GDD 7.3: tamanhos e densidades A DEFINIR). */
@@ -400,6 +469,10 @@ export type GearStats = z.infer<typeof gearStatsSchema>;
 export type Equipment = z.infer<typeof equipmentSchema>;
 export type Recipes = z.infer<typeof recipesSchema>;
 export type RecipeDef = Recipes['recipes'][number];
+export type Skills = z.infer<typeof skillsSchema>;
+export type ActiveSkill = z.infer<typeof activeSkillSchema>;
+export type PassiveSkill = z.infer<typeof passiveSkillSchema>;
+export type SkillEffectKind = (typeof SKILL_EFFECT_KINDS)[number];
 export type ResourcesConfig = z.infer<typeof resourcesConfigSchema>;
 export type CreaturesConfig = z.infer<typeof creaturesConfigSchema>;
 export type Creatures = z.infer<typeof creaturesSchema>;

@@ -1,4 +1,4 @@
-import { itemValue, levelThresholds, shopBuys, type Content } from '../src/index.ts';
+import { gradeCost, itemValue, levelThresholds, maxGrade, shopBuys, type Content, type SkillDef } from '../src/index.ts';
 
 /** Marca as migrations geradas por `npm run db:content`. */
 export const CONTENT_SYNC_SUFFIX = '_content_sync.sql';
@@ -8,7 +8,7 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
  * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
- * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, habilidades, evolução de classe, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
@@ -189,16 +189,47 @@ export function contentSql(content: Content): string {
       'on conflict (recipe_id, item_id) do update set quantity = excluded.quantity;',
     );
   }
+  const sk = content.skills;
+  const skillRows: { def: SkillDef; classId: string }[] = Object.entries(sk.classes).flatMap(([classId, c]) => [
+    { classId, def: { type: 'active' as const, ...c.active } },
+    ...c.passives.map((p) => ({ classId, def: { type: 'passive' as const, ...p } })),
+  ]);
+  lines.push(
+    '',
+    'insert into public.skill_rules (id, points_per_level) values',
+    `  (1, ${sk.pointsPerLevel})`,
+    'on conflict (id) do update set points_per_level = excluded.points_per_level;',
+    '',
+    'insert into public.skills (id, class_id, kind, effect) values',
+    skillRows.map(({ def, classId }) => `  (${q(def.id)}, ${q(classId)}, ${q(def.type)}, ${def.type === 'passive' ? q(def.effect.kind) : 'null'})`).join(',\n'),
+    'on conflict (id) do update set class_id = excluded.class_id, kind = excluded.kind, effect = excluded.effect;',
+    '',
+    'insert into public.skill_grades (skill_id, grade, points, scroll_item_id, effect_value) values',
+    skillRows
+      .flatMap(({ def }) =>
+        Array.from({ length: maxGrade(sk, def) }, (_, i) => {
+          const c = gradeCost(sk, def, i + 1);
+          const value = def.type === 'passive' ? String(def.effect.values[i]) : 'null';
+          return `  (${q(def.id)}, ${i + 1}, ${c.points}, ${c.scroll ? q(c.scroll) : 'null'}, ${value})`;
+        }),
+      )
+      .join(',\n'),
+    'on conflict (skill_id, grade) do update set points = excluded.points, scroll_item_id = excluded.scroll_item_id, effect_value = excluded.effect_value;',
+    '',
+    'insert into public.class_evolution (level, copper, gold) values',
+    sk.evolution.map((e) => `  (${e.level}, ${e.copper}, ${e.gold})`).join(',\n'),
+    'on conflict (level) do update set copper = excluded.copper, gold = excluded.gold;',
+  );
   lines.push(
     '',
     'insert into public.level_thresholds (level, total_xp) values',
     thresholds.map((xp, level) => `  (${level}, ${xp})`).join(',\n'),
     'on conflict (level) do update set total_xp = excluded.total_xp;',
     '',
-    'insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack) values',
-    `  (1, ${dps.base}, ${dps.perLevel}, ${dps.perAttackBonus})`,
+    'insert into public.combat_rules (id, max_dps_base, max_dps_per_level, max_dps_per_attack, max_dps_per_skill_point_percent) values',
+    `  (1, ${dps.base}, ${dps.perLevel}, ${dps.perAttackBonus}, ${dps.perSkillPointPercent})`,
     'on conflict (id) do update set max_dps_base = excluded.max_dps_base, max_dps_per_level = excluded.max_dps_per_level,',
-    '  max_dps_per_attack = excluded.max_dps_per_attack;',
+    '  max_dps_per_attack = excluded.max_dps_per_attack, max_dps_per_skill_point_percent = excluded.max_dps_per_skill_point_percent;',
   );
   return `${lines.join('\n')}\n`;
 }

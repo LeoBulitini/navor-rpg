@@ -12,6 +12,15 @@ import {
   maxUpgrade,
   pathOfClass,
   upgradeCost,
+  learnBlock,
+  nextClass,
+  evolutionCost,
+  findSkill,
+  gradeCost,
+  skillEffects,
+  spentPoints,
+  totalPoints,
+  type LearnedSkills,
   rollChestContents,
   rollChestCount,
   rollKillRewards,
@@ -27,6 +36,7 @@ import { content } from '../content.ts';
 import type { PlaySession } from '../menu/menu.ts';
 import { exchangeCurrency, shopBuy, shopSell, tavernRest, useItem } from '../services/economy.ts';
 import { craftItem, equipGear, listGear, sellGear, unequipGear, upgradeGear, type GearRow } from '../services/gear.ts';
+import { evolveClass, learnSkill, listSkills } from '../services/skills.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -101,6 +111,18 @@ export interface GearSaleResult extends Wallet {
   earned: number;
 }
 
+export interface LearnResult {
+  skillId: string;
+  grade: number;
+  pointsLeft: number;
+  /** pergaminho gasto no foco, com o total que sobrou */
+  scroll: { itemId: string; total: number } | null;
+}
+
+export interface EvolveResult extends Wallet {
+  classId: string;
+}
+
 export interface EquipResult {
   gear: GearPiece;
   /** peça que saiu do espaço, se havia */
@@ -146,6 +168,9 @@ export interface GameBackend {
   sellGear(shopId: string, gearId: string): Promise<GearSaleResult>;
   equip(gearId: string): Promise<EquipResult>;
   unequip(gearId: string): Promise<GearPiece>;
+  loadSkills(): Promise<LearnedSkills>;
+  learn(skillId: string): Promise<LearnResult>;
+  evolve(): Promise<EvolveResult>;
 }
 
 const fromRow = (r: GearRow): GearPiece => ({ id: r.id, itemId: r.item_id, upgrade: r.upgrade, slot: r.slot });
@@ -266,6 +291,20 @@ class OnlineBackend implements GameBackend {
   async unequip(gearId: string): Promise<GearPiece> {
     return fromRow((await unequipGear(this.characterId, gearId)).gear);
   }
+
+  async loadSkills(): Promise<LearnedSkills> {
+    return new Map((await listSkills(this.characterId)).map((r) => [r.skill_id, r.grade]));
+  }
+
+  async learn(skillId: string): Promise<LearnResult> {
+    const r = await learnSkill(this.characterId, skillId);
+    return { skillId: r.skill_id, grade: r.grade, pointsLeft: r.points_left, scroll: r.scroll && { itemId: r.scroll.item_id, total: Number(r.scroll.total) } };
+  }
+
+  async evolve(): Promise<EvolveResult> {
+    const r = await evolveClass(this.characterId);
+    return { classId: r.class_id, copper: Number(r.copper), gold: Number(r.gold) };
+  }
 }
 
 export class OfflineBackend implements GameBackend {
@@ -275,8 +314,19 @@ export class OfflineBackend implements GameBackend {
   private readonly itemById = new Map(content.items.items.map((i) => [i.id, i]));
   private pieces = 0;
 
-  /** `pathId`: caminho da classe escolhida (as armas conferem). */
-  constructor(private readonly pathId: string) {}
+  private readonly learned: LearnedSkills = new Map();
+
+  /** `classId`: classe escolhida (as armas e as habilidades conferem). */
+  constructor(private classId: string) {}
+
+  private get pathId(): string {
+    return pathOfClass(content.classes, this.classId);
+  }
+
+  /** Coleta de Caça e Saque Especializado: mesma regra de skill_drop_bonus. */
+  private dropMultiplier(): number {
+    return 1 + skillEffects(content.skills, this.learned).dropChancePercent / 100;
+  }
   private readonly collected = new Set<string>();
   private readonly killed = new Set<string>();
   private readonly opened = new Set<string>();
@@ -330,7 +380,7 @@ export class OfflineBackend implements GameBackend {
       return { killed: false, creatureId: monster.creatureId, xpGained: 0, xp: p.xp, level: p.level, leveledUp: false, copperGained: 0, copper: p.copper, drops: [] };
     }
     this.killed.add(key);
-    const reward = rollKillRewards(creatureById(content.creatures, monster.creatureId), this.rng);
+    const reward = rollKillRewards(creatureById(content.creatures, monster.creatureId), this.rng, this.dropMultiplier());
     const before = p.level;
     p.xp += reward.xp;
     p.level = levelForXp(p.xp, this.thresholds);
@@ -354,7 +404,7 @@ export class OfflineBackend implements GameBackend {
       throw new Error('O baú está emperrado. Tente de novo em alguns segundos.');
     }
     this.opened.add(key);
-    const got = rollChestContents(config, this.rng);
+    const got = rollChestContents(config, this.rng, this.dropMultiplier());
     p.copper += got.copper;
     p.gold += got.gold;
     const drops = got.drops.map((d) => {
@@ -373,6 +423,13 @@ export class OfflineBackend implements GameBackend {
   testGrant(copper: number, gold = 0): ProgressState {
     this.progress.copper += copper;
     this.progress.gold += gold;
+    return { ...this.progress };
+  }
+
+  /** Só para o teste de fumaça: põe o personagem num nível (para testar pontos de habilidade e evolução). */
+  testSetLevel(level: number): ProgressState {
+    this.progress.level = level;
+    this.progress.xp = this.thresholds[level] ?? this.progress.xp;
     return { ...this.progress };
   }
 
@@ -537,10 +594,41 @@ export class OfflineBackend implements GameBackend {
     g.slot = null;
     return { ...g };
   }
+
+  /** Mesmas regras de learn_skill e evolve_class (migration skills). */
+  async loadSkills(): Promise<LearnedSkills> {
+    return new Map(this.learned);
+  }
+
+  async learn(skillId: string): Promise<LearnResult> {
+    const block = learnBlock(content.skills, content.classes, this.classId, this.progress.level, this.learned, skillId, (id) => (this.inventory.get(id) ?? 0) > 0);
+    if (block) throw new Error(block);
+    const grade = (this.learned.get(skillId) ?? 0) + 1;
+    const cost = gradeCost(content.skills, findSkill(content.skills, skillId)!.def, grade);
+    const scroll = cost.scroll ? { itemId: cost.scroll, total: this.addItem(cost.scroll, -1) } : null;
+    this.learned.set(skillId, grade);
+    const left = totalPoints(content.skills, this.progress.level) - spentPoints(content.skills, this.learned);
+    return { skillId, grade, pointsLeft: left, scroll };
+  }
+
+  async evolve(): Promise<EvolveResult> {
+    this.inTown();
+    const next = nextClass(content.classes, this.classId);
+    if (!next) throw new Error('Sua classe já é a última do caminho.');
+    if (this.progress.level < next.level) throw new Error('Nível insuficiente para evoluir.');
+    const cost = evolutionCost(content.skills, next.level);
+    if (!cost) throw new Error('Evolução indisponível.');
+    if (this.progress.copper < cost.copper) throw new Error('Cobre insuficiente.');
+    if (this.progress.gold < cost.gold) throw new Error('Ouro insuficiente.');
+    this.progress.copper -= cost.copper;
+    this.progress.gold -= cost.gold;
+    this.classId = next.classId;
+    return { classId: next.classId, copper: this.progress.copper, gold: this.progress.gold };
+  }
 }
 
 export function createBackend(session: PlaySession): GameBackend {
-  return session.mode === 'online' ? new OnlineBackend(session.character.id) : new OfflineBackend(pathOfClass(content.classes, session.classId));
+  return session.mode === 'online' ? new OnlineBackend(session.character.id) : new OfflineBackend(session.classId);
 }
 
 export const getBackend = (scene: Phaser.Scene): GameBackend => scene.registry.get('backend') as GameBackend;
@@ -591,6 +679,24 @@ export class GearBag extends Phaser.Events.EventEmitter {
 }
 
 export const getGear = (scene: Phaser.Scene): GearBag => scene.registry.get('gear') as GearBag;
+
+/** Habilidades aprendidas em memória, sempre iguais ao último valor que o servidor devolveu. */
+export class SkillBook extends Phaser.Events.EventEmitter {
+  constructor(public readonly learned: LearnedSkills) {
+    super();
+  }
+
+  grade(skillId: string): number {
+    return this.learned.get(skillId) ?? 0;
+  }
+
+  set(skillId: string, grade: number): void {
+    this.learned.set(skillId, grade);
+    this.emit('change');
+  }
+}
+
+export const getSkills = (scene: Phaser.Scene): SkillBook => scene.registry.get('skills') as SkillBook;
 
 /** XP, nível, cobre e ouro em memória, sempre iguais ao último valor que o servidor devolveu. */
 export class Progress extends Phaser.Events.EventEmitter {

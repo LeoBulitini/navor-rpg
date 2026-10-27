@@ -323,6 +323,50 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
 
+  // Habilidades (Fase 12): pontos por nível, aprender na tecla K, foco com pergaminho, Q usa a ativa, evolução
+  await nav(() => window.__navor.setLevel(3));
+  await page.keyboard.press('k');
+  await page.waitForTimeout(200);
+  check('a tecla K abre as habilidades', await page.getByRole('heading', { name: 'Habilidades' }).isVisible());
+  await button('Aprender: Explosão Arcana (ativa)').click();
+  await page.waitForTimeout(200);
+  check('aprende a Explosão Arcana com 1 ponto', (await nav(() => window.__navor.skills()))['arcane-burst'] === 1);
+  check('sem pergaminho, o foco 2 fica bloqueado', await button('Subir foco: Explosão Arcana (ativa)').isDisabled());
+  await nav(() => window.__navor.grantItem('scroll-simple', 1));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('k');
+  await page.waitForTimeout(200);
+  await button('Subir foco: Explosão Arcana (ativa)').click();
+  await page.waitForTimeout(200);
+  check('com o Pergaminho Simples, sobe ao foco 2 e gasta o pergaminho', (await nav(() => window.__navor.skills()))['arcane-burst'] === 2
+    && !(await nav(() => window.__navor.inventory()))['scroll-simple']);
+  const magBefore = (await nav(() => window.__navor.stats())).magAttack;
+  await button('Aprender: Poder Mágico').click();
+  await page.waitForTimeout(200);
+  check('Poder Mágico soma ataque mágico', (await nav(() => window.__navor.stats())).magAttack > magBefore);
+  check('sem pontos, nada mais pode ser aprendido', await button('Subir: Poder Mágico').isDisabled());
+  await page.screenshot({ path: join(OUT, 'habilidades.png') });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  await nav(() => window.__navor.setVitals(50, 50));
+  await page.keyboard.press('q');
+  await page.waitForTimeout(150);
+  check('Q usa a Explosão Arcana (gasta 12 de mana)', Math.round((await nav(() => window.__navor.vitals())).mana) <= 39);
+  await nav(() => window.__navor.setLevel(25));
+  await nav(() => window.__navor.grant(600));
+  const w3 = await wallet();
+  await page.keyboard.press('k');
+  await page.waitForTimeout(200);
+  await button('Evoluir: Evoluir para Feiticeiro').click();
+  await page.waitForTimeout(300);
+  check('no nível 25, o Mago evolui para Feiticeiro por 500 de cobre',
+    (await nav(() => window.__navor.classId())) === 'sorcerer' && (await wallet()).copper === w3.copper - 500);
+  check('o Feiticeiro vê a árvore nova e mantém a do Mago',
+    await page.getByRole('heading', { name: /Feiticeiro/ }).first().isVisible() && (await nav(() => window.__navor.skills()))['arcane-burst'] === 2);
+  check('o Feiticeiro usa a arte do Mago até ter a própria', (await nav(() => window.__navor.player().texture)).startsWith('character:mage:'));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+
   // Floresta (Fase 9): portão leste da cidade, animais que fogem, Esquilos de enfeite, recursos da floresta
   await nav(() => window.__navor.teleport(37, 23));
   await hold(['ArrowRight'], 900);

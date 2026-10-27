@@ -3,10 +3,17 @@ import {
   attackFor,
   createRng,
   defenseFor,
+  activeMultiplier,
+  availableSkills,
+  cooldownWith,
   equippedStats,
   exitAt,
   gatherBlock,
+  manaCostWith,
+  skillEffects,
   withGear,
+  withSkills,
+  type SkillEffects,
   facingVector,
   generateCave,
   levelThresholds,
@@ -32,13 +39,14 @@ import {
   type Rng,
 } from '@navor/shared';
 import { content } from '../../content.ts';
-import { itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
+import { artClassId, itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getGear, getInventory, getProgress, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
+import { getBackend, getGear, getInventory, getProgress, getSkills, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
 import { ServicePanel } from '../ui/ServicePanel.ts';
 import { shopContent } from '../ui/shopContent.ts';
 import { equipmentContent } from '../ui/gearContent.ts';
+import { skillContent } from '../ui/skillContent.ts';
 import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
 import { Player } from '../entities/Player.ts';
@@ -72,6 +80,9 @@ interface Chest {
 type Interactable = { kind: 'node'; node: ResourceNode } | { kind: 'chest'; chest: Chest };
 
 const FADE_MS = 250;
+const SKILL_KEYS = ['Q', 'R', 'F', 'G'];
+/** abaixo desta fração da vida, o monstro sofre o bônus de Execução */
+const EXECUTE_HP_FRACTION = 0.3;
 /** Depois de cair, quanto tempo a mensagem fica na tela antes de voltar para a cidade. */
 const DEATH_DELAY_MS = 1800;
 /** Fração da vida máxima com que o jogador volta à cidade depois de cair. */
@@ -117,6 +128,11 @@ export class WorldScene extends Phaser.Scene {
   /** porta de prédio em frente à qual o jogador está (para abrir o serviço com E) */
   private doorObject: PlacedObject | null = null;
   private usePressed: 'hp' | 'mana' | 'food' | null = null;
+  /** efeitos dos aprimoramentos aprendidos (Fase 12) */
+  private effects!: SkillEffects;
+  /** habilidade ativa pedida neste quadro (índice da etapa de classe) */
+  private castPressed: number | null = null;
+  private lastCast = new Map<string, number>();
 
   constructor() {
     super('World');
@@ -143,7 +159,7 @@ export class WorldScene extends Phaser.Scene {
     for (const obj of this.map.objects) this.addObject(obj, solids);
 
     const start = data.arriveAt ?? this.map.spawn;
-    this.player = new Player(this, start.x * T + T / 2, start.y * T + T / 2, sessionClassId(this));
+    this.player = new Player(this, start.x * T + T / 2, start.y * T + T / 2, artClassId(sessionClassId(this)));
     this.physics.add.collider(this.player, ground);
     this.physics.add.collider(this.player, solids);
 
@@ -165,9 +181,16 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-TWO', () => (this.usePressed = 'mana'));
     this.input.keyboard?.on('keydown-THREE', () => (this.usePressed = 'food'));
     this.input.keyboard?.on('keydown-C', () => this.openEquipment());
-    const onGear = () => this.refreshStats();
-    getGear(this).on('change', onGear);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => getGear(this).off('change', onGear));
+    this.input.keyboard?.on('keydown-K', () => this.openSkills());
+    this.castPressed = null;
+    SKILL_KEYS.forEach((key, i) => this.input.keyboard?.on(`keydown-${key}`, () => (this.castPressed = i)));
+    const onChange = () => this.refreshStats();
+    getGear(this).on('change', onChange);
+    getSkills(this).on('change', onChange);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      getGear(this).off('change', onChange);
+      getSkills(this).off('change', onChange);
+    });
     this.panel = new ServicePanel(() => {
       if (this.input.keyboard) this.input.keyboard.enabled = true;
     });
@@ -432,10 +455,11 @@ export class WorldScene extends Phaser.Scene {
     return statsForLevel(pathStatsFor(content.progression, this.pathId()), getProgress(this).state.level);
   }
 
-  /** Atributos do nível somados aos bônus das peças equipadas. */
+  /** Atributos do nível somados aos bônus das peças equipadas e dos aprimoramentos aprendidos. */
   private currentStats(): CharacterStats {
     const itemById = new Map(content.items.items.map((i) => [i.id, i]));
-    const stats = withGear(this.baseStats(), equippedStats(getGear(this).list(), itemById, content.equipment));
+    this.effects = skillEffects(content.skills, getSkills(this).learned);
+    const stats = withSkills(withGear(this.baseStats(), equippedStats(getGear(this).list(), itemById, content.equipment)), this.effects);
     this.player.setSpeedTiles(stats.moveSpeedTilesPerSecond);
     return stats;
   }
@@ -456,15 +480,20 @@ export class WorldScene extends Phaser.Scene {
 
   private updateCombat(time: number, delta: number): void {
     const { combat } = content;
-    this.vitals.mana = Math.min(this.vitals.maxMana, this.vitals.mana + (combat.manaRegenPerSecond * delta) / 1000);
+    const regen = combat.manaRegenPerSecond * (1 + this.effects.manaRegenPercent / 100);
+    this.vitals.mana = Math.min(this.vitals.maxMana, this.vitals.mana + (regen * delta) / 1000);
     const fire = this.firePressed;
     this.firePressed = false;
     if (fire) this.shoot(time);
+    const cast = this.castPressed;
+    this.castPressed = null;
+    if (cast !== null && !this.dead) this.cast(cast, time);
 
-    const range = this.basicAttack().rangeTiles * this.map.tileSize;
     for (const obj of [...this.bolts.getChildren()]) {
       const bolt = obj as Phaser.Physics.Arcade.Image;
       const from = bolt.getData('from') as { x: number; y: number };
+      const range = bolt.getData('range') as number;
+      const mult = (bolt.getData('mult') as number | undefined) ?? 1;
       // Confere o trecho percorrido desde o último quadro: com poucos FPS, um projétil rápido
       // pularia por cima do monstro e a sobreposição da física não o pegaria.
       const prev = (bolt.getData('prev') as { x: number; y: number } | undefined) ?? from;
@@ -477,7 +506,7 @@ export class WorldScene extends Phaser.Scene {
       });
       if (struck) {
         bolt.destroy();
-        this.hitMonster(struck);
+        this.hitMonster(struck, mult);
       } else if (Phaser.Math.Distance.Between(from.x, from.y, bolt.x, bolt.y) > range) {
         bolt.destroy();
       }
@@ -485,11 +514,12 @@ export class WorldScene extends Phaser.Scene {
 
     const c = this.player.body.center;
     const noCrit = { critChance: 0, critDamage: 1 };
+    const stealth = Math.min(0.9, this.effects.stealthPercent / 100);
     for (const m of this.critters) m.think(time, { x: c.x, y: c.y });
     for (const m of this.monsters) {
-      if (!m.think(time, { x: c.x, y: c.y })) continue;
+      if (!m.think(time, { x: c.x, y: c.y }, stealth)) continue;
       const { attack, damageType } = m.def.stats;
-      this.hurtPlayer(rollDamage(attack, defenseFor(this.stats, damageType), noCrit, combat, this.rng).amount);
+      this.monsterHit(rollDamage(attack, defenseFor(this.stats, damageType), noCrit, combat, this.rng).amount);
     }
     const level = getProgress(this).state.level;
     this.hud.draw(this.vitals, getProgress(this).state, [THRESHOLDS[level]!, THRESHOLDS[Math.min(level + 1, THRESHOLDS.length - 1)]!]);
@@ -498,47 +528,95 @@ export class WorldScene extends Phaser.Scene {
   /** Ataque básico da classe na direção em que o jogador está virado: projétil (Mago, Arqueiro) ou golpe (Guerreiro). */
   private shoot(time: number): void {
     const attack = this.basicAttack();
-    if (time - this.lastShot < attack.cooldownMs) return;
-    if (this.vitals.mana < attack.manaCost) {
+    if (time - this.lastShot < cooldownWith(attack.cooldownMs, this.effects)) return;
+    const mana = manaCostWith(attack.manaCost, this.effects);
+    if (this.vitals.mana < mana) {
       this.showNotice('Sem mana.');
       return;
     }
     this.lastShot = time;
-    this.vitals.mana -= attack.manaCost;
+    this.vitals.mana -= mana;
+    this.release(attack, 1, 1);
+  }
+
+  /** Teclas Q, R, F e G: a habilidade ativa da classe de cada etapa (Fase 12). */
+  private cast(index: number, time: number): void {
+    if (this.panel.isOpen() || this.leaving) return;
+    const stage = availableSkills(content.skills, content.classes, sessionClassId(this))[index];
+    if (!stage) return;
+    const skill = stage.active;
+    const focus = getSkills(this).grade(skill.id);
+    if (focus === 0) {
+      this.showNotice(`${skill.name}: aprenda na janela de habilidades (K).`);
+      return;
+    }
+    const ready = (this.lastCast.get(skill.id) ?? -Infinity) + cooldownWith(skill.cooldownMs, this.effects);
+    if (time < ready) {
+      this.showNotice(`${skill.name}: recarregando (${Math.ceil((ready - time) / 1000)}s).`, '#e5e7eb');
+      return;
+    }
+    const mana = manaCostWith(skill.manaCost, this.effects);
+    if (this.vitals.mana < mana) {
+      this.showNotice('Sem mana.');
+      return;
+    }
+    this.lastCast.set(skill.id, time);
+    this.vitals.mana -= mana;
+    this.floatText(this.player.x, this.player.y - 22, skill.name, '#c4b5fd');
+    this.release(skill, activeMultiplier(skill, focus), skill.kind === 'projectile' ? skill.scale : 1.4);
+  }
+
+  /** Solta um golpe em arco ou um projétil; `mult` multiplica o dano e `scale` o tamanho do efeito. */
+  private release(
+    attack: { kind: 'melee'; sprite: string; rangeTiles: number; arcDegrees: number } | { kind: 'projectile'; sprite: string; rangeTiles: number; projectileSpeedTilesPerSecond: number },
+    mult: number,
+    scale: number,
+  ): void {
     const c = this.player.body.center;
     const dir = facingVector(this.player.getFacing());
     const angle = Math.atan2(dir.vy, dir.vx);
     const T = this.map.tileSize;
+    const tint = mult > 1 ? 0xc4b5fd : 0xffffff;
     if (attack.kind === 'melee') {
       // Golpe em arco à frente: acerta todo monstro vivo dentro do alcance e do ângulo.
       const reach = attack.rangeTiles * T;
       const slash = this.add.image(c.x + dir.vx * T * 0.6, c.y + dir.vy * T * 0.6, TextureKeys.effect(attack.sprite));
-      slash.setRotation(angle).setDepth(9000);
+      slash.setRotation(angle).setDepth(9000).setScale(scale).setTint(tint);
       this.tweens.add({ targets: slash, alpha: 0, duration: 180, onComplete: () => slash.destroy() });
       for (const m of this.monsters) {
         if (m.state !== 'alive') continue;
         const mc = m.body.center;
         const d = Phaser.Math.Distance.Between(c.x, c.y, mc.x, mc.y);
         const off = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(mc.y - c.y, mc.x - c.x) - angle));
-        if (d <= reach && (d < T * 0.5 || off <= Phaser.Math.DegToRad(attack.arcDegrees / 2))) this.hitMonster(m);
+        if (d <= reach && (d < T * 0.5 || off <= Phaser.Math.DegToRad(attack.arcDegrees / 2))) this.hitMonster(m, mult);
       }
       return;
     }
     const speed = attack.projectileSpeedTilesPerSecond * T;
     const bolt = this.bolts.create(c.x, c.y, TextureKeys.effect(attack.sprite)) as Phaser.Physics.Arcade.Image;
-    bolt.setDepth(9000).setRotation(angle).setData('from', { x: c.x, y: c.y });
+    bolt.setDepth(9000).setRotation(angle).setScale(scale).setTint(tint);
+    bolt.setData('from', { x: c.x, y: c.y }).setData('range', attack.rangeTiles * T).setData('mult', mult);
     bolt.body!.setCircle(4, bolt.width / 2 - 4, bolt.height / 2 - 4);
     bolt.setVelocity(dir.vx * speed, dir.vy * speed);
   }
 
-  private hitMonster(m: Monster): void {
+  /**
+   * Golpe num monstro. `mult` é o da habilidade ativa (1 no ataque básico). Penetração, Fúria (vida baixa),
+   * Execução (monstro com pouca vida) e Drenagem Vital vêm dos aprimoramentos.
+   */
+  private hitMonster(m: Monster, mult = 1): void {
     const { combat } = content;
     if (!rollHit(this.stats.precision, combat, this.rng)) {
       this.floatText(m.x, m.y - 14, 'Errou', '#9ca3af');
       return;
     }
+    const e = this.effects;
     const type = this.basicAttack().damageType;
-    const hit = rollDamage(attackFor(this.stats, type), defenseFor(m.def.stats, type), this.stats, combat, this.rng);
+    let bonus = 1;
+    if (this.vitals.hp < this.vitals.maxHp / 2) bonus += e.lowHpDamagePercent / 100;
+    if (m.hp < m.def.stats.hp * EXECUTE_HP_FRACTION) bonus += e.executeDamagePercent / 100;
+    const hit = rollDamage(attackFor(this.stats, type) * mult * bonus, defenseFor(m.def.stats, type), this.stats, combat, this.rng, e.penetrationPercent / 100);
+    if (e.lifeStealPercent > 0) this.vitals.hp = Math.min(this.vitals.maxHp, this.vitals.hp + (hit.amount * e.lifeStealPercent) / 100);
     m.hp = Math.max(0, m.hp - hit.amount);
     m.flash();
     this.floatText(m.x, m.y - 14, `${hit.amount}${hit.crit ? '!' : ''}`, hit.crit ? '#fde047' : '#ffffff');
@@ -582,6 +660,18 @@ export class WorldScene extends Phaser.Scene {
       this.vitals = { hp: this.stats.maxHp, maxHp: this.stats.maxHp, mana: this.stats.maxMana, maxMana: this.stats.maxMana };
       this.showNotice(`Subiu para o nível ${r.level}!`, '#fde047');
     }
+  }
+
+  /** Golpe de monstro: Bloqueio pode anular; Resistência, Aparar e Aura reduzem (mínimo 1). */
+  private monsterHit(amount: number): void {
+    if (this.dead || this.leaving || this.time.now < this.invulnerableUntil) return;
+    const e = this.effects;
+    if (e.blockChance > 0 && this.rng.next() < e.blockChance) {
+      this.invulnerableUntil = this.time.now + content.combat.invulnerableAfterHitMs;
+      this.floatText(this.player.x, this.player.y - 18, 'Bloqueou', '#93c5fd');
+      return;
+    }
+    this.hurtPlayer(Math.max(1, Math.round(amount * (1 - Math.min(60, e.damageReductionPercent) / 100))));
   }
 
   /** `force` ignora a invulnerabilidade (gancho de teste). */
@@ -696,6 +786,30 @@ export class WorldScene extends Phaser.Scene {
     );
   }
 
+  /** Tecla K: habilidades e evolução. */
+  private openSkills(): void {
+    if (this.dead || this.leaving || this.panel.isOpen()) return;
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
+    this.player.setVelocity(0, 0);
+    this.panel.open(
+      skillContent({
+        backend: getBackend(this),
+        inventory: getInventory(this)!,
+        progress: getProgress(this),
+        skills: getSkills(this),
+        panel: this.panel,
+        classId: () => sessionClassId(this),
+        keys: SKILL_KEYS,
+        onEvolved: (classId) => {
+          const session = getSession(this);
+          if (session?.mode === 'online') session.character.class_id = classId;
+          else if (session) session.classId = classId;
+          this.refreshStats();
+        },
+      }),
+    );
+  }
+
   /** Teclas 1, 2 e 3: a menor poção de vida, a menor de mana, ou uma comida. O servidor gasta o item. */
   private updateQuickUse(): void {
     const kind = this.usePressed;
@@ -763,7 +877,7 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  F3: depuração', { ...style, align: 'right' })
+      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  Q/R/F/G: habilidades  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  K: habilidades  F3: depuração', { ...style, align: 'right' })
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
@@ -865,6 +979,13 @@ export class WorldScene extends Phaser.Scene {
         if (backend instanceof OfflineBackend) getInventory(this)!.set(itemId, backend.testGrantItem(itemId, quantity));
       },
       gear: () => getGear(this).list().map((g) => ({ ...g })),
+      skills: () => Object.fromEntries(getSkills(this).learned),
+      classId: () => sessionClassId(this),
+      /** Modo offline: põe o personagem num nível (para testar pontos e evolução). */
+      setLevel: (level: number) => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) getProgress(this).set(backend.testSetLevel(level));
+      },
       /** Ajusta vida e mana (para testar poções e o dormitório). */
       setVitals: (hp: number, mana: number) => Object.assign(this.vitals, { hp, mana }),
       debugEnabled: () => this.debug.isEnabled(),

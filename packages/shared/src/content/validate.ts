@@ -12,6 +12,7 @@ import {
   progressionSchema,
   raritiesSchema,
   recipesSchema,
+  skillsSchema,
   shopsSchema,
   tilesSchema,
   worldSchema,
@@ -27,6 +28,7 @@ import {
   type Progression,
   type Rarities,
   type Recipes,
+  type Skills,
   type Shops,
   type TileDefs,
   type World,
@@ -52,6 +54,7 @@ export interface RawContent {
   shops: unknown;
   equipment: unknown;
   recipes: unknown;
+  skills: unknown;
   maps: Record<string, unknown>;
 }
 
@@ -70,6 +73,7 @@ export interface Content {
   shops: Shops;
   equipment: Equipment;
   recipes: Recipes;
+  skills: Skills;
   maps: Record<string, AsciiMap>;
 }
 
@@ -264,6 +268,26 @@ export function loadContent(raw: RawContent): Content {
     }
   }
 
+  const skills = parseWith(skillsSchema, raw.skills, 'skills.json');
+  const classIds = classes.paths.flatMap((x) => x.stages.map((st) => st.classId));
+  for (const id of classIds) if (!skills.classes[id]) throw new Error(`skills.json: falta a classe "${id}"`);
+  for (const id of Object.keys(skills.classes)) if (!classIds.includes(id)) throw new Error(`skills.json: classe "${id}" não existe em classes.json`);
+  const allSkills = Object.values(skills.classes).flatMap((c) => [c.active, ...c.passives]);
+  assertUnique(allSkills.map((x) => x.id), 'skills.json (id das habilidades)');
+  const attackSprites = new Set(Object.values(combat.basicAttacks).map((a) => a.sprite));
+  for (const [classId, c] of Object.entries(skills.classes)) {
+    if (!attackSprites.has(c.active.sprite)) throw new Error(`skills.json: ${classId}.active usa o efeito "${c.active.sprite}", que nenhum ataque básico carrega`);
+    for (const ps of c.passives) {
+      if (ps.effect.values.length !== skills.gradeCosts.length) throw new Error(`skills.json: ${ps.id} precisa de ${skills.gradeCosts.length} valores (um por graduação)`);
+      if (ps.effect.values.some((v, i) => i > 0 && v <= ps.effect.values[i - 1]!)) throw new Error(`skills.json: ${ps.id} precisa crescer a cada graduação`);
+    }
+  }
+  for (const id of skills.focusScrolls) if (id && itemById.get(id)?.category !== 'scroll') throw new Error(`skills.json: "${id}" não é um pergaminho de items.json`);
+  const stageLevels = [...new Set(classes.paths.flatMap((x) => x.stages.map((st) => st.level)).filter((l) => l > 0))].sort((a, b) => a - b);
+  if (JSON.stringify(skills.evolution.map((e) => e.level)) !== JSON.stringify(stageLevels)) {
+    throw new Error(`skills.json: 'evolution' precisa de um custo para cada etapa de classe (${stageLevels.join(', ')})`);
+  }
+
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
 
   // Ponto de chegada num mapa fixo: livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
@@ -283,5 +307,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, maps };
+  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, skills, maps };
 }

@@ -1,0 +1,705 @@
+{
+  "$comment": "Habilidades e evolução de classe (GDD 4 e 6). PROVISÓRIO, decidido por Claude em 2026-10-27 (o GDD deixa habilidades, efeitos, custos e requisitos de evolução A DEFINIR). 1 ponto de habilidade por nível. Cada classe tem uma habilidade ativa com níveis de foco (aprender é o foco 1; cada foco acima custa 'focusPointCost' ponto e o pergaminho de 'focusScrolls', na ordem do foco 1 ao 7) e três aprimoramentos de atributo com três graduações que custam 'gradeCosts' (1, 2 e 3 pontos). 'values' é o total do efeito em cada graduação. Evoluir de classe nos níveis de 'evolution' custa essas moedas, só na cidade, e a classe nova mantém tudo o que as anteriores aprenderam.",
+  "pointsPerLevel": 1,
+  "gradeCosts": [
+    1,
+    2,
+    3
+  ],
+  "focusPointCost": 1,
+  "focusScrolls": [
+    null,
+    "scroll-simple",
+    "scroll-improved",
+    "scroll-rare",
+    "scroll-ancient",
+    "scroll-legendary",
+    "scroll-forbidden"
+  ],
+  "evolution": [
+    {
+      "level": 25,
+      "copper": 500,
+      "gold": 0
+    },
+    {
+      "level": 50,
+      "copper": 2000,
+      "gold": 2
+    },
+    {
+      "level": 75,
+      "copper": 5000,
+      "gold": 5
+    }
+  ],
+  "classes": {
+    "mage": {
+      "active": {
+        "id": "arcane-burst",
+        "name": "Explosão Arcana",
+        "kind": "projectile",
+        "sprite": "arcane-bolt",
+        "damageMultiplier": 2.0,
+        "perFocus": 0.25,
+        "manaCost": 12,
+        "cooldownMs": 4000,
+        "rangeTiles": 6,
+        "projectileSpeedTilesPerSecond": 8,
+        "scale": 1.6
+      },
+      "passives": [
+        {
+          "id": "mage-power",
+          "name": "Poder Mágico",
+          "description": "Aumenta o ataque mágico.",
+          "effect": {
+            "kind": "magAttack",
+            "values": [
+              2,
+              5,
+              9
+            ]
+          }
+        },
+        {
+          "id": "mage-efficiency",
+          "name": "Eficiência Mágica",
+          "description": "Reduz o custo de mana das magias.",
+          "effect": {
+            "kind": "manaCostPercent",
+            "values": [
+              10,
+              20,
+              30
+            ]
+          }
+        },
+        {
+          "id": "mage-penetration",
+          "name": "Penetração Mágica",
+          "description": "Ignora parte da defesa do inimigo.",
+          "effect": {
+            "kind": "penetrationPercent",
+            "values": [
+              8,
+              16,
+              25
+            ]
+          }
+        }
+      ]
+    },
+    "sorcerer": {
+      "active": {
+        "id": "focused-ray",
+        "name": "Raio Concentrado",
+        "kind": "projectile",
+        "sprite": "arcane-bolt",
+        "damageMultiplier": 2.6,
+        "perFocus": 0.3,
+        "manaCost": 18,
+        "cooldownMs": 5000,
+        "rangeTiles": 7,
+        "projectileSpeedTilesPerSecond": 11,
+        "scale": 1.9
+      },
+      "passives": [
+        {
+          "id": "sorcerer-power",
+          "name": "Poder Mágico Avançado",
+          "description": "Aumenta bastante o ataque mágico.",
+          "effect": {
+            "kind": "magAttack",
+            "values": [
+              4,
+              9,
+              15
+            ]
+          }
+        },
+        {
+          "id": "sorcerer-focus",
+          "name": "Concentração",
+          "description": "Reduz ainda mais o custo de mana.",
+          "effect": {
+            "kind": "manaCostPercent",
+            "values": [
+              8,
+              16,
+              25
+            ]
+          }
+        },
+        {
+          "id": "sorcerer-recovery",
+          "name": "Recuperação Arcana",
+          "description": "Acelera a regeneração de mana.",
+          "effect": {
+            "kind": "manaRegenPercent",
+            "values": [
+              20,
+              45,
+              75
+            ]
+          }
+        }
+      ]
+    },
+    "elementalist": {
+      "active": {
+        "id": "fireball",
+        "name": "Bola de Fogo",
+        "kind": "projectile",
+        "sprite": "arcane-bolt",
+        "damageMultiplier": 3.2,
+        "perFocus": 0.35,
+        "manaCost": 24,
+        "cooldownMs": 6000,
+        "rangeTiles": 7,
+        "projectileSpeedTilesPerSecond": 9,
+        "scale": 2.2
+      },
+      "passives": [
+        {
+          "id": "elemental-mastery",
+          "name": "Domínio Elemental",
+          "description": "Aumenta o ataque mágico.",
+          "effect": {
+            "kind": "magAttack",
+            "values": [
+              6,
+              13,
+              22
+            ]
+          }
+        },
+        {
+          "id": "elemental-affinity",
+          "name": "Afinidade Elemental",
+          "description": "Aumenta o dano crítico.",
+          "effect": {
+            "kind": "critDamage",
+            "values": [
+              0.1,
+              0.25,
+              0.45
+            ]
+          }
+        },
+        {
+          "id": "elemental-rupture",
+          "name": "Ruptura Elemental",
+          "description": "Ignora mais da defesa do inimigo.",
+          "effect": {
+            "kind": "penetrationPercent",
+            "values": [
+              8,
+              16,
+              25
+            ]
+          }
+        }
+      ]
+    },
+    "necromancer": {
+      "active": {
+        "id": "dark-touch",
+        "name": "Toque Sombrio",
+        "kind": "projectile",
+        "sprite": "arcane-bolt",
+        "damageMultiplier": 3.8,
+        "perFocus": 0.4,
+        "manaCost": 30,
+        "cooldownMs": 7000,
+        "rangeTiles": 6,
+        "projectileSpeedTilesPerSecond": 8,
+        "scale": 2.4
+      },
+      "passives": [
+        {
+          "id": "dark-magic",
+          "name": "Magia Sombria",
+          "description": "Aumenta o ataque mágico.",
+          "effect": {
+            "kind": "magAttack",
+            "values": [
+              8,
+              17,
+              28
+            ]
+          }
+        },
+        {
+          "id": "life-drain",
+          "name": "Drenagem Vital",
+          "description": "Recupera parte do dano causado como vida.",
+          "effect": {
+            "kind": "lifeStealPercent",
+            "values": [
+              4,
+              8,
+              12
+            ]
+          }
+        },
+        {
+          "id": "summoning",
+          "name": "Invocação",
+          "description": "Sem criaturas invocadas por enquanto: aumenta a mana máxima.",
+          "effect": {
+            "kind": "mana",
+            "values": [
+              15,
+              35,
+              60
+            ]
+          }
+        }
+      ]
+    },
+    "warrior": {
+      "active": {
+        "id": "whirlwind",
+        "name": "Golpe Giratório",
+        "kind": "melee",
+        "sprite": "slash",
+        "damageMultiplier": 1.8,
+        "perFocus": 0.25,
+        "manaCost": 8,
+        "cooldownMs": 4000,
+        "rangeTiles": 1.6,
+        "arcDegrees": 360
+      },
+      "passives": [
+        {
+          "id": "warrior-strength",
+          "name": "Força",
+          "description": "Aumenta o ataque físico.",
+          "effect": {
+            "kind": "physAttack",
+            "values": [
+              2,
+              5,
+              9
+            ]
+          }
+        },
+        {
+          "id": "warrior-endurance",
+          "name": "Resistência",
+          "description": "Reduz o dano recebido.",
+          "effect": {
+            "kind": "damageReductionPercent",
+            "values": [
+              4,
+              8,
+              12
+            ]
+          }
+        },
+        {
+          "id": "warrior-block",
+          "name": "Bloqueio",
+          "description": "Chance de bloquear um golpe inteiro.",
+          "effect": {
+            "kind": "blockChance",
+            "values": [
+              0.04,
+              0.08,
+              0.12
+            ]
+          }
+        }
+      ]
+    },
+    "swordsman": {
+      "active": {
+        "id": "lunge",
+        "name": "Estocada",
+        "kind": "melee",
+        "sprite": "slash",
+        "damageMultiplier": 2.4,
+        "perFocus": 0.3,
+        "manaCost": 10,
+        "cooldownMs": 4500,
+        "rangeTiles": 2.2,
+        "arcDegrees": 50
+      },
+      "passives": [
+        {
+          "id": "sword-mastery",
+          "name": "Maestria com Espadas",
+          "description": "Aumenta o ataque físico.",
+          "effect": {
+            "kind": "physAttack",
+            "values": [
+              4,
+              9,
+              15
+            ]
+          }
+        },
+        {
+          "id": "attack-speed",
+          "name": "Velocidade de Ataque",
+          "description": "Ataca mais rápido.",
+          "effect": {
+            "kind": "attackSpeedPercent",
+            "values": [
+              6,
+              12,
+              18
+            ]
+          }
+        },
+        {
+          "id": "parry",
+          "name": "Aparar",
+          "description": "Reduz o dano recebido.",
+          "effect": {
+            "kind": "damageReductionPercent",
+            "values": [
+              4,
+              8,
+              12
+            ]
+          }
+        }
+      ]
+    },
+    "paladin": {
+      "active": {
+        "id": "holy-hammer",
+        "name": "Martelo Sagrado",
+        "kind": "melee",
+        "sprite": "slash",
+        "damageMultiplier": 3.0,
+        "perFocus": 0.35,
+        "manaCost": 16,
+        "cooldownMs": 5500,
+        "rangeTiles": 1.8,
+        "arcDegrees": 150
+      },
+      "passives": [
+        {
+          "id": "holy-defense",
+          "name": "Defesa Sagrada",
+          "description": "Aumenta a defesa física e mágica.",
+          "effect": {
+            "kind": "defense",
+            "values": [
+              3,
+              7,
+              12
+            ]
+          }
+        },
+        {
+          "id": "holy-power",
+          "name": "Poder Sagrado",
+          "description": "Aumenta o ataque físico.",
+          "effect": {
+            "kind": "physAttack",
+            "values": [
+              6,
+              13,
+              22
+            ]
+          }
+        },
+        {
+          "id": "protective-aura",
+          "name": "Aura Protetora",
+          "description": "Reduz o dano recebido.",
+          "effect": {
+            "kind": "damageReductionPercent",
+            "values": [
+              4,
+              8,
+              12
+            ]
+          }
+        }
+      ]
+    },
+    "berserker": {
+      "active": {
+        "id": "brutal-fury",
+        "name": "Fúria Brutal",
+        "kind": "melee",
+        "sprite": "slash",
+        "damageMultiplier": 3.6,
+        "perFocus": 0.4,
+        "manaCost": 20,
+        "cooldownMs": 6500,
+        "rangeTiles": 1.8,
+        "arcDegrees": 220
+      },
+      "passives": [
+        {
+          "id": "fury",
+          "name": "Fúria",
+          "description": "Mais dano com a vida abaixo da metade.",
+          "effect": {
+            "kind": "lowHpDamagePercent",
+            "values": [
+              10,
+              22,
+              35
+            ]
+          }
+        },
+        {
+          "id": "brutal-strike",
+          "name": "Golpe Brutal",
+          "description": "Aumenta o dano crítico.",
+          "effect": {
+            "kind": "critDamage",
+            "values": [
+              0.1,
+              0.25,
+              0.45
+            ]
+          }
+        },
+        {
+          "id": "pain-resistance",
+          "name": "Resistência à Dor",
+          "description": "Reduz o dano recebido.",
+          "effect": {
+            "kind": "damageReductionPercent",
+            "values": [
+              4,
+              8,
+              12
+            ]
+          }
+        }
+      ]
+    },
+    "archer": {
+      "active": {
+        "id": "piercing-arrow",
+        "name": "Flecha Potente",
+        "kind": "projectile",
+        "sprite": "arrow",
+        "damageMultiplier": 1.9,
+        "perFocus": 0.25,
+        "manaCost": 6,
+        "cooldownMs": 4000,
+        "rangeTiles": 8,
+        "projectileSpeedTilesPerSecond": 15,
+        "scale": 1.4
+      },
+      "passives": [
+        {
+          "id": "archer-precision",
+          "name": "Precisão",
+          "description": "Aumenta a chance de acerto.",
+          "effect": {
+            "kind": "precision",
+            "values": [
+              3,
+              7,
+              12
+            ]
+          }
+        },
+        {
+          "id": "agility",
+          "name": "Agilidade",
+          "description": "Ataca mais rápido.",
+          "effect": {
+            "kind": "attackSpeedPercent",
+            "values": [
+              6,
+              12,
+              18
+            ]
+          }
+        },
+        {
+          "id": "ranged-damage",
+          "name": "Dano à Distância",
+          "description": "Aumenta o ataque físico.",
+          "effect": {
+            "kind": "physAttack",
+            "values": [
+              2,
+              5,
+              9
+            ]
+          }
+        }
+      ]
+    },
+    "hunter": {
+      "active": {
+        "id": "sure-shot",
+        "name": "Tiro Certeiro",
+        "kind": "projectile",
+        "sprite": "arrow",
+        "damageMultiplier": 2.5,
+        "perFocus": 0.3,
+        "manaCost": 8,
+        "cooldownMs": 4500,
+        "rangeTiles": 9,
+        "projectileSpeedTilesPerSecond": 16,
+        "scale": 1.6
+      },
+      "passives": [
+        {
+          "id": "tracking",
+          "name": "Rastreamento",
+          "description": "Aumenta a precisão.",
+          "effect": {
+            "kind": "precision",
+            "values": [
+              4,
+              9,
+              15
+            ]
+          }
+        },
+        {
+          "id": "lethal-precision",
+          "name": "Precisão Letal",
+          "description": "Aumenta a chance de crítico.",
+          "effect": {
+            "kind": "critChance",
+            "values": [
+              0.03,
+              0.06,
+              0.1
+            ]
+          }
+        },
+        {
+          "id": "game-gathering",
+          "name": "Coleta de Caça",
+          "description": "Mais chance de materiais das criaturas.",
+          "effect": {
+            "kind": "dropChancePercent",
+            "values": [
+              10,
+              20,
+              30
+            ]
+          }
+        }
+      ]
+    },
+    "thief": {
+      "active": {
+        "id": "poison-dagger",
+        "name": "Adaga Envenenada",
+        "kind": "projectile",
+        "sprite": "arrow",
+        "damageMultiplier": 3.0,
+        "perFocus": 0.35,
+        "manaCost": 12,
+        "cooldownMs": 5500,
+        "rangeTiles": 6,
+        "projectileSpeedTilesPerSecond": 13,
+        "scale": 1.2
+      },
+      "passives": [
+        {
+          "id": "stealth",
+          "name": "Furtividade",
+          "description": "Os monstros percebem você mais de perto.",
+          "effect": {
+            "kind": "stealthPercent",
+            "values": [
+              10,
+              20,
+              30
+            ]
+          }
+        },
+        {
+          "id": "backstab",
+          "name": "Ataque pelas Costas",
+          "description": "Aumenta a chance de crítico.",
+          "effect": {
+            "kind": "critChance",
+            "values": [
+              0.03,
+              0.06,
+              0.1
+            ]
+          }
+        },
+        {
+          "id": "expert-loot",
+          "name": "Saque Especializado",
+          "description": "Mais chance de itens em baús e criaturas.",
+          "effect": {
+            "kind": "dropChancePercent",
+            "values": [
+              10,
+              20,
+              30
+            ]
+          }
+        }
+      ]
+    },
+    "assassin": {
+      "active": {
+        "id": "shadow-strike",
+        "name": "Golpe Sombrio",
+        "kind": "melee",
+        "sprite": "slash",
+        "damageMultiplier": 3.8,
+        "perFocus": 0.4,
+        "manaCost": 16,
+        "cooldownMs": 6500,
+        "rangeTiles": 1.8,
+        "arcDegrees": 90
+      },
+      "passives": [
+        {
+          "id": "deadly-crit",
+          "name": "Crítico Mortal",
+          "description": "Aumenta o dano crítico.",
+          "effect": {
+            "kind": "critDamage",
+            "values": [
+              0.15,
+              0.3,
+              0.5
+            ]
+          }
+        },
+        {
+          "id": "shadow-step",
+          "name": "Passo Sombrio",
+          "description": "Anda mais rápido.",
+          "effect": {
+            "kind": "moveSpeedPercent",
+            "values": [
+              5,
+              10,
+              15
+            ]
+          }
+        },
+        {
+          "id": "execution",
+          "name": "Execução",
+          "description": "Mais dano em inimigos com pouca vida.",
+          "effect": {
+            "kind": "executeDamagePercent",
+            "values": [
+              15,
+              30,
+              50
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

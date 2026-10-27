@@ -57,6 +57,16 @@ export function hasCharacterArt(classId: string): boolean {
   return characterArt.classIds.includes(classId);
 }
 
+/**
+ * Classe cuja arte o personagem usa: a própria, ou, para as classes evoluídas ainda sem arte, a da
+ * classe inicial do caminho (provisório; o aviso de placeholder continua na tela).
+ */
+export function artClassId(classId: string): string {
+  if (hasCharacterArt(classId)) return classId;
+  const base = content.classes.paths.find((p) => p.stages.some((s) => s.classId === classId))?.stages[0]?.classId;
+  return base && hasCharacterArt(base) ? base : classId;
+}
+
 /** Caminho do PNG de uma direção; classes ainda sem arte usam o placeholder. */
 export function characterSpritePath(classId: string, facing: Facing): string {
   const { path, placeholderPath } = manifest.characters;

@@ -93,6 +93,14 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | O Ferreiro paga pela peça o preço de venda × (1 + 0,25 × nível de melhoria); testes garantem que fabricar ou melhorar e vender nunca dá lucro | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | O teto de dano por segundo do servidor soma 5 por ponto de ataque dos equipamentos; um teste garante que fica acima do dano possível com o melhor equipamento +5 | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Equipar e tirar funciona em qualquer lugar (tecla C); comprar, fabricar, melhorar e vender só na cidade | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Habilidades: 1 ponto por nível; cada classe tem 1 habilidade ativa (focos 1 a 7) e 3 aprimoramentos (graduações 1 a 3, custando 1, 2 e 3 pontos); os nomes seguem o GDD e os números são provisórios | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Focos 2 a 7 da habilidade ativa custam 1 ponto e gastam um pergaminho, do Simples ao Proibido, na ordem de raridade | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Efeitos de aprimoramentos sem número no GDD viram atributos simples (ex.: Invocação vira mana extra, Furtividade reduz a distância em que os monstros notam o jogador, Execução dá dano extra abaixo de 30% da vida do monstro) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Evolução de classe nos níveis 25, 50 e 75 custa 500 cobre, 2000 cobre + 2 ouro e 5000 cobre + 5 ouro; só na cidade; a classe nova mantém as habilidades da anterior | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Não há como desaprender pontos de habilidade por enquanto | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | O teto de dano por segundo do servidor cresce 8% por ponto de habilidade gasto; um teste garante que fica acima do dano possível com a melhor distribuição de pontos | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Teclas: K abre as habilidades; Q, R, F e G usam a habilidade ativa de cada etapa da classe (base, 25, 50 e 75) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Classes evoluídas sem arte própria usam a arte da classe base do caminho | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 

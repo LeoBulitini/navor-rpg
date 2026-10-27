@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { FACINGS, type Facing } from '@navor/shared';
 import {
   assets,
+  artClassId,
   characterSpritePath,
   creatureSpritePath,
   effectSpritePath,
@@ -13,7 +14,7 @@ import {
 } from '../../assets/index.ts';
 import { creatureAnimKey } from '../entities/Monster.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { GearBag, getBackend, Inventory } from '../backend.ts';
+import { GearBag, getBackend, Inventory, SkillBook } from '../backend.ts';
 import { content } from '../../content.ts';
 import { sessionClassId } from '../session.ts';
 
@@ -47,7 +48,7 @@ export class PreloadScene extends Phaser.Scene {
       this.load.spritesheet(TextureKeys.creature(sprite), creatureSpritePath(sprite), { frameWidth: cw, frameHeight: ch });
     }
     for (const sprite of effectSprites()) this.load.image(TextureKeys.effect(sprite), effectSpritePath(sprite));
-    const classId = sessionClassId(this);
+    const classId = artClassId(sessionClassId(this));
     const { frameWidth, frameHeight } = assets.characters;
     for (const facing of FACINGS) {
       this.load.spritesheet(TextureKeys.character(classId, facing), characterSpritePath(classId, facing), {
@@ -58,17 +59,18 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
-    const classId = sessionClassId(this);
+    const classId = artClassId(sessionClassId(this));
     const loaded = FACINGS.every((f) => this.textures.exists(TextureKeys.character(classId, f)));
     if (!loaded || !this.textures.exists(TextureKeys.tileset)) return;
     this.createCharacterAnimations(classId);
     this.createCreatureAnimations();
     const label = this.label.setText('Carregando inventário...');
     const backend = getBackend(this);
-    Promise.all([backend.loadInventory(), backend.loadGear()])
-      .then(([counts, gear]) => {
+    Promise.all([backend.loadInventory(), backend.loadGear(), backend.loadSkills()])
+      .then(([counts, gear, skills]) => {
         this.registry.set('inventory', new Inventory(counts));
         this.registry.set('gear', new GearBag(gear));
+        this.registry.set('skills', new SkillBook(skills));
         this.scene.start('World', { mapId: content.world.startMap });
       })
       .catch((err: unknown) => {
