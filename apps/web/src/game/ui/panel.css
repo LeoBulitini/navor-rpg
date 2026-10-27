@@ -29,6 +29,8 @@
   border: 2px solid var(--line); border-radius: 0;
 }
 .service-panel .actions select { width: auto; }
+.service-panel .actions input.text { width: 160px; }
+.service-panel .actions input.text[maxlength="4"], .service-panel .actions input.text[maxlength="5"], .service-panel .actions input.text[maxlength="6"] { width: 64px; }
 .service-panel button:disabled { opacity: 0.45; cursor: not-allowed; }
 .service-panel button.secondary { background: transparent; color: var(--text); border-color: var(--line); box-shadow: none; }
 .service-panel .empty { color: var(--muted); font-size: 13px; padding: 4px 0; }

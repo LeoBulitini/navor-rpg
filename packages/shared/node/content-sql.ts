@@ -256,6 +256,22 @@ export function contentSql(content: Content): string {
       'on conflict (quest_id, item_id) do update set quantity = excluded.quantity;',
     );
   }
+  const so = content.social;
+  lines.push(
+    '',
+    'insert into public.social_rules (id, training_building, training_max_hours, training_rate_base_milli, training_rate_level_milli,',
+    '  guild_building, guild_create_cost, guild_max_members, guild_name_min, guild_name_max, guild_tag_min, guild_tag_max,',
+    '  chat_max_length, chat_cooldown_seconds, chat_keep_days, ranking_size) values',
+    `  (1, ${q(so.training.building)}, ${so.training.maxHours}, ${Math.round(so.training.xpPerMinuteBase * 1000)}, ${Math.round(so.training.xpPerMinutePerLevel * 1000)},`,
+    `  ${q(so.guilds.building)}, ${so.guilds.createCost}, ${so.guilds.maxMembers}, ${so.guilds.nameMin}, ${so.guilds.nameMax}, ${so.guilds.tagMin}, ${so.guilds.tagMax},`,
+    `  ${so.chat.maxLength}, ${so.chat.cooldownSeconds}, ${so.chat.keepDays}, ${so.ranking.size})`,
+    'on conflict (id) do update set training_building = excluded.training_building, training_max_hours = excluded.training_max_hours,',
+    '  training_rate_base_milli = excluded.training_rate_base_milli, training_rate_level_milli = excluded.training_rate_level_milli,',
+    '  guild_building = excluded.guild_building, guild_create_cost = excluded.guild_create_cost, guild_max_members = excluded.guild_max_members,',
+    '  guild_name_min = excluded.guild_name_min, guild_name_max = excluded.guild_name_max, guild_tag_min = excluded.guild_tag_min,',
+    '  guild_tag_max = excluded.guild_tag_max, chat_max_length = excluded.chat_max_length, chat_cooldown_seconds = excluded.chat_cooldown_seconds,',
+    '  chat_keep_days = excluded.chat_keep_days, ranking_size = excluded.ranking_size;',
+  );
   lines.push(
     '',
     'insert into public.level_thresholds (level, total_xp) values',

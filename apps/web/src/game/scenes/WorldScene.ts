@@ -41,13 +41,15 @@ import {
 import { content } from '../../content.ts';
 import { artClassId, itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getGear, getInventory, getProgress, getQuests, getSkills, OfflineBackend, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
+import { getBackend, getGear, getInventory, getProgress, getQuests, getSkills, OfflineBackend, type Presence, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
 import { ServicePanel } from '../ui/ServicePanel.ts';
 import { shopContent, type ServiceContext } from '../ui/shopContent.ts';
 import { equipmentContent } from '../ui/gearContent.ts';
 import { skillContent } from '../ui/skillContent.ts';
 import { questContent } from '../ui/questContent.ts';
+import { guildContent, trainingContent, type SocialContext } from '../ui/socialContent.ts';
+import { ChatBox } from '../ui/ChatBox.ts';
 import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
 import { Player } from '../entities/Player.ts';
@@ -185,6 +187,7 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-C', () => this.openEquipment());
     this.input.keyboard?.on('keydown-K', () => this.openSkills());
     this.input.keyboard?.on('keydown-J', () => this.openQuests());
+    this.input.keyboard?.on('keydown-ENTER', () => this.openChat());
     this.castPressed = null;
     SKILL_KEYS.forEach((key, i) => this.input.keyboard?.on(`keydown-${key}`, () => (this.castPressed = i)));
     const onChange = () => this.refreshStats();
@@ -201,6 +204,7 @@ export class WorldScene extends Phaser.Scene {
     this.debug = new DebugOverlay(this, this.player, this.map, T);
     this.addHud();
     this.inventoryPanel = new InventoryPanel(this, getInventory(this)!, getBackend(this).saves);
+    this.startSocial();
     this.exposeForTests();
   }
 
@@ -297,7 +301,7 @@ export class WorldScene extends Phaser.Scene {
   private updateCollectPrompt(): void {
     const pressed = this.collectPressed;
     this.collectPressed = false;
-    if (pressed && this.doorObject && this.shopAt(this.doorObject)) {
+    if (pressed && this.doorObject && this.hasService(this.doorObject)) {
       this.openService(this.doorObject);
       return;
     }
@@ -757,8 +761,13 @@ export class WorldScene extends Phaser.Scene {
     this.doorObject = obj ?? null;
     this.doorText.setVisible(Boolean(obj));
     if (!obj) return;
-    const shop = this.shopAt(obj);
-    this.doorText.setText(shop ? `${obj.door!.message} (E: entrar)` : obj.door!.message);
+    this.doorText.setText(this.hasService(obj) ? `${obj.door!.message} (E: entrar)` : obj.door!.message);
+  }
+
+  /** Prédio com janela: loja de shops.json, Salão de Treinamento ou Guilda (social.json). */
+  private hasService(obj: PlacedObject): boolean {
+    const { training, guilds } = content.social;
+    return Boolean(this.shopAt(obj)) || obj.def.id === training.building || obj.def.id === guilds.building;
   }
 
   private shopAt(obj: PlacedObject) {
@@ -767,6 +776,10 @@ export class WorldScene extends Phaser.Scene {
 
   /** E na porta de um prédio com serviço abre a janela dele. */
   private openService(obj: PlacedObject): void {
+    if (obj.def.id === content.social.training.building || obj.def.id === content.social.guilds.building) {
+      this.openSocial(obj.def.id === content.social.training.building ? 'training' : 'guild');
+      return;
+    }
     const shop = this.shopAt(obj);
     if (!shop) return;
     if (this.input.keyboard) this.input.keyboard.enabled = false;
@@ -816,6 +829,70 @@ export class WorldScene extends Phaser.Scene {
         baseStats: () => this.baseStats(),
       }),
     );
+  }
+
+  /** Salão de Treinamento ou Guilda: lê o estado no servidor e abre a janela. */
+  private openSocial(kind: 'training' | 'guild'): void {
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
+    this.player.setVelocity(0, 0);
+    const backend = getBackend(this);
+    const ctx: SocialContext = {
+      backend,
+      progress: getProgress(this),
+      panel: this.panel,
+      onLeveledUp: (level) => this.levelUp(level),
+      onGuildChanged: (tag) => this.registry.set('guildTag', tag),
+    };
+    const opening =
+      kind === 'training'
+        ? backend.loadTraining().then((t) => trainingContent(ctx, t))
+        : Promise.all([backend.loadGuilds(), backend.loadRanking()]).then(([board, ranking]) => {
+            ctx.onGuildChanged(board.mine?.tag ?? null);
+            return guildContent(ctx, { board, ranking });
+          });
+    opening
+      .then((build) => this.panel.open(build))
+      .catch((err: unknown) => {
+        if (this.input.keyboard) this.input.keyboard.enabled = true;
+        this.showNotice(friendlyError(err));
+      });
+  }
+
+  /** Chat e presença: criados uma vez por sessão de jogo (sobrevivem à troca de mapa). */
+  private startSocial(): void {
+    const level = getProgress(this).state.level;
+    const existing = this.registry.get('chat') as ChatBox | undefined;
+    if (existing) {
+      (this.registry.get('presence') as Presence).update({ mapId: this.map.id, level });
+      return;
+    }
+    const backend = getBackend(this);
+    const session = getSession(this);
+    const chat = new ChatBox(backend, () => Boolean(this.registry.get('guildTag')), (focused) => {
+      if (this.input.keyboard) this.input.keyboard.enabled = !focused && !this.panel.isOpen();
+      if (focused) this.player.setVelocity(0, 0);
+    });
+    this.registry.set('chat', chat);
+    void chat.start();
+    const name = session?.mode === 'online' ? session.character.name : 'Você';
+    this.registry.set('presence', backend.joinPresence({ name, classId: sessionClassId(this), level, mapId: this.map.id }, (list) => chat.setOnline(list)));
+    // guilda (para o canal /g) e treino aberto de uma sessão anterior
+    backend
+      .loadGuilds()
+      .then((b) => this.registry.set('guildTag', b.mine?.tag ?? null))
+      .catch(() => {});
+    backend
+      .loadTraining()
+      .then((t) => {
+        if (t.training) this.showNotice('Você está treinando no Salão de Treinamento. Encerre lá para receber o XP.', '#86efac');
+      })
+      .catch(() => {});
+  }
+
+  /** Enter: abre o campo do chat. */
+  private openChat(): void {
+    if (this.dead || this.leaving || this.panel.isOpen()) return;
+    (this.registry.get('chat') as ChatBox | undefined)?.open();
   }
 
   /** Tecla J: missões do dia e Covil do Dragão. Lê do servidor ao abrir (o sorteio do dia acontece lá). */
@@ -936,7 +1013,7 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  Q/R/F/G: habilidades  E: coletar/abrir/entrar\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  K: habilidades  J: missões  F3: depuração', { ...style, align: 'right' })
+      .text(width - 4, 4, 'WASD: mover  Espaço: atacar  Q/R/F/G: habilidades  E: coletar/abrir/entrar  F3: depuração\n1/2/3: poção/mana/comida  I: inventário  C: equipamento  K: habilidades  J: missões  Enter: chat', { ...style, align: 'right' })
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
@@ -1045,6 +1122,21 @@ export class WorldScene extends Phaser.Scene {
       completeQuest: (slot: number) => {
         const backend = getBackend(this);
         if (backend instanceof OfflineBackend) backend.testCompleteQuest(slot);
+      },
+      chat: () => (this.registry.get('chat') as ChatBox | undefined)?.lines() ?? [],
+      chatOpen: () => (this.registry.get('chat') as ChatBox | undefined)?.isOpen() ?? false,
+      online: () => (this.registry.get('chat') as ChatBox | undefined)?.onlineNow.map((p) => ({ ...p })) ?? [],
+      guildTag: () => this.registry.get('guildTag') ?? null,
+      training: () => getBackend(this).loadTraining(),
+      /** Modo offline: adianta o treino (para testar o XP e o limite de horas). */
+      shiftTraining: (minutes: number) => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) backend.testShiftTraining(minutes);
+      },
+      /** Modo offline: libera o intervalo entre mensagens do chat. */
+      resetChatCooldown: () => {
+        const backend = getBackend(this);
+        if (backend instanceof OfflineBackend) backend.testResetChatCooldown();
       },
       /** Modo offline: vence os anúncios próprios (para testar o "Recolher"). */
       expireListings: () => {

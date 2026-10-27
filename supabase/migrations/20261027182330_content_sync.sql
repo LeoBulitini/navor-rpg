@@ -686,6 +686,19 @@ insert into public.quest_reward_items (quest_id, item_id, quantity) values
   ('dragon', 'scroll-rare', 1)
 on conflict (quest_id, item_id) do update set quantity = excluded.quantity;
 
+insert into public.social_rules (id, training_building, training_max_hours, training_rate_base_milli, training_rate_level_milli,
+  guild_building, guild_create_cost, guild_max_members, guild_name_min, guild_name_max, guild_tag_min, guild_tag_max,
+  chat_max_length, chat_cooldown_seconds, chat_keep_days, ranking_size) values
+  (1, 'training-hall', 8, 1000, 400,
+  'guild', 1000, 20, 3, 20, 2, 4,
+  200, 2, 7, 20)
+on conflict (id) do update set training_building = excluded.training_building, training_max_hours = excluded.training_max_hours,
+  training_rate_base_milli = excluded.training_rate_base_milli, training_rate_level_milli = excluded.training_rate_level_milli,
+  guild_building = excluded.guild_building, guild_create_cost = excluded.guild_create_cost, guild_max_members = excluded.guild_max_members,
+  guild_name_min = excluded.guild_name_min, guild_name_max = excluded.guild_name_max, guild_tag_min = excluded.guild_tag_min,
+  guild_tag_max = excluded.guild_tag_max, chat_max_length = excluded.chat_max_length, chat_cooldown_seconds = excluded.chat_cooldown_seconds,
+  chat_keep_days = excluded.chat_keep_days, ranking_size = excluded.ranking_size;
+
 insert into public.level_thresholds (level, total_xp) values
   (0, 0),
   (1, 40),

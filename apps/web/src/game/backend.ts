@@ -25,6 +25,11 @@ import {
   pickDailyQuests,
   questProgress,
   type QuestEvent,
+  chatMessage,
+  guildNameError,
+  tidyText,
+  trainingMinutes,
+  trainingXp,
   rollChestContents,
   rollChestCount,
   rollKillRewards,
@@ -43,6 +48,24 @@ import { craftItem, equipGear, listGear, sellGear, unequipGear, upgradeGear, typ
 import { evolveClass, learnSkill, listSkills } from '../services/skills.ts';
 import { claimQuest, listDailyQuests } from '../services/quests.ts';
 import { listListings, listStorage, marketBuy, marketCancel, marketList, storageDeposit, storageWithdraw, type ListingRow } from '../services/market.ts';
+import {
+  chatHistory,
+  chatSend,
+  guildCreate,
+  guildInfo,
+  guildJoin,
+  guildKick,
+  guildLeave,
+  joinPresence,
+  onChatMessage,
+  ranking,
+  trainingClaim,
+  trainingStart,
+  trainingStatus,
+  type ChatRow,
+  type PresenceInfo,
+  type TrainingRow,
+} from '../services/social.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -209,6 +232,56 @@ export interface ProgressState {
  * O que o jogo pede ao "servidor". Online, cada chamada vai ao Supabase, que decide e grava.
  * Offline, a mesma regra roda no navegador e nada é salvo.
  */
+/** Treino no Salão. `startedAt` já vem no relógio local (corrigido pela diferença para o servidor). */
+export interface TrainingState {
+  training: boolean;
+  startedAt: number;
+  level: number;
+  minutes: number;
+  xp: number;
+}
+
+export interface TrainingClaim {
+  minutes: number;
+  xpGained: number;
+  xp: number;
+  level: number;
+  leveledUp: boolean;
+}
+
+export interface GuildMember {
+  name: string;
+  classId: string;
+  level: number;
+  role: 'leader' | 'member';
+}
+
+export interface GuildBoard {
+  maxMembers: number;
+  mine: { id: string; name: string; tag: string; role: 'leader' | 'member'; members: GuildMember[] } | null;
+  guilds: { id: string; name: string; tag: string; members: number; totalLevel: number }[];
+}
+
+export interface Ranking {
+  players: { name: string; classId: string; level: number; xp: number; guildTag: string | null }[];
+  guilds: { name: string; tag: string; members: number; totalLevel: number }[];
+}
+
+export interface ChatMessage {
+  id: string;
+  channel: 'global' | 'guild';
+  author: string;
+  body: string;
+  at: number;
+}
+
+export type { PresenceInfo };
+
+export interface Presence {
+  update(info: Partial<PresenceInfo>): void;
+  leave(): void;
+}
+
 export interface GameBackend {
   readonly saves: boolean;
   startExploration(areaId: string): Promise<ExplorationRun>;
@@ -241,6 +314,21 @@ export interface GameBackend {
   loadStorage(): Promise<Map<string, number>>;
   deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult>;
   withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult>;
+  loadTraining(): Promise<TrainingState>;
+  startTraining(): Promise<TrainingState>;
+  claimTraining(): Promise<TrainingClaim>;
+  loadGuilds(): Promise<GuildBoard>;
+  createGuild(name: string, tag: string): Promise<Wallet & { name: string; tag: string }>;
+  joinGuild(guildId: string): Promise<void>;
+  leaveGuild(): Promise<void>;
+  kickMember(name: string): Promise<void>;
+  loadRanking(): Promise<Ranking>;
+  loadChat(): Promise<ChatMessage[]>;
+  sendChat(channel: 'global' | 'guild', body: string): Promise<ChatMessage>;
+  /** mensagens novas de outros jogadores; devolve a função que cancela */
+  onChat(handler: (m: ChatMessage) => void): () => void;
+  /** quem está jogando agora (só para mostrar) */
+  joinPresence(info: PresenceInfo, onChange: (online: PresenceInfo[]) => void): Presence;
 }
 
 /** Recusa de uma regra do jogo no modo offline, com o mesmo código dos erros das funções do banco (P0001). */
@@ -259,11 +347,100 @@ const fromListing = (r: ListingRow, characterId: string): Listing => ({
   mine: r.seller_id === characterId,
 });
 
+const fromTraining = (r: TrainingRow): TrainingState => {
+  // o tempo conta pelo relógio do servidor: traz o começo para o relógio local
+  const offset = Date.now() - Date.parse(r.now);
+  return {
+    training: r.training,
+    startedAt: r.started_at ? Date.parse(r.started_at) + offset : 0,
+    level: r.level ?? 0,
+    minutes: r.minutes ?? 0,
+    xp: r.xp ?? 0,
+  };
+};
+
+const fromChat = (r: ChatRow): ChatMessage => ({
+  id: String(r.id),
+  channel: r.guild_id ? 'guild' : 'global',
+  author: r.author,
+  body: r.body,
+  at: Date.parse(r.created_at),
+});
+
 const fromRow = (r: GearRow): GearPiece => ({ id: r.id, itemId: r.item_id, upgrade: r.upgrade, slot: r.slot });
 
 class OnlineBackend implements GameBackend {
   readonly saves = true;
   constructor(private readonly characterId: string) {}
+
+  async loadTraining(): Promise<TrainingState> {
+    return fromTraining(await trainingStatus(this.characterId));
+  }
+
+  async startTraining(): Promise<TrainingState> {
+    return fromTraining(await trainingStart(this.characterId));
+  }
+
+  async claimTraining(): Promise<TrainingClaim> {
+    const r = await trainingClaim(this.characterId);
+    return { minutes: Number(r.minutes), xpGained: Number(r.xp_gained), xp: Number(r.xp), level: r.level, leveledUp: r.leveled_up };
+  }
+
+  async loadGuilds(): Promise<GuildBoard> {
+    const r = await guildInfo(this.characterId);
+    return {
+      maxMembers: r.max_members,
+      mine: r.mine && {
+        id: r.mine.id,
+        name: r.mine.name,
+        tag: r.mine.tag,
+        role: r.mine.role,
+        members: r.mine.members.map((m) => ({ name: m.name, classId: m.class_id, level: m.level, role: m.role })),
+      },
+      guilds: r.guilds.map((g) => ({ id: g.id, name: g.name, tag: g.tag, members: Number(g.members), totalLevel: Number(g.total_level) })),
+    };
+  }
+
+  async createGuild(name: string, tag: string): Promise<Wallet & { name: string; tag: string }> {
+    const r = await guildCreate(this.characterId, name, tag);
+    return { name: r.name, tag: r.tag, copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async joinGuild(guildId: string): Promise<void> {
+    await guildJoin(this.characterId, guildId);
+  }
+
+  async leaveGuild(): Promise<void> {
+    await guildLeave(this.characterId);
+  }
+
+  async kickMember(name: string): Promise<void> {
+    await guildKick(this.characterId, name);
+  }
+
+  async loadRanking(): Promise<Ranking> {
+    const r = await ranking();
+    return {
+      players: r.players.map((p) => ({ name: p.name, classId: p.class_id, level: p.level, xp: Number(p.xp), guildTag: p.guild_tag })),
+      guilds: r.guilds.map((g) => ({ name: g.name, tag: g.tag, members: Number(g.members), totalLevel: Number(g.total_level) })),
+    };
+  }
+
+  async loadChat(): Promise<ChatMessage[]> {
+    return (await chatHistory(content.social.chat.history)).map(fromChat);
+  }
+
+  async sendChat(channel: 'global' | 'guild', body: string): Promise<ChatMessage> {
+    return fromChat(await chatSend(this.characterId, channel, body));
+  }
+
+  onChat(handler: (m: ChatMessage) => void): () => void {
+    return onChatMessage((r) => handler(fromChat(r)));
+  }
+
+  joinPresence(info: PresenceInfo, onChange: (online: PresenceInfo[]) => void): Presence {
+    return joinPresence(this.characterId, info, onChange);
+  }
 
   async startExploration(areaId: string): Promise<ExplorationRun> {
     const r = await startExploration(this.characterId, areaId);
@@ -492,6 +669,8 @@ export class OfflineBackend implements GameBackend {
     if (!area) throw new RuleError(`Área desconhecida: ${areaId}`);
     // mesmas regras de start_exploration (migration daily): nível mínimo e uma entrada por dia
     if (this.progress.level < area.minLevel) throw new RuleError(`Você precisa estar no nível ${area.minLevel} para entrar aqui.`);
+    // gatilho explorations_block_training (migration social)
+    if (this.training) throw new RuleError('Você está treinando no Salão. Encerre o treino para sair da cidade.');
     if (area.daily) {
       const key = `${gameDay(new Date())}:${areaId}`;
       if (this.dailyEntries.has(key)) throw new RuleError('Você já entrou aqui hoje. Volte amanhã (o dia vira à meia-noite, horário de Brasília).');
@@ -906,6 +1085,133 @@ export class OfflineBackend implements GameBackend {
     if (stored === 0) this.storage.delete(itemId);
     else this.storage.set(itemId, stored);
     return { itemId, total: this.addItem(itemId, quantity), stored };
+  }
+
+  /** Mesmas regras de training_*, guild_*, chat_send e ranking (migration social). Offline não há outros jogadores. */
+  private training: { startedAt: number; level: number } | null = null;
+  private guild: { id: string; name: string; tag: string } | null = null;
+  private chat: ChatMessage[] = [];
+  private lastChat = 0;
+
+  private trainingState(): TrainingState {
+    const t = this.training;
+    if (!t) return { training: false, startedAt: 0, level: 0, minutes: 0, xp: 0 };
+    const ms = Date.now() - t.startedAt;
+    return { training: true, startedAt: t.startedAt, level: t.level, minutes: trainingMinutes(content.social.training, ms), xp: trainingXp(content.social.training, t.level, ms) };
+  }
+
+  async loadTraining(): Promise<TrainingState> {
+    return this.trainingState();
+  }
+
+  async startTraining(): Promise<TrainingState> {
+    this.inTown();
+    if (this.training) throw new RuleError('Você já está treinando.');
+    this.training = { startedAt: Date.now(), level: this.progress.level };
+    return this.trainingState();
+  }
+
+  async claimTraining(): Promise<TrainingClaim> {
+    this.inTown();
+    if (!this.training) throw new RuleError('Você não está treinando.');
+    const { minutes, xp: gained } = this.trainingState();
+    this.training = null;
+    const p = this.progress;
+    const before = p.level;
+    p.xp += gained;
+    p.level = levelForXp(p.xp, this.thresholds);
+    return { minutes, xpGained: gained, xp: p.xp, level: p.level, leveledUp: p.level > before };
+  }
+
+  private selfMember(): GuildMember {
+    return { name: 'Você', classId: this.classId, level: this.progress.level, role: 'leader' };
+  }
+
+  async loadGuilds(): Promise<GuildBoard> {
+    const g = this.guild;
+    return {
+      maxMembers: content.social.guilds.maxMembers,
+      mine: g && { ...g, role: 'leader', members: [this.selfMember()] },
+      guilds: g ? [{ ...g, members: 1, totalLevel: this.progress.level }] : [],
+    };
+  }
+
+  async createGuild(name: string, tag: string): Promise<Wallet & { name: string; tag: string }> {
+    this.inTown();
+    const rules = content.social.guilds;
+    if (this.guild) throw new RuleError('Saia da sua guilda antes de fundar outra.');
+    const error = guildNameError(name, tag, rules);
+    if (error) throw new RuleError(error);
+    if (this.progress.copper < rules.createCost) throw new RuleError(`Fundar uma guilda custa ${rules.createCost} de cobre.`);
+    this.progress.copper -= rules.createCost;
+    this.guild = { id: 'offline-guild', name: tidyText(name), tag: tidyText(tag).toUpperCase() };
+    return { name: this.guild.name, tag: this.guild.tag, copper: this.progress.copper, gold: this.progress.gold };
+  }
+
+  async joinGuild(): Promise<void> {
+    throw new RuleError('Guilda não encontrada.');
+  }
+
+  async leaveGuild(): Promise<void> {
+    this.inTown();
+    if (!this.guild) throw new RuleError('Você não está numa guilda.');
+    // sozinho na guilda: ela acaba junto com o canal dela
+    this.guild = null;
+    this.chat = this.chat.filter((m) => m.channel === 'global');
+  }
+
+  async kickMember(): Promise<void> {
+    throw new RuleError('Esse personagem não é da sua guilda.');
+  }
+
+  async loadRanking(): Promise<Ranking> {
+    const p = this.progress;
+    return {
+      players: [{ name: 'Você', classId: this.classId, level: p.level, xp: p.xp, guildTag: this.guild?.tag ?? null }],
+      guilds: this.guild ? [{ name: this.guild.name, tag: this.guild.tag, members: 1, totalLevel: p.level }] : [],
+    };
+  }
+
+  async loadChat(): Promise<ChatMessage[]> {
+    return [...this.chat];
+  }
+
+  async sendChat(channel: 'global' | 'guild', body: string): Promise<ChatMessage> {
+    const rules = content.social.chat;
+    const m = chatMessage(body, rules);
+    if (!m.ok) throw new RuleError(m.error);
+    if (channel === 'guild' && !this.guild) throw new RuleError('Você não está numa guilda.');
+    if (Date.now() - this.lastChat < rules.cooldownSeconds * 1000) throw new RuleError('Espere um pouco antes de mandar outra mensagem.');
+    this.lastChat = Date.now();
+    const msg: ChatMessage = { id: `offline-chat-${this.chat.length + 1}`, channel, author: 'Você', body: m.text, at: Date.now() };
+    this.chat = [...this.chat, msg].slice(-rules.history);
+    return msg;
+  }
+
+  onChat(): () => void {
+    return () => {};
+  }
+
+  joinPresence(info: PresenceInfo, onChange: (online: PresenceInfo[]) => void): Presence {
+    let current = info;
+    queueMicrotask(() => onChange([current]));
+    return {
+      update: (next) => {
+        current = { ...current, ...next };
+        onChange([current]);
+      },
+      leave: () => {},
+    };
+  }
+
+  /** Só para o teste de fumaça: adianta o treino em `minutes` minutos. */
+  testShiftTraining(minutes: number): void {
+    if (this.training) this.training.startedAt -= minutes * 60_000;
+  }
+
+  /** Só para o teste de fumaça: libera o intervalo do chat. */
+  testResetChatCooldown(): void {
+    this.lastChat = 0;
   }
 
   /** Só para o teste de fumaça: vence um anúncio próprio (para testar o "Recolher"). */

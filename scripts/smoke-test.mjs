@@ -458,6 +458,100 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
 
+  // Salão de Treinamento, Guilda, ranking e chat (Fase 15)
+  const SOCIAL = readContent('social.json');
+  const rate = (level) => Math.round(SOCIAL.training.xpPerMinuteBase * 1000) + Math.round(SOCIAL.training.xpPerMinutePerLevel * 1000) * level;
+  check('E na porta do Salão abre o treino', await enter('training-hall') && await page.getByRole('heading', { name: 'Salão de Treinamento' }).isVisible());
+  const lvl = (await nav(() => window.__navor.progress())).level;
+  await button('Começar: Treinar').click();
+  await page.waitForTimeout(200);
+  check('começar o treino deixa o personagem treinando', (await nav(() => window.__navor.training())).training);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  await nav(() => window.__navor.teleport(19, 27));
+  await hold(['ArrowDown'], 700);
+  await page.waitForTimeout(500);
+  check('treinando, o portão não deixa sair da cidade', (await nav(() => window.__navor.mapId)) === 'city'
+    && /treinando no Salão/.test((await nav(() => window.__navor.notice())) ?? ''), await nav(() => window.__navor.notice()));
+  await nav(() => window.__navor.shiftTraining(90));
+  const xp5 = (await nav(() => window.__navor.progress())).xp;
+  await enter('training-hall');
+  check('a janela mostra o tempo e o XP do treino', await page.getByText(`1 h 30 min · ${Math.floor((90 * rate(lvl)) / 1000)} XP até agora`).isVisible());
+  await page.screenshot({ path: join(OUT, 'salao-treino.png') });
+  await page.getByRole('button', { name: /^Encerrar e receber/ }).click();
+  await page.waitForTimeout(200);
+  check('encerrar paga o XP de 90 minutos', (await nav(() => window.__navor.progress())).xp === xp5 + Math.floor((90 * rate(lvl)) / 1000));
+  const lvl2 = (await nav(() => window.__navor.progress())).level;
+  await button('Começar: Treinar').click();
+  await page.waitForTimeout(200);
+  await nav(() => window.__navor.shiftTraining(30 * 60));
+  const xp6 = (await nav(() => window.__navor.progress())).xp;
+  await page.keyboard.press('Escape');
+  await enter('training-hall');
+  await page.getByRole('button', { name: /^Encerrar e receber/ }).click();
+  await page.waitForTimeout(200);
+  check(`o treino rende no máximo ${SOCIAL.training.maxHours} h`,
+    (await nav(() => window.__navor.progress())).xp === xp6 + Math.floor((SOCIAL.training.maxHours * 60 * rate(lvl2)) / 1000));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+
+  await nav((n) => window.__navor.grant(n), SOCIAL.guilds.createCost);
+  const w7 = await wallet();
+  check('E na porta da Guilda abre a guilda', await enter('guild') && await page.getByRole('heading', { name: 'Fundar guilda' }).isVisible());
+  // digita de verdade: as letras de movimento (d, a, s, w) precisam ir para o campo, não para o jogo
+  const pos7 = await p();
+  await page.getByRole('textbox', { name: 'Nome: Nova guilda' }).click();
+  await page.keyboard.type('Ordem dos Sábios');
+  await page.getByRole('textbox', { name: 'Sigla: Nova guilda' }).click();
+  await page.keyboard.type('saw');
+  await button('Fundar: Nova guilda').click();
+  await page.waitForTimeout(300);
+  check('fundar a guilda custa o cobre e usa a sigla em maiúsculas', (await wallet()).copper === w7.copper - SOCIAL.guilds.createCost
+    && (await nav(() => window.__navor.guildTag())) === 'SAW');
+  check('a guilda aparece com os membros', await page.getByRole('heading', { name: `Ordem dos Sábios [SAW] (1/${SOCIAL.guilds.maxMembers})` }).isVisible());
+  check('o ranking mostra o jogador com a sigla', await page.getByText('1. Você [SAW]').isVisible());
+  check('digitar no campo não move o personagem', Math.abs((await p()).x - pos7.x) < 1 && Math.abs((await p()).y - pos7.y) < 1);
+  await page.screenshot({ path: join(OUT, 'guilda.png') });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+
+  check('a presença mostra quem está online', (await nav(() => window.__navor.online())).length === 1 && await page.getByText('1 online').isVisible());
+  const pos8 = await p();
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(100);
+  check('Enter abre o chat', await nav(() => window.__navor.chatOpen()));
+  await page.keyboard.type('olá pessoal, wasd');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  check('a mensagem aparece no chat e o campo fecha', (await nav(() => window.__navor.chat())).includes('Você: olá pessoal, wasd')
+    && !(await nav(() => window.__navor.chatOpen())));
+  check('digitar no chat não move o personagem', Math.abs((await p()).x - pos8.x) < 1 && Math.abs((await p()).y - pos8.y) < 1);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('mais uma');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  check('o chat recusa mensagens seguidas demais', await page.getByText('Espere um pouco antes de mandar outra mensagem.').isVisible());
+  await page.keyboard.press('Escape');
+  await nav(() => window.__navor.resetChatCooldown());
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('/g reunião na praça');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  check('/g manda no canal da guilda', (await nav(() => window.__navor.chat())).includes('[Guilda] Você: reunião na praça'));
+  await page.screenshot({ path: join(OUT, 'chat.png') });
+  await enter('guild');
+  await button('Sair: Sair da guilda').click();
+  await page.waitForTimeout(300);
+  check('o último a sair acaba com a guilda', (await nav(() => window.__navor.guildTag())) === null
+    && await page.getByRole('heading', { name: 'Fundar guilda' }).isVisible());
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  check('o personagem anda de novo depois do chat', await (async () => {
+    const a = await p();
+    await hold(['ArrowRight'], 300);
+    return (await p()).x > a.x + 5;
+  })());
+
   // Floresta (Fase 9): portão leste da cidade, animais que fogem, Esquilos de enfeite, recursos da floresta
   await nav(() => window.__navor.teleport(37, 23));
   await hold(['ArrowRight'], 900);
