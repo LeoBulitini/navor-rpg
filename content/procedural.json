@@ -1,0 +1,20 @@
+{
+  "$comment": "Áreas geradas por seed (GDD 7.3). Valores PROVISÓRIOS: tamanho, salas e densidades estão A DEFINIR no GDD. 'chars' precisam existir em tiles.json.",
+  "areas": [
+    {
+      "id": "cave",
+      "name": "Gruta",
+      "width": 32,
+      "height": 32,
+      "rooms": { "min": 5, "max": 7 },
+      "roomSize": { "min": 4, "max": 8 },
+      "corridorWidth": 2,
+      "extraCorridors": { "min": 1, "max": 2 },
+      "rocks": { "min": 4, "max": 10 },
+      "spawnChar": "P",
+      "spawnTile": "cave-floor",
+      "chars": { "floor": ":", "wall": "%", "rock": "o", "entrance": "^", "exit": "v" },
+      "returnTo": { "map": "city", "arriveAt": { "x": 19, "y": 27 } }
+    }
+  ]
+}

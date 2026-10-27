@@ -1,19 +1,164 @@
 {
   "$comment": "Tipos de tile. 'index' = coluna no tileset (apps/web/public/assets/city/terrain.png). 'char' = caractere nos mapas ASCII. 'variants' = outros tiles sorteados por posição para quebrar a repetição (só visual; devem ter o mesmo 'solid').",
   "tiles": [
-    { "id": "grass",    "char": ".", "index": 0,  "solid": false, "name": "Grama", "variants": ["grass-b", "grass-c"] },
-    { "id": "path",     "char": ",", "index": 1,  "solid": false, "name": "Caminho de terra", "variants": ["path-b"] },
-    { "id": "wall",     "char": "#", "index": 2,  "solid": true,  "name": "Muro de pedra" },
-    { "id": "tree",     "char": "T", "index": 3,  "solid": true,  "name": "Arbusto" },
-    { "id": "rock",     "char": "R", "index": 4,  "solid": true,  "name": "Rocha" },
-    { "id": "water",    "char": "~", "index": 5,  "solid": true,  "name": "Água", "variants": ["water-b"] },
-    { "id": "cobble",   "char": "=", "index": 6,  "solid": false, "name": "Calçada", "variants": ["cobble-b"] },
-    { "id": "flowers",  "char": "*", "index": 7,  "solid": false, "name": "Flores" },
-    { "id": "fence",    "char": "|", "index": 8,  "solid": true,  "name": "Cerca" },
-    { "id": "grass-b",  "index": 9,  "solid": false, "name": "Grama (variação)" },
-    { "id": "grass-c",  "index": 10, "solid": false, "name": "Grama (variação)" },
-    { "id": "path-b",   "index": 11, "solid": false, "name": "Caminho (variação)" },
-    { "id": "cobble-b", "index": 12, "solid": false, "name": "Calçada (variação)" },
-    { "id": "water-b",  "index": 13, "solid": true,  "name": "Água (variação)" }
+    {
+      "id": "grass",
+      "char": ".",
+      "index": 0,
+      "solid": false,
+      "name": "Grama",
+      "variants": [
+        "grass-b",
+        "grass-c"
+      ]
+    },
+    {
+      "id": "path",
+      "char": ",",
+      "index": 1,
+      "solid": false,
+      "name": "Caminho de terra",
+      "variants": [
+        "path-b"
+      ]
+    },
+    {
+      "id": "wall",
+      "char": "#",
+      "index": 2,
+      "solid": true,
+      "name": "Muro de pedra"
+    },
+    {
+      "id": "tree",
+      "char": "T",
+      "index": 3,
+      "solid": true,
+      "name": "Arbusto"
+    },
+    {
+      "id": "rock",
+      "char": "R",
+      "index": 4,
+      "solid": true,
+      "name": "Rocha"
+    },
+    {
+      "id": "water",
+      "char": "~",
+      "index": 5,
+      "solid": true,
+      "name": "Água",
+      "variants": [
+        "water-b"
+      ]
+    },
+    {
+      "id": "cobble",
+      "char": "=",
+      "index": 6,
+      "solid": false,
+      "name": "Calçada",
+      "variants": [
+        "cobble-b"
+      ]
+    },
+    {
+      "id": "flowers",
+      "char": "*",
+      "index": 7,
+      "solid": false,
+      "name": "Flores"
+    },
+    {
+      "id": "fence",
+      "char": "|",
+      "index": 8,
+      "solid": true,
+      "name": "Cerca"
+    },
+    {
+      "id": "grass-b",
+      "index": 9,
+      "solid": false,
+      "name": "Grama (variação)"
+    },
+    {
+      "id": "grass-c",
+      "index": 10,
+      "solid": false,
+      "name": "Grama (variação)"
+    },
+    {
+      "id": "path-b",
+      "index": 11,
+      "solid": false,
+      "name": "Caminho (variação)"
+    },
+    {
+      "id": "cobble-b",
+      "index": 12,
+      "solid": false,
+      "name": "Calçada (variação)"
+    },
+    {
+      "id": "water-b",
+      "index": 13,
+      "solid": true,
+      "name": "Água (variação)"
+    },
+    {
+      "id": "cave-floor",
+      "char": ":",
+      "index": 14,
+      "solid": false,
+      "name": "Chão da gruta",
+      "variants": [
+        "cave-floor-b"
+      ]
+    },
+    {
+      "id": "cave-wall",
+      "char": "%",
+      "index": 15,
+      "solid": true,
+      "name": "Parede de rocha",
+      "variants": [
+        "cave-wall-b"
+      ]
+    },
+    {
+      "id": "cave-rock",
+      "char": "o",
+      "index": 16,
+      "solid": true,
+      "name": "Rocha da gruta"
+    },
+    {
+      "id": "cave-mouth",
+      "char": "^",
+      "index": 17,
+      "solid": false,
+      "name": "Entrada da gruta"
+    },
+    {
+      "id": "cave-down",
+      "char": "v",
+      "index": 18,
+      "solid": false,
+      "name": "Saída da gruta"
+    },
+    {
+      "id": "cave-floor-b",
+      "index": 19,
+      "solid": false,
+      "name": "Chão da gruta (variação)"
+    },
+    {
+      "id": "cave-wall-b",
+      "index": 20,
+      "solid": true,
+      "name": "Parede de rocha (variação)"
+    }
   ]
 }

@@ -1,7 +1,7 @@
 // Teste de fumaça no navegador (Chromium via Playwright). Requer `npm run build` antes.
 // Sobe o `vite preview`, entra no modo offline, abre o jogo com ?test e verifica: carregamento na cidade, escala
-// inteira, movimento, diagonal, colisão com prédio, aviso da porta, ida e volta da área de exploração e colisão
-// com o muro. Uso: npm run smoke
+// inteira, movimento, diagonal, colisão com prédio e borda, aviso da porta, ida e volta da Gruta gerada por seed
+// e Gruta nova a cada entrada. Uso: npm run smoke
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { preview } from 'vite';
@@ -97,31 +97,44 @@ try {
   check('mostra o aviso na porta do Mercado', msg === 'Mercado: em breve', String(msg));
   await page.screenshot({ path: join(OUT, 'cidade-porta.png') });
 
-  // Portão sul da cidade -> área de exploração
+  // Muro da cidade: da beira oeste, segura a seta para a esquerda; para no arbusto da borda
+  await nav(() => window.__navor.teleport(2, 16));
+  await hold(['ArrowLeft'], 1500);
+  const atBorder = await p();
+  check('para na borda da cidade (não atravessa)', atBorder.x > T && atBorder.x < T * 2, `x ${Math.round(atBorder.x)}`);
+  const blockedHere = await page.evaluate(({ x, y }) => window.__navor.isBlockedAt(x, y), atBorder);
+  check('nunca fica dentro de célula bloqueada', !blockedHere);
+
+  // Portão sul da cidade -> Gruta gerada por seed
   await nav(() => window.__navor.teleport(19, 27));
   await hold(['ArrowDown'], 900);
-  await waitForMap('test-map').catch(() => {});
-  check('o portão leva à área de exploração', (await nav(() => window.__navor.mapId)) === 'test-map');
-  const arrived = cellOf(await p(), T);
-  check('chega no ponto definido na saída', arrived.x === 9 && arrived.y === 20, JSON.stringify(arrived));
+  await waitForMap('cave').catch(() => {});
+  check('o portão leva à Gruta', (await nav(() => window.__navor.mapId)) === 'cave');
+  const caveSeed = await nav(() => window.__navor.seed);
+  check('a Gruta tem seed', Number.isInteger(caveSeed), String(caveSeed));
+  const caveSpawn = await nav(() => window.__navor.spawn);
+  const inCave = cellOf(await p(), T);
+  check('chega na entrada da Gruta', inCave.x === caveSpawn.x && inCave.y === caveSpawn.y, JSON.stringify(inCave));
+  const rowsBefore = await nav(() => window.__navor.rows);
+  await hold(['ArrowDown'], 800);
+  check('a Gruta não muda enquanto o jogador está dentro', JSON.stringify(await nav(() => window.__navor.rows)) === JSON.stringify(rowsBefore));
+  await page.screenshot({ path: join(OUT, 'gruta.png') });
 
-  // Muro do topo da área de exploração: do ponto P, segura a seta para cima por 6 s
-  const testSpawn = await nav(() => window.__navor.spawn);
-  await nav(([x, y]) => window.__navor.teleport(x, y), [testSpawn.x, testSpawn.y]);
-  await hold(['ArrowUp'], 6000);
-  const atWall = await p();
-  check('para no muro do topo (não atravessa)', atWall.y > T && atWall.y < T * 2 + 4, `y ${Math.round(atWall.y)}`);
-  const blockedHere = await page.evaluate(({ x, y }) => window.__navor.isBlockedAt(x, y), atWall);
-  check('nunca fica dentro de célula bloqueada', !blockedHere);
-  await page.screenshot({ path: join(OUT, 'exploracao-muro.png') });
-
-  // Volta para a cidade pela saída sul
-  await nav(() => window.__navor.teleport(9, 21));
+  // Sai pela saída de baixo e volta ao portão da cidade
+  const caveExit = (await nav(() => window.__navor.exits))[1];
+  await nav(([x, y]) => window.__navor.teleport(x, y), [caveExit.x, caveExit.y - 2]);
   await hold(['ArrowDown'], 900);
   await waitForMap('city').catch(() => {});
-  check('a saída da exploração volta para a cidade', (await nav(() => window.__navor.mapId)) === 'city');
+  check('a saída da Gruta volta para a cidade', (await nav(() => window.__navor.mapId)) === 'city');
   const back = cellOf(await p(), T);
   check('volta no portão da cidade', back.x === 19 && back.y === 27, JSON.stringify(back));
+
+  // Entrar de novo gera outra Gruta (decisão de 2026-10-27: Gruta nova a cada entrada)
+  await nav(() => window.__navor.teleport(19, 27));
+  await hold(['ArrowDown'], 900);
+  await waitForMap('cave').catch(() => {});
+  const seed2 = await nav(() => window.__navor.seed);
+  check('nova entrada gera outra Gruta', seed2 !== caveSeed, `${caveSeed} -> ${seed2}`);
 
   await page.keyboard.press('F3');
   await page.waitForTimeout(200);

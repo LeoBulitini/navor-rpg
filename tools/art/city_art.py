@@ -38,6 +38,10 @@ P = {
     'sl0': hx('#1d2533'), 'sl1': hx('#2a3547'), 'sl2': hx('#3a4860'), 'sl3': hx('#4f607b'), 'sl4': hx('#6f829c'),
     'bl0': hx('#14213d'), 'bl1': hx('#1d3159'), 'bl2': hx('#284379'), 'bl3': hx('#35589a'), 'bl4': hx('#5479b8'),
     'r': hx('#a2452a'),
+    # gruta
+    'c0': hx('#120f10'), 'c1': hx('#1f1a1a'), 'c2': hx('#2d2624'), 'c3': hx('#3d3430'), 'c4': hx('#52463f'),
+    'cr0': hx('#16161c'), 'cr1': hx('#24242d'), 'cr2': hx('#34343f'), 'cr3': hx('#474755'), 'cr4': hx('#61606e'),
+    'light': (255, 236, 170, 255),
 }
 
 
@@ -496,6 +500,72 @@ def barrel():
     return t
 
 
+# ---------------- gruta ----------------
+
+def cave_floor(seed):
+    rng = random.Random(seed)
+    t = Img(T, T)
+    speckle(t, 0, 0, T, T, P['c2'], [(P['c1'], 70), (P['c3'], 50)], rng)
+    for _ in range(4):  # pedregulhos
+        x, y = rng.randrange(1, T - 2), rng.randrange(1, T - 2)
+        t.px(x, y, P['c4']); t.px(x + 1, y, P['c3']); t.px(x, y + 1, P['c0']); t.px(x + 1, y + 1, P['c1'])
+    if rng.random() < 0.5:  # rachadura
+        x, y = rng.randrange(4, 26), rng.randrange(4, 26)
+        for i in range(rng.randrange(4, 8)):
+            t.px(x + i, y + (i // 2) * (1 if seed % 2 else -1), P['c0'])
+    return t
+
+
+def cave_wall(seed):
+    """Rocha maciça vista de cima: blocos irregulares com luz no topo esquerdo."""
+    rng = random.Random(seed)
+    t = Img(T, T)
+    t.rect(0, 0, T, T, P['cr0'])
+    for _ in range(7):
+        cx, cy = rng.randrange(0, T), rng.randrange(0, T)
+        rx, ry = rng.randrange(6, 12), rng.randrange(5, 9)
+        for y in range(cy - ry, cy + ry + 1):
+            for x in range(cx - rx, cx + rx + 1):
+                e = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+                if e <= 1:
+                    d = (x - cx) + (y - cy)
+                    c = P['cr3'] if d < -rx // 2 else P['cr2'] if d < rx // 2 else P['cr1']
+                    if e > 0.8:
+                        c = P['cr0']
+                    t.px(x % T, y % T, c)
+    for _ in range(10):
+        t.px(rng.randrange(T), rng.randrange(T), P['cr4'])
+    return t
+
+
+def cave_rock():
+    t = cave_floor(301)
+    for y in range(T):
+        for x in range(T):
+            if ((x - 16) / 12) ** 2 + ((y - 25) / 3) ** 2 <= 1:
+                t.px(x, y, P['sh'])
+    for y in range(T):
+        for x in range(T):
+            e = ((x - 16) / 11) ** 2 + ((y - 17) / 9) ** 2
+            if e <= 1:
+                d = (x - 10) + (y - 11)
+                c = P['cr4'] if d < 0 else P['cr3'] if d < 10 else P['cr2'] if d < 18 else P['cr1']
+                t.px(x, y, P['ol'] if e > 0.82 else c)
+    return t
+
+
+def cave_light(from_top):
+    """Chão com luz do dia entrando pela abertura (entrada em cima, saída embaixo)."""
+    t = cave_floor(302 if from_top else 303)
+    for y in range(T):
+        k = (T - y) / T if from_top else y / T
+        a = int(110 * k * k)
+        for x in range(T):
+            if a > 0:
+                t.px(x, y, P['light'][:3] + (a,))
+    return t
+
+
 BUILDINGS = {
     'market': dict(w_tiles=6, roof='gr', wall='wood', door='double', icon='coin', awning=('r3', 'f1')),
     'tavern': dict(w_tiles=6, roof='r', wall='mixed', door='double', icon='mug', chimney=True, lit=True),
@@ -521,6 +591,13 @@ TERRAIN = [
     ('path-b', lambda: dirt(8)),
     ('cobble-b', lambda: cobble(9)),
     ('water-b', lambda: water(10)),
+    ('cave-floor', lambda: cave_floor(11)),
+    ('cave-wall', lambda: cave_wall(12)),
+    ('cave-rock', cave_rock),
+    ('cave-mouth', lambda: cave_light(True)),
+    ('cave-down', lambda: cave_light(False)),
+    ('cave-floor-b', lambda: cave_floor(13)),
+    ('cave-wall-b', lambda: cave_wall(14)),
 ]
 
 

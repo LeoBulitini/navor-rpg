@@ -4,6 +4,7 @@ import {
   balanceSchema,
   classesSchema,
   objectsSchema,
+  proceduralSchema,
   raritiesSchema,
   tilesSchema,
   worldSchema,
@@ -11,11 +12,13 @@ import {
   type Balance,
   type Classes,
   type ObjectDefs,
+  type Procedural,
   type Rarities,
   type TileDefs,
   type World,
 } from './schemas.ts';
-import { exitAt, isWalkable, parseAsciiMap, reachableFrom, type ParsedMap } from '../map/tilemap.ts';
+import { exitAt, isWalkable, parseAsciiMap, reachableFrom, type GridPoint, type ParsedMap } from '../map/tilemap.ts';
+import { generateCave } from '../procgen/cave.ts';
 
 export interface RawContent {
   rarities: unknown;
@@ -24,6 +27,7 @@ export interface RawContent {
   balance: unknown;
   objects: unknown;
   world: unknown;
+  procedural: unknown;
   maps: Record<string, unknown>;
 }
 
@@ -34,6 +38,7 @@ export interface Content {
   balance: Balance;
   objects: ObjectDefs;
   world: World;
+  procedural: Procedural;
   maps: Record<string, AsciiMap>;
 }
 
@@ -89,20 +94,36 @@ export function loadContent(raw: RawContent): Content {
     maps[map.id] = map;
   }
 
-  if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
-  // Saídas: o destino existe e o ponto de chegada é livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
-  for (const map of Object.values(parsed)) {
-    for (const exit of map.exits) {
-      const target = parsed[exit.to];
-      const where = `Mapa ${map.id}: saída para "${exit.to}"`;
-      if (!target) throw new Error(`${where}: mapa de destino não existe`);
-      if (!isWalkable(target, exit.arriveAt)) throw new Error(`${where}: arriveAt está bloqueado no destino`);
-      if (!reachableFrom(target, target.spawn).has(`${exit.arriveAt.x},${exit.arriveAt.y}`)) {
-        throw new Error(`${where}: arriveAt não é alcançável no destino`);
-      }
-      if (exitAt(target, exit.arriveAt)) throw new Error(`${where}: arriveAt fica dentro de uma saída do destino`);
+  const procedural = parseWith(proceduralSchema, raw.procedural, 'procedural.json');
+  const areas = new Map(procedural.areas.map((a) => [a.id, a]));
+  for (const area of procedural.areas) {
+    if (maps[area.id]) throw new Error(`procedural.json: "${area.id}" tem o mesmo id de um mapa fixo`);
+    const known = new Set(tiles.tiles.flatMap((t) => (t.char ? [t.char] : [])));
+    for (const [role, ch] of Object.entries(area.chars)) {
+      if (!known.has(ch)) throw new Error(`procedural.json: ${area.id}.chars.${role} "${ch}" não existe em tiles.json`);
     }
+    // uma geração de amostra garante que a configuração consegue produzir um mapa válido
+    generateCave(area, tiles, 1);
   }
 
-  return { rarities, classes, tiles, balance, objects, world, maps };
+  if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
+
+  // Ponto de chegada num mapa fixo: livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
+  const checkArrival = (where: string, to: string, arriveAt: GridPoint | undefined) => {
+    if (areas.has(to)) return; // mapa gerado: o jogador chega pelo ponto de entrada dele
+    const target = parsed[to];
+    if (!target) throw new Error(`${where}: mapa de destino "${to}" não existe`);
+    if (!arriveAt) throw new Error(`${where}: falta arriveAt (obrigatório para mapa fixo)`);
+    if (!isWalkable(target, arriveAt)) throw new Error(`${where}: arriveAt está bloqueado no destino`);
+    if (!reachableFrom(target, target.spawn).has(`${arriveAt.x},${arriveAt.y}`)) {
+      throw new Error(`${where}: arriveAt não é alcançável no destino`);
+    }
+    if (exitAt(target, arriveAt)) throw new Error(`${where}: arriveAt fica dentro de uma saída do destino`);
+  };
+  for (const map of Object.values(parsed)) {
+    for (const exit of map.exits) checkArrival(`Mapa ${map.id}: saída para "${exit.to}"`, exit.to, exit.arriveAt);
+  }
+  for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
+
+  return { rarities, classes, tiles, balance, objects, world, procedural, maps };
 }
