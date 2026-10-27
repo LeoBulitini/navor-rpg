@@ -1,0 +1,11 @@
+{
+  "$comment": "Experiência e atributos por nível. Curva e valores eram A DEFINIR (GDD 5 e 17); PROVISÓRIOS, decididos por Claude em 2026-10-27. XP para passar do nível L ao L+1 = round(base * (L+1)^exponent). 'attack' é o Ataque Mágico do Mago; 'defense' é uma defesa única até existirem Defesa Física e Mágica separadas.",
+  "xpCurve": { "base": 40, "exponent": 1.6 },
+  "classStats": [
+    {
+      "classId": "mage",
+      "base": { "hp": 60, "mana": 30, "attack": 10, "defense": 3 },
+      "perLevel": { "hp": 6, "mana": 3, "attack": 1.5, "defense": 0.5 }
+    }
+  ]
+}

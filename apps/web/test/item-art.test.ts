@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import manifest from '../src/assets/manifest.json';
 import items from '../../../content/items.json';
 import procedural from '../../../content/procedural.json';
+import creatures from '../../../content/creatures.json';
+import combat from '../../../content/combat.json';
 
 const PUBLIC = join(import.meta.dirname, '../public');
 
@@ -25,5 +27,25 @@ describe('ícones dos itens', () => {
     const withIcon = new Set(items.items.filter((i) => 'icon' in i && i.icon).map((i) => i.id));
     const lootItems = procedural.areas.flatMap((a) => a.resources?.items ?? []);
     expect(lootItems.filter((id) => !withIcon.has(id))).toEqual([]);
+  });
+});
+
+describe('sprites de combate', () => {
+  it.each(creatures.creatures.map((c) => c.sprite))('monstro %s tem tira de quadros 32x32', (sprite) => {
+    const file = join(PUBLIC, manifest.creatures.path, `${sprite}.png`);
+    expect(existsSync(file), file).toBe(true);
+    const { w, h } = pngSize(file);
+    expect(h).toBe(manifest.creatures.frameHeight);
+    expect(w % manifest.creatures.frameWidth).toBe(0);
+  });
+
+  it('o projétil do ataque básico tem PNG', () => {
+    expect(existsSync(join(PUBLIC, manifest.effects.path, `${combat.basicAttack.sprite}.png`))).toBe(true);
+  });
+
+  it('todo item que um monstro solta tem ícone próprio', () => {
+    const withIcon = new Set(items.items.filter((i) => 'icon' in i && i.icon).map((i) => i.id));
+    const dropItems = creatures.creatures.flatMap((c) => c.drops.map((d) => d.item));
+    expect(dropItems.filter((id) => !withIcon.has(id))).toEqual([]);
   });
 });

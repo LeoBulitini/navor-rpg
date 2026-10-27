@@ -145,6 +145,33 @@ def unknown():
     return img
 
 
+def pelt():
+    img = Img(32, 32)
+    blob(img, 16, 18, 10, 6, hx('#8a7868'), hx('#64554a'), hx('#ab9a8a'))
+    for x, y in ((6, 13), (26, 13), (6, 23), (26, 23)):
+        blob(img, x, y, 2, 2, hx('#8a7868'), hx('#64554a'))
+    for x in (11, 15, 19):
+        img.px(x, 17, hx('#64554a'))
+        img.px(x + 1, 19, hx('#64554a'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def fangs():
+    img = Img(32, 32)
+    for cx, top in ((11, 9), (17, 7), (22, 11)):
+        for y in range(top, top + 14):
+            w = max(0, (top + 14 - y) // 4)
+            for x in range(cx - w, cx + w + 1):
+                img.px(x, y, P['f1'] if x <= cx else hx('#c8bfa8'))
+    for x in range(8, 26):
+        img.px(x, 24, hx('#7a4a2a'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
 ROCK = (P['s2'], P['s1'], P['s3'])
 ICONS = {
     'iron': lambda: ore(ROCK, [hx('#b5651d'), hx('#8a4b1a')], 1),
@@ -159,6 +186,8 @@ ICONS = {
     'mushroom-medicinal': lambda: mushroom(hx('#5aa05a'), hx('#2f6a36'), hx('#e8f5c8')),
     'bones': lambda: bones(P['f1'], hx('#a89f8a')),
     'ancient-bone': lambda: big_bone(hx('#d8c48a'), hx('#9c8a52')),
+    'rat-pelt': pelt,
+    'goblin-fangs': fangs,
     'unknown': unknown,
 }
 

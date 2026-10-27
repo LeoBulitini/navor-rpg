@@ -3,18 +3,24 @@ import {
   asciiMapSchema,
   balanceSchema,
   classesSchema,
+  combatSchema,
+  creaturesSchema,
   itemsSchema,
   objectsSchema,
   proceduralSchema,
+  progressionSchema,
   raritiesSchema,
   tilesSchema,
   worldSchema,
   type AsciiMap,
   type Balance,
   type Classes,
+  type Combat,
+  type Creatures,
   type Items,
   type ObjectDefs,
   type Procedural,
+  type Progression,
   type Rarities,
   type TileDefs,
   type World,
@@ -22,6 +28,7 @@ import {
 import { exitAt, isWalkable, parseAsciiMap, reachableFrom, type GridPoint, type ParsedMap } from '../map/tilemap.ts';
 import { generateCave } from '../procgen/cave.ts';
 import { placeResourceNodes } from '../procgen/resources.ts';
+import { placeMonsters } from '../procgen/creatures.ts';
 
 export interface RawContent {
   rarities: unknown;
@@ -30,6 +37,9 @@ export interface RawContent {
   balance: unknown;
   objects: unknown;
   items: unknown;
+  creatures: unknown;
+  progression: unknown;
+  combat: unknown;
   world: unknown;
   procedural: unknown;
   maps: Record<string, unknown>;
@@ -42,6 +52,9 @@ export interface Content {
   balance: Balance;
   objects: ObjectDefs;
   items: Items;
+  creatures: Creatures;
+  progression: Progression;
+  combat: Combat;
   world: World;
   procedural: Procedural;
   maps: Record<string, AsciiMap>;
@@ -97,6 +110,26 @@ export function loadContent(raw: RawContent): Content {
   }
   const itemById = new Map(items.items.map((i) => [i.id, i]));
 
+  const creatures = parseWith(creaturesSchema, raw.creatures, 'creatures.json');
+  assertUnique(creatures.creatures.map((c) => c.id), 'creatures.json (id)');
+  for (const c of creatures.creatures) {
+    for (const d of c.drops) {
+      if (!itemById.has(d.item)) throw new Error(`creatures.json: "${c.id}" solta "${d.item}", que não existe em items.json`);
+    }
+  }
+  const creatureIds = new Set(creatures.creatures.map((c) => c.id));
+
+  const progression = parseWith(progressionSchema, raw.progression, 'progression.json');
+  assertUnique(progression.classStats.map((c) => c.classId), 'progression.json (classId)');
+  const classIds = new Set(classes.paths.flatMap((p) => p.stages.map((st) => st.classId)));
+  for (const cs of progression.classStats) {
+    if (!classIds.has(cs.classId)) throw new Error(`progression.json: classe "${cs.classId}" não existe em classes.json`);
+  }
+  // as classes iniciais jogáveis precisam de atributos (hoje só o Mago)
+  if (!progression.classStats.some((c) => c.classId === 'mage')) throw new Error('progression.json: faltam os atributos do Mago');
+
+  const combat = parseWith(combatSchema, raw.combat, 'combat.json');
+
   const maps: Record<string, AsciiMap> = {};
   const parsed: Record<string, ParsedMap> = {};
   for (const [file, value] of Object.entries(raw.maps)) {
@@ -135,6 +168,17 @@ export function loadContent(raw: RawContent): Content {
       // o maior número de pontos precisa caber no mapa de amostra
       placeResourceNodes(parseAsciiMap(sample.map, tiles), sample.seed, res.nodes.max, res);
     }
+    const cr = area.creatures;
+    if (cr) {
+      const where = `procedural.json: ${area.id}.creatures`;
+      assertUnique(cr.spawn.map((x) => x.creature), `${where}.spawn`);
+      for (const x of cr.spawn) {
+        if (!creatureIds.has(x.creature)) throw new Error(`${where}: monstro "${x.creature}" não existe em creatures.json`);
+      }
+      const map = parseAsciiMap(sample.map, tiles);
+      const nodes = res ? placeResourceNodes(map, sample.seed, res.nodes.max, res) : [];
+      placeMonsters(map, sample.seed, cr.count.max, cr, nodes);
+    }
   }
 
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
@@ -156,5 +200,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, items, world, procedural, maps };
+  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, maps };
 }

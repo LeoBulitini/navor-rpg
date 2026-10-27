@@ -12,7 +12,10 @@ Documento completo (requisitos, conflitos, stack, fases): https://claude.ai/arti
   drops e XP passa por funções no servidor. A chave `service_role` nunca vai para o cliente.
   Na Fase 5, a coleta usa funções SQL (`start_exploration`, `collect_node`) em vez de Edge Functions: o servidor sorteia
   e guarda o conteúdo de cada ponto, então não precisa conhecer o mapa. Edge Functions ficam para quando o servidor
-  precisar entender o mapa (por exemplo, no combate).
+  precisar entender o mapa.
+  Na Fase 6, o combate roda no navegador e o servidor valida o abate (`kill_monster`): monstro sorteado por ele, ainda vivo,
+  e ritmo de abates possível para o nível. Ele sorteia e grava XP, cobre e itens. Simular o combate no servidor depende do
+  modelo de multiplayer (A DEFINIR).
 - **Hospedagem**: Vercel (build estático). **Windows**: Tauri carregando o mesmo build web.
 
 ## Plano de fases
@@ -21,6 +24,6 @@ Documento completo (requisitos, conflitos, stack, fases): https://claude.ai/arti
 2. Fundação online: Supabase, login, personagem, RLS, deploy Vercel
 3. Cidade pequena e transição de cena
 4. Gruta procedural com seed e validação de caminho
-5. Coleta e inventário validados no servidor (atual)
-6. Combate simples, XP, nível, morte e retorno
+5. Coleta e inventário validados no servidor
+6. Combate simples, XP, nível, morte e retorno (atual)
 7. Fechamento do MVP P1 e executável Windows de teste

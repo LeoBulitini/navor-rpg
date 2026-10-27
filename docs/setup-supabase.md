@@ -35,6 +35,17 @@ Na Fase 5:
 - `collect_node(p_exploration_id, p_node_index)`: confere dono, prazo, intervalo entre coletas e se o ponto já foi
   coletado, e soma no inventário. Repetir a chamada não soma de novo.
 
+Na Fase 6:
+
+- `creatures`, `creature_drops`, `area_creatures`: monstros, o que soltam e onde aparecem (cópia de `content/creatures.json`
+  e do bloco `creatures` de `content/procedural.json`). Só o servidor lê.
+- `level_thresholds` (XP total de cada nível) e `combat_rules` (teto de dano por segundo). Só o servidor lê.
+- `exploration_monsters`: os monstros de cada entrada e quando foram abatidos. Só o servidor lê.
+- `start_exploration` passou a sortear também os monstros e devolvê-los.
+- `kill_monster(p_exploration_id, p_monster_index)`: confere dono, prazo, monstro vivo e o ritmo de abates, sorteia cobre e
+  itens e grava XP, nível, cobre e inventário. Repetir a chamada não soma de novo.
+- `end_exploration(p_exploration_id)`: encerra a entrada (morte). Só o dono consegue.
+
 Os dados de catálogo entram por migrations `*_content_sync.sql`, geradas com `npm run db:content` a partir de `content/`.
 
 ## Aplicar as migrations num projeto novo
@@ -47,8 +58,8 @@ npx supabase link --project-ref SEU_PROJECT_REF
 npx supabase db push
 ```
 
-O advisor de segurança do Supabase avisa que `create_character`, `start_exploration` e `collect_node` são `SECURITY DEFINER` executáveis por usuários logados.
-Isso é intencional: são a única forma de o cliente criar personagem, entrar na Gruta e coletar, e as funções validam tudo e usam `auth.uid()` para conferir o dono.
+O advisor de segurança do Supabase avisa que `create_character`, `start_exploration`, `collect_node`, `kill_monster` e `end_exploration` são `SECURITY DEFINER` executáveis por usuários logados.
+Isso é intencional: são a única forma de o cliente criar personagem, entrar na Gruta, coletar, abater monstros e encerrar a entrada, e as funções validam tudo e usam `auth.uid()` para conferir o dono.
 
 ## Desenvolvimento local
 

@@ -1,7 +1,13 @@
 import * as Phaser from 'phaser';
 import {
+  createRng,
   exitAt,
+  facingVector,
   generateCave,
+  levelThresholds,
+  placeMonsters,
+  rollDamage,
+  statsForLevel,
   parseAsciiMap,
   placeResourceNodes,
   toTileIndexGrid,
@@ -11,11 +17,15 @@ import {
   type NodeContent,
   type ParsedMap,
   type PlacedObject,
+  type CharacterStats,
+  type Rng,
 } from '@navor/shared';
 import { content } from '../../content.ts';
 import { itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getInventory, type ExplorationRun } from '../backend.ts';
+import { getBackend, getInventory, getProgress, type ExplorationRun, type KillResult } from '../backend.ts';
+import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
+import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
 import { Player } from '../entities/Player.ts';
 import { DirectionKeys } from '../systems/input.ts';
@@ -38,6 +48,9 @@ interface ResourceNode {
 }
 
 const FADE_MS = 250;
+/** Depois de cair, quanto tempo a mensagem fica na tela antes de voltar para a cidade. */
+const DEATH_DELAY_MS = 1800;
+const THRESHOLDS = levelThresholds(content.progression.xpCurve, content.classes.maxLevel);
 /** Distância (em pixels, do centro do jogador ao centro do ponto) para poder coletar. */
 const COLLECT_RANGE = 40;
 
@@ -60,6 +73,16 @@ export class WorldScene extends Phaser.Scene {
   private collectPressed = false;
   /** Saída que falhou (ex.: servidor fora do ar): só volta a valer depois que o jogador sai dela. */
   private heldExit: MapExit | null = null;
+  private monsters: Monster[] = [];
+  private bolts!: Phaser.Physics.Arcade.Group;
+  private stats!: CharacterStats;
+  private vitals!: Vitals;
+  private hud!: CombatHud;
+  private firePressed = false;
+  private lastShot = -Infinity;
+  private invulnerableUntil = 0;
+  private dead = false;
+  private rng: Rng = createRng(crypto.getRandomValues(new Uint32Array(1))[0]!);
 
   constructor() {
     super('World');
@@ -96,9 +119,12 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.fadeIn(FADE_MS);
 
     this.addResourceNodes();
+    this.setupCombat(ground, solids);
     this.keys = new DirectionKeys(this);
     this.collectPressed = false;
+    this.firePressed = false;
     this.input.keyboard?.on('keydown-E', () => (this.collectPressed = true));
+    this.input.keyboard?.on('keydown-SPACE', () => (this.firePressed = true));
     this.input.keyboard?.on('keydown-I', () => !this.leaving && this.inventoryPanel.toggle());
     this.debug = new DebugOverlay(this, this.player, this.map, T);
     this.addHud();
@@ -106,9 +132,13 @@ export class WorldScene extends Phaser.Scene {
     this.exposeForTests();
   }
 
-  update(): void {
-    if (this.leaving) return;
+  update(time: number, delta: number): void {
+    if (this.leaving) {
+      for (const m of this.monsters) if (m.state === 'alive') m.setVelocity(0, 0);
+      return;
+    }
     this.player.move(this.keys.read());
+    this.updateCombat(time, delta);
     // A profundidade segue o "pé": o jogador passa atrás de telhados e copas e na frente das bases.
     this.player.setDepth(this.player.body.bottom);
     this.updateDoorMessage();
@@ -207,10 +237,188 @@ export class WorldScene extends Phaser.Scene {
     this.tweens.add({ targets: text, y: text.y - 18, alpha: 0, duration: 1200, onComplete: () => text.destroy() });
   }
 
-  private showNotice(message: string): void {
-    this.noticeText.setText(message).setVisible(true);
+  private showNotice(message: string, color = '#fca5a5'): void {
+    this.noticeText.setText(message).setColor(color).setVisible(true);
     this.noticeTimer?.remove();
     this.noticeTimer = this.time.delayedCall(3000, () => this.noticeText.setVisible(false));
+  }
+
+  /**
+   * Vida e mana não são gravadas no servidor: na cidade enchem; entre mapas, seguem iguais.
+   * Monstros só existem nas áreas geradas; a posição sai da seed e o tipo veio do servidor.
+   */
+  private setupCombat(ground: NonNullable<ReturnType<Phaser.Tilemaps.Tilemap['createLayer']>>, solids: Phaser.Physics.Arcade.StaticGroup): void {
+    this.dead = false;
+    this.lastShot = -Infinity;
+    this.invulnerableUntil = 0;
+    this.stats = this.currentStats();
+    const saved = this.registry.get('vitals') as { hp: number; mana: number } | undefined;
+    const inTown = this.run === null;
+    this.vitals = {
+      hp: inTown || !saved ? this.stats.maxHp : Math.min(saved.hp, this.stats.maxHp),
+      maxHp: this.stats.maxHp,
+      mana: inTown || !saved ? this.stats.maxMana : Math.min(saved.mana, this.stats.maxMana),
+      maxMana: this.stats.maxMana,
+    };
+
+    this.bolts = this.physics.add.group({ allowGravity: false });
+    this.physics.add.collider(this.bolts, ground, (bolt) => (bolt as Phaser.GameObjects.Image).destroy());
+    this.physics.add.collider(this.bolts, solids, (bolt) => (bolt as Phaser.GameObjects.Image).destroy());
+
+    this.monsters = [];
+    const area = content.procedural.areas.find((a) => a.id === this.map.id);
+    if (this.run && area?.creatures && this.seed !== null && this.run.monsters.length > 0) {
+      const avoid = this.nodes.map((n) => n.cell);
+      const cells = placeMonsters(this.map, this.seed, this.run.monsters.length, area.creatures, avoid);
+      this.monsters = this.run.monsters.map((m, i) => new Monster(this, m.index, content.creatures.creatures.find((c) => c.id === m.creatureId)!, cells[i]!));
+      const group = this.physics.add.group(this.monsters);
+      this.physics.add.collider(group, ground);
+      this.physics.add.collider(group, solids);
+      this.physics.add.collider(group, group);
+      this.physics.add.overlap(this.bolts, group, (bolt, monster) => {
+        const m = monster as Monster;
+        if (m.state !== 'alive') return;
+        (bolt as Phaser.GameObjects.Image).destroy();
+        this.hitMonster(m);
+      });
+    }
+    this.hud = new CombatHud(this);
+  }
+
+  /** Atributos da classe no nível atual. Classes sem tabela própria usam a do Mago (única jogável no MVP). */
+  private currentStats(): CharacterStats {
+    const { classStats } = content.progression;
+    const cls = classStats.find((c) => c.classId === sessionClassId(this)) ?? classStats.find((c) => c.classId === 'mage')!;
+    return statsForLevel(cls, getProgress(this).state.level);
+  }
+
+  private updateCombat(time: number, delta: number): void {
+    const { combat } = content;
+    this.vitals.mana = Math.min(this.vitals.maxMana, this.vitals.mana + (combat.manaRegenPerSecond * delta) / 1000);
+    const fire = this.firePressed;
+    this.firePressed = false;
+    if (fire) this.shoot(time);
+
+    const range = combat.basicAttack.rangeTiles * this.map.tileSize;
+    for (const obj of this.bolts.getChildren()) {
+      const bolt = obj as Phaser.Physics.Arcade.Image;
+      const from = bolt.getData('from') as { x: number; y: number };
+      if (Phaser.Math.Distance.Between(from.x, from.y, bolt.x, bolt.y) > range) bolt.destroy();
+    }
+
+    const c = this.player.body.center;
+    for (const m of this.monsters) {
+      if (m.think(time, { x: c.x, y: c.y })) this.hurtPlayer(rollDamage(m.def.stats.attack, this.stats.defense, combat, this.rng).amount);
+    }
+    const level = getProgress(this).state.level;
+    this.hud.draw(this.vitals, getProgress(this).state, [THRESHOLDS[level]!, THRESHOLDS[Math.min(level + 1, THRESHOLDS.length - 1)]!]);
+  }
+
+  /** Projétil Arcano na direção em que o jogador está virado. */
+  private shoot(time: number): void {
+    const attack = content.combat.basicAttack;
+    if (time - this.lastShot < attack.cooldownMs) return;
+    if (this.vitals.mana < attack.manaCost) {
+      this.showNotice('Sem mana.');
+      return;
+    }
+    this.lastShot = time;
+    this.vitals.mana -= attack.manaCost;
+    const c = this.player.body.center;
+    const dir = facingVector(this.player.getFacing());
+    const speed = attack.projectileSpeedTilesPerSecond * this.map.tileSize;
+    const bolt = this.bolts.create(c.x, c.y, TextureKeys.effect(attack.sprite)) as Phaser.Physics.Arcade.Image;
+    bolt.setDepth(9000).setData('from', { x: c.x, y: c.y });
+    bolt.body!.setCircle(4, 4, 4);
+    bolt.setVelocity(dir.vx * speed, dir.vy * speed);
+  }
+
+  private hitMonster(m: Monster): void {
+    const hit = rollDamage(this.stats.attack, m.def.stats.defense, content.combat, this.rng);
+    m.hp = Math.max(0, m.hp - hit.amount);
+    m.flash();
+    this.floatText(m.x, m.y - 14, `${hit.amount}${hit.crit ? '!' : ''}`, hit.crit ? '#fde047' : '#ffffff');
+    if (m.hp === 0) this.killMonster(m);
+  }
+
+  /** O monstro cai na hora; XP, cobre e itens só entram quando o servidor confirma o abate. */
+  private killMonster(m: Monster): void {
+    m.state = 'dying';
+    m.setVelocity(0, 0);
+    m.body.enable = false;
+    this.tweens.add({ targets: m, alpha: 0, duration: 400, onComplete: () => m.setVisible(false) });
+    const run = this.run!;
+    getBackend(this)
+      .killMonster(run, m.index)
+      .then((result) => {
+        m.state = 'dead';
+        if (this.run !== run) return;
+        this.applyKill(m, result);
+      })
+      .catch((err: unknown) => {
+        m.state = 'dead';
+        if (this.run === run) this.showNotice(friendlyError(err));
+      });
+  }
+
+  private applyKill(m: Monster, r: KillResult): void {
+    getProgress(this).set({ level: r.level, xp: r.xp, copper: r.copper });
+    for (const d of r.drops) getInventory(this)!.set(d.itemId, d.total);
+    if (!r.killed) return;
+    const gains = [`+${r.xpGained} XP`, ...(r.copperGained > 0 ? [`+${r.copperGained} cobre`] : [])];
+    this.floatText(m.x, m.y - 14, gains.join('  '), '#fde68a');
+    r.drops.forEach((d, i) => {
+      const def = content.items.items.find((it) => it.id === d.itemId);
+      const color = content.rarities.rarities.find((x) => x.id === def?.rarity)?.color ?? '#e5e7eb';
+      this.floatText(m.x, m.y - 26 - i * 12, `+${d.quantity} ${def?.name ?? d.itemId}`, color);
+    });
+    if (r.leveledUp) {
+      // Subir de nível recalcula os atributos e enche vida e mana.
+      this.stats = this.currentStats();
+      this.vitals = { hp: this.stats.maxHp, maxHp: this.stats.maxHp, mana: this.stats.maxMana, maxMana: this.stats.maxMana };
+      this.showNotice(`Subiu para o nível ${r.level}!`, '#fde047');
+    }
+  }
+
+  /** `force` ignora a invulnerabilidade (gancho de teste). */
+  private hurtPlayer(amount: number, force = false): void {
+    if (this.dead || this.leaving) return;
+    const now = this.time.now;
+    if (!force && now < this.invulnerableUntil) return;
+    this.invulnerableUntil = now + content.combat.invulnerableAfterHitMs;
+    this.vitals.hp = Math.max(0, this.vitals.hp - amount);
+    this.player.flash();
+    this.floatText(this.player.x, this.player.y - 18, `-${amount}`, '#f87171');
+    if (this.vitals.hp === 0) this.die();
+  }
+
+  /**
+   * Morte (decisão provisória): a entrada é encerrada no servidor e o jogador volta à cidade com
+   * vida e mana cheias. Não perde itens nem XP; o que ainda não foi coletado na Gruta se perde.
+   */
+  private die(): void {
+    this.dead = true;
+    this.leaving = true;
+    this.player.setVelocity(0, 0);
+    this.promptText.setVisible(false);
+    this.registry.remove('vitals');
+    this.showNotice('Você foi derrotado. Voltando para a cidade...');
+    const run = this.run;
+    const ended = run ? getBackend(this).endExploration(run).catch(() => undefined) : Promise.resolve();
+    this.time.delayedCall(DEATH_DELAY_MS, () => {
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+        void ended.then(() => this.scene.restart({ mapId: content.world.startMap } satisfies WorldSceneData));
+      });
+      this.cameras.main.fadeOut(FADE_MS);
+    });
+  }
+
+  private floatText(x: number, y: number, message: string, color: string): void {
+    const text = this.add
+      .text(x, y, message, { fontSize: '10px', color, stroke: '#000000', strokeThickness: 3 })
+      .setOrigin(0.5, 1)
+      .setDepth(9500);
+    this.tweens.add({ targets: text, y: y - 18, alpha: 0, duration: 1000, onComplete: () => text.destroy() });
   }
 
   private addObject(obj: PlacedObject, solids: Phaser.Physics.Arcade.StaticGroup): void {
@@ -240,6 +448,7 @@ export class WorldScene extends Phaser.Scene {
   /** Para entrar numa área gerada, o servidor cria a entrada (seed e pontos) durante o escurecer. */
   private leaveThrough(exit: MapExit): void {
     this.leaving = true;
+    this.registry.set('vitals', { hp: this.vitals.hp, mana: this.vitals.mana });
     this.player.setVelocity(0, 0);
     this.promptText.setVisible(false);
     const generated = content.procedural.areas.some((a) => a.id === exit.to);
@@ -266,15 +475,12 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'Setas/WASD: mover   E: coletar   I: inventário   F3: depuração', style)
+      .text(width - 4, 4, 'Setas/WASD: mover   Espaço: atacar   E: coletar   I: inventário   F3: depuração', style)
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
     const session = getSession(this);
-    const who =
-      session?.mode === 'online'
-        ? `${session.character.name} · nível ${session.character.level}`
-        : 'Modo offline (nada é salvo)';
+    const who = session?.mode === 'online' ? session.character.name : 'Modo offline (nada é salvo)';
     const place = this.seed === null ? this.map.name : `${this.map.name} (seed ${this.seed})`;
     this.add.text(4, height - 4, `${who} · ${place}`, style).setOrigin(0, 1).setScrollFactor(0).setDepth(10000);
     this.doorText = this.add
@@ -335,6 +541,24 @@ export class WorldScene extends Phaser.Scene {
       notice: () => (this.noticeText.visible ? this.noticeText.text : null),
       inventory: () => Object.fromEntries(getInventory(this)!.entries()),
       inventoryOpen: () => this.inventoryPanel.isOpen(),
+      monsters: () =>
+        this.monsters.map((m) => ({
+          index: m.index,
+          creatureId: m.def.id,
+          x: m.body.center.x,
+          y: m.body.center.y,
+          cell: { x: Math.floor(m.body.center.x / T), y: Math.floor(m.body.center.y / T) },
+          hp: m.hp,
+          state: m.state,
+          intent: m.intent,
+        })),
+      vitals: () => ({ ...this.vitals }),
+      stats: () => ({ ...this.stats }),
+      progress: () => ({ ...getProgress(this).state }),
+      bolts: () => this.bolts.countActive(),
+      dead: () => this.dead,
+      /** Dano direto no jogador (para testar a morte sem esperar os monstros). */
+      hurtPlayer: (amount: number) => this.hurtPlayer(amount, true),
       zoom: () => this.scale.zoom,
       debugEnabled: () => this.debug.isEnabled(),
       session: () => this.registry.get('session'),

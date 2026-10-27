@@ -99,6 +99,14 @@ O banco guarda uma cópia dos itens e das regras de coleta. Depois de mudar `ite
 
 Em `content/objects.json`, cada objeto define o tamanho do sprite, a parte sólida (`collider`, a base; o telhado fica por cima do jogador) e, nos prédios, a área da porta com a mensagem.
 
+### Combate
+
+Espaço dispara o Projétil Arcano para onde o Mago está virado. Os números ficam em `content/combat.json` (custo, recarga, alcance, fórmula de dano), `content/progression.json` (curva de XP e atributos por nível) e `content/creatures.json` (monstros: vida, ataque, velocidade, detecção, XP, cobre e itens). O bloco `creatures` da Gruta, em `content/procedural.json`, define quantos monstros aparecem e o peso de cada tipo. Tudo provisório; veja [docs/decisions.md](docs/decisions.md).
+
+Ao entrar na Gruta, o servidor sorteia quais monstros existem; o navegador os posiciona pela seed e roda o combate. Ao abater um, o jogo chama `kill_monster`: o servidor confere a entrada, se o monstro ainda está vivo e se o ritmo de abates é possível para o nível, e então sorteia cobre e itens e grava XP e nível. Vida e mana ficam só no navegador. Ao cair, `end_exploration` encerra a entrada e o jogador volta à praça com vida cheia, sem perder nada do que já tinha.
+
+Depois de mudar monstros, curva de XP ou o teto de dano, rode `npm run db:content` (o banco guarda uma cópia).
+
 ## Arte
 
 ### Personagens (arte real)
@@ -128,6 +136,10 @@ O tileset (`apps/web/public/assets/city/terrain.png`, com os tiles da cidade e d
 ### Ícones dos itens (arte provisória)
 
 Um PNG 32×32 por `icon` de `content/items.json`, em `apps/web/public/assets/items/`, desenhados por código em `tools/art/item_art.py`. O mesmo ícone aparece no chão da Gruta e no inventário. Itens sem ícone usam `unknown.png`. Para trocar, substitua o PNG mantendo o nome e o tamanho.
+
+### Monstros e efeitos (arte provisória)
+
+Um PNG por `sprite` de `content/creatures.json`, em `apps/web/public/assets/creatures/`: tira horizontal de quadros 32×32 (quadro 0 parado, os demais formam o andar), desenhada virada para a direita (o jogo espelha). O projétil fica em `apps/web/public/assets/effects/`. Desenhados por código em `tools/art/creature_art.py`; para trocar, substitua mantendo nome e altura.
 
 `npm test` confere tamanhos e a existência de todos os arquivos.
 
