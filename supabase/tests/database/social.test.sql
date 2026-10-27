@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(36);
+select plan(40);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.local'),
@@ -96,7 +96,22 @@ reset role; set local role authenticated; select set_config('request.jwt.claims'
 select is(public.guild_info(pg_temp.c('b')) -> 'mine' ->> 'role', 'leader', 'quando o líder sai, B vira líder');
 select public.guild_leave(pg_temp.c('b'));
 reset role;
-select is((select count(*) from public.guilds), 0::bigint, 'sem membros, a guilda acaba (e o chat dela junto)');
+select is((select count(*) from public.guilds where disbanded_at is null), 0::bigint, 'sem membros, a guilda é desfeita');
+set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}', true);
+select is((select count(*) from public.chat_messages where guild_id is not null), 0::bigint, 'o chat da guilda desfeita some para os ex-membros');
+select lives_ok($$ select public.guild_create(pg_temp.c('b'), 'Ordem do Leão', 'LEAO') $$, 'o nome e a sigla ficam livres de novo');
+reset role;
+update public.chat_messages set created_at = now() - interval '8 days' where guild_id is null;
+set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}', true);
+select is((select count(*) from public.chat_messages), 0::bigint, 'mensagens mais velhas que 7 dias não aparecem');
+reset role;
+
+set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}', true);
+select public.guild_join(pg_temp.c('c'), (select id from public.guilds where disbanded_at is null));
+reset role;
+delete from public.characters where name = 'Brena';
+select is((select m.role from public.guild_members m where m.character_id = pg_temp.c('c') and m.left_at is null), 'leader',
+  'personagem do líder apagado: o membro seguinte assume');
 
 select * from finish();
 rollback;

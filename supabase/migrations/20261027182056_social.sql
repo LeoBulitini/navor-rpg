@@ -5,6 +5,9 @@
 -- Chat: canal geral e canal da guilda; o cliente lê pelo RLS (e pelo Realtime) e escreve só por chat_send.
 -- Ranking: os maiores níveis e as guildas com mais níveis somados (nomes públicos, nada mais).
 -- Regras vêm de content/social.json pela content_sync.
+-- Nada aqui apaga linhas: treino encerrado, saída da guilda e guilda desfeita ficam marcados com a data
+-- (claimed_at, left_at, disbanded_at) e as leituras só olham as linhas em aberto. O chat mostra só os últimos
+-- chat_keep_days dias.
 
 create table public.social_rules (
   id                        integer primary key check (id = 1),
@@ -68,7 +71,9 @@ create table public.training_sessions (
   character_id uuid primary key references public.characters (id) on delete cascade,
   started_at   timestamptz not null default now(),
   -- nível no começo do treino (a taxa de XP não muda no meio)
-  level        integer not null
+  level        integer not null,
+  -- preenchido ao encerrar; treino em aberto = claimed_at nulo
+  claimed_at   timestamptz
 );
 alter table public.training_sessions enable row level security;
 revoke all on public.training_sessions from anon, authenticated;
@@ -101,7 +106,7 @@ declare
   v_s    public.training_sessions;
 begin
   v_char := public.own_character(p_character_id);
-  select s.* into v_s from public.training_sessions s where s.character_id = v_char.id;
+  select s.* into v_s from public.training_sessions s where s.character_id = v_char.id and s.claimed_at is null;
   if v_s.character_id is null then
     return jsonb_build_object('training', false, 'now', now());
   end if;
@@ -121,10 +126,14 @@ declare
   v_at   timestamptz;
 begin
   v_char := public.town_character(p_character_id);
-  if exists (select 1 from public.training_sessions s where s.character_id = v_char.id) then
+  -- uma linha por personagem: um treino novo reabre a linha do último treino encerrado
+  insert into public.training_sessions as s (character_id, level) values (v_char.id, v_char.level)
+  on conflict (character_id) do update set started_at = now(), level = excluded.level, claimed_at = null
+    where s.claimed_at is not null
+  returning s.started_at into v_at;
+  if v_at is null then
     raise exception 'Você já está treinando.' using errcode = 'P0001';
   end if;
-  insert into public.training_sessions (character_id, level) values (v_char.id, v_char.level) returning started_at into v_at;
   return jsonb_build_object('training', true, 'now', now(), 'started_at', v_at, 'level', v_char.level, 'minutes', 0, 'xp', 0);
 end;
 $$;
@@ -143,7 +152,8 @@ declare
   v_level integer;
 begin
   v_char := public.town_character(p_character_id);
-  delete from public.training_sessions s where s.character_id = v_char.id returning s.* into v_s;
+  update public.training_sessions s set claimed_at = now()
+  where s.character_id = v_char.id and s.claimed_at is null returning s.* into v_s;
   if v_s.character_id is null then
     raise exception 'Você não está treinando.' using errcode = 'P0001';
   end if;
@@ -164,7 +174,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if exists (select 1 from public.training_sessions s where s.character_id = new.character_id) then
+  if exists (select 1 from public.training_sessions s where s.character_id = new.character_id and s.claimed_at is null) then
     raise exception 'Você está treinando no Salão. Encerre o treino para sair da cidade.' using errcode = 'P0001';
   end if;
   return new;
@@ -181,29 +191,35 @@ create table public.guilds (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (name ~ '^[A-Za-zÀ-ÖØ-öø-ÿ0-9 ]+$'),
   tag        text not null check (tag ~ '^[A-Z0-9]+$'),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- preenchido quando o último membro sai; o nome e a sigla ficam livres de novo
+  disbanded_at timestamptz
 );
-create unique index guilds_name_unique_ci on public.guilds (lower(name));
-create unique index guilds_tag_unique on public.guilds (tag);
+create unique index guilds_name_unique_ci on public.guilds (lower(name)) where disbanded_at is null;
+create unique index guilds_tag_unique on public.guilds (tag) where disbanded_at is null;
 
--- Um personagem fica em no máximo uma guilda.
+-- Um personagem fica em no máximo uma guilda (entre as linhas em aberto). Sair preenche left_at.
 create table public.guild_members (
-  character_id uuid primary key references public.characters (id) on delete cascade,
+  id           uuid primary key default gen_random_uuid(),
+  character_id uuid not null references public.characters (id) on delete cascade,
   guild_id     uuid not null references public.guilds (id) on delete cascade,
   role         text not null check (role in ('leader', 'member')),
-  joined_at    timestamptz not null default now()
+  joined_at    timestamptz not null default now(),
+  left_at      timestamptz
 );
-create index guild_members_guild on public.guild_members (guild_id, joined_at);
-create unique index guild_members_one_leader on public.guild_members (guild_id) where role = 'leader';
+create unique index guild_members_one_guild on public.guild_members (character_id) where left_at is null;
+create index guild_members_guild on public.guild_members (guild_id, joined_at) where left_at is null;
+create unique index guild_members_one_leader on public.guild_members (guild_id) where role = 'leader' and left_at is null;
 
 alter table public.guilds enable row level security;
 alter table public.guild_members enable row level security;
 revoke all on public.guilds, public.guild_members from anon, authenticated;
 -- Nome e sigla das guildas são públicos; os membros, só pelas funções (guild_info e ranking).
 grant select on public.guilds to authenticated;
-create policy "guilds: todos leem" on public.guilds for select to authenticated using (true);
+create policy "guilds: todos leem as guildas ativas" on public.guilds for select to authenticated using (disbanded_at is null);
 
--- Saiu o líder (por guild_leave ou personagem apagado): o membro mais antigo assume; sem membros, a guilda acaba.
+-- Saiu o líder (guild_leave, ou o personagem deixou de existir): o membro mais antigo assume; sem membros,
+-- a guilda é desfeita.
 create or replace function public.guild_members_succession()
 returns trigger
 language plpgsql
@@ -213,22 +229,22 @@ as $$
 declare
   v_next uuid;
 begin
-  if old.role <> 'leader' then
+  -- só conta a saída de quem ainda estava na guilda e era o líder
+  if old.left_at is not null or old.role <> 'leader' or (tg_op = 'UPDATE' and new.left_at is null) then
     return null;
   end if;
-  select m.character_id into v_next from public.guild_members m
-  where m.guild_id = old.guild_id order by m.joined_at, m.character_id limit 1;
+  select m.id into v_next from public.guild_members m
+  where m.guild_id = old.guild_id and m.left_at is null and m.id <> old.id order by m.joined_at, m.id limit 1;
   if v_next is null then
-    delete from public.guilds g where g.id = old.guild_id;
+    update public.guilds g set disbanded_at = now() where g.id = old.guild_id and g.disbanded_at is null;
   else
-    update public.guild_members m set role = 'leader' where m.character_id = v_next;
+    update public.guild_members m set role = 'leader' where m.id = v_next;
   end if;
   return null;
 end;
 $$;
 revoke all on function public.guild_members_succession() from public, anon, authenticated;
-create trigger guild_members_succession after delete on public.guild_members
-  for each row execute function public.guild_members_succession();
+-- O gatilho que chama esta função fica na migração seguinte (social_succession_trigger, depois da content_sync).
 
 -- Guildas dos personagens do usuário (para o RLS do chat da guilda).
 create or replace function public.my_guild_ids()
@@ -238,7 +254,8 @@ stable
 security definer
 set search_path = ''
 as $$
-  select m.guild_id from public.guild_members m join public.characters c on c.id = m.character_id where c.user_id = auth.uid();
+  select m.guild_id from public.guild_members m join public.characters c on c.id = m.character_id
+  where c.user_id = auth.uid() and m.left_at is null;
 $$;
 revoke all on function public.my_guild_ids() from public, anon;
 grant execute on function public.my_guild_ids() to authenticated;
@@ -257,19 +274,21 @@ declare
 begin
   v_char := public.own_character(p_character_id);
   select r.guild_max_members into v_max from public.social_rules r where r.id = 1;
-  select m.* into v_mine from public.guild_members m where m.character_id = v_char.id;
+  select m.* into v_mine from public.guild_members m where m.character_id = v_char.id and m.left_at is null;
   return jsonb_build_object(
     'max_members', v_max,
     'mine', case when v_mine.guild_id is null then null else (
       select jsonb_build_object('id', g.id, 'name', g.name, 'tag', g.tag, 'role', v_mine.role, 'members',
         (select coalesce(jsonb_agg(jsonb_build_object('name', c.name, 'class_id', c.class_id, 'level', c.level, 'role', m.role)
                                    order by m.role = 'leader' desc, c.level desc, c.name), '[]'::jsonb)
-         from public.guild_members m join public.characters c on c.id = m.character_id where m.guild_id = g.id))
+         from public.guild_members m join public.characters c on c.id = m.character_id where m.guild_id = g.id and m.left_at is null))
       from public.guilds g where g.id = v_mine.guild_id) end,
     'guilds', (
       select coalesce(jsonb_agg(x order by (x ->> 'total_level')::integer desc, x ->> 'name'), '[]'::jsonb) from (
         select jsonb_build_object('id', g.id, 'name', g.name, 'tag', g.tag, 'members', count(*), 'total_level', sum(c.level)) as x
-        from public.guilds g join public.guild_members m on m.guild_id = g.id join public.characters c on c.id = m.character_id
+        from public.guilds g join public.guild_members m on m.guild_id = g.id and m.left_at is null
+        join public.characters c on c.id = m.character_id
+        where g.disbanded_at is null
         group by g.id order by sum(c.level) desc, g.name limit 50) s));
 end;
 $$;
@@ -289,7 +308,7 @@ declare
 begin
   v_char := public.town_character(p_character_id);
   select r.* into v_r from public.social_rules r where r.id = 1;
-  if exists (select 1 from public.guild_members m where m.character_id = v_char.id) then
+  if exists (select 1 from public.guild_members m where m.character_id = v_char.id and m.left_at is null) then
     raise exception 'Saia da sua guilda antes de fundar outra.' using errcode = 'P0001';
   end if;
   if char_length(v_name) not between v_r.guild_name_min and v_r.guild_name_max then
@@ -304,10 +323,10 @@ begin
   if v_tag !~ '^[A-Z0-9]+$' then
     raise exception 'Use só letras sem acento e números na sigla.' using errcode = 'P0001';
   end if;
-  if exists (select 1 from public.guilds g where lower(g.name) = lower(v_name)) then
+  if exists (select 1 from public.guilds g where lower(g.name) = lower(v_name) and g.disbanded_at is null) then
     raise exception 'Já existe uma guilda com esse nome.' using errcode = 'P0001';
   end if;
-  if exists (select 1 from public.guilds g where g.tag = v_tag) then
+  if exists (select 1 from public.guilds g where g.tag = v_tag and g.disbanded_at is null) then
     raise exception 'Já existe uma guilda com essa sigla.' using errcode = 'P0001';
   end if;
   if v_char.copper < v_r.guild_create_cost then
@@ -336,16 +355,16 @@ declare
   v_max  integer;
 begin
   v_char := public.town_character(p_character_id);
-  if exists (select 1 from public.guild_members m where m.character_id = v_char.id) then
+  if exists (select 1 from public.guild_members m where m.character_id = v_char.id and m.left_at is null) then
     raise exception 'Você já está numa guilda.' using errcode = 'P0001';
   end if;
   -- trava a guilda para contar os membros sem corrida
-  select g.* into v_g from public.guilds g where g.id = p_guild_id for update;
+  select g.* into v_g from public.guilds g where g.id = p_guild_id and g.disbanded_at is null for update;
   if v_g.id is null then
     raise exception 'Guilda não encontrada.' using errcode = 'P0001';
   end if;
   select r.guild_max_members into v_max from public.social_rules r where r.id = 1;
-  if (select count(*) from public.guild_members m where m.guild_id = v_g.id) >= v_max then
+  if (select count(*) from public.guild_members m where m.guild_id = v_g.id and m.left_at is null) >= v_max then
     raise exception 'A guilda está cheia (% membros).', v_max using errcode = 'P0001';
   end if;
   insert into public.guild_members (character_id, guild_id, role) values (v_char.id, v_g.id, 'member');
@@ -364,12 +383,12 @@ declare
   v_m    public.guild_members;
 begin
   v_char := public.town_character(p_character_id);
-  select m.* into v_m from public.guild_members m where m.character_id = v_char.id;
+  select m.* into v_m from public.guild_members m where m.character_id = v_char.id and m.left_at is null;
   if v_m.guild_id is null then
     raise exception 'Você não está numa guilda.' using errcode = 'P0001';
   end if;
   perform 1 from public.guilds g where g.id = v_m.guild_id for update;
-  delete from public.guild_members m where m.character_id = v_char.id;
+  update public.guild_members m set left_at = now() where m.id = v_m.id;
 end;
 $$;
 
@@ -386,19 +405,19 @@ declare
   v_target uuid;
 begin
   v_char := public.town_character(p_character_id);
-  select m.* into v_me from public.guild_members m where m.character_id = v_char.id;
+  select m.* into v_me from public.guild_members m where m.character_id = v_char.id and m.left_at is null;
   if v_me.role is distinct from 'leader' then
     raise exception 'Só o líder pode remover membros.' using errcode = 'P0001';
   end if;
   select m.character_id into v_target from public.guild_members m join public.characters c on c.id = m.character_id
-  where m.guild_id = v_me.guild_id and lower(c.name) = lower(p_member_name);
+  where m.guild_id = v_me.guild_id and m.left_at is null and lower(c.name) = lower(p_member_name);
   if v_target is null then
     raise exception 'Esse personagem não é da sua guilda.' using errcode = 'P0001';
   end if;
   if v_target = v_char.id then
     raise exception 'Para sair, use "Sair da guilda".' using errcode = 'P0001';
   end if;
-  delete from public.guild_members m where m.character_id = v_target;
+  update public.guild_members m set left_at = now() where m.character_id = v_target and m.left_at is null;
 end;
 $$;
 
@@ -422,10 +441,25 @@ create index chat_messages_created on public.chat_messages (created_at);
 alter table public.chat_messages enable row level security;
 revoke all on public.chat_messages from anon, authenticated;
 grant select on public.chat_messages to authenticated;
-create policy "chat_messages: geral para todos, guilda só para os membros"
+
+-- Início da janela do chat: as mensagens mais antigas que chat_keep_days não aparecem mais.
+create or replace function public.chat_since()
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now() - make_interval(days => r.chat_keep_days) from public.social_rules r where r.id = 1;
+$$;
+revoke all on function public.chat_since() from public, anon;
+grant execute on function public.chat_since() to authenticated;
+
+create policy "chat_messages: geral para todos, guilda só para os membros, só os últimos dias"
   on public.chat_messages for select
   to authenticated
-  using (guild_id is null or guild_id in (select public.my_guild_ids()));
+  using (created_at >= (select public.chat_since())
+         and (guild_id is null or guild_id in (select public.my_guild_ids())));
 
 -- Realtime: novas mensagens chegam aos clientes inscritos (o Realtime aplica o mesmo RLS).
 do $$
@@ -458,7 +492,7 @@ begin
     raise exception 'A mensagem passa de % caracteres.', v_r.chat_max_length using errcode = 'P0001';
   end if;
   if p_channel = 'guild' then
-    select m.guild_id into v_guild from public.guild_members m where m.character_id = v_char.id;
+    select m.guild_id into v_guild from public.guild_members m where m.character_id = v_char.id and m.left_at is null;
     if v_guild is null then
       raise exception 'Você não está numa guilda.' using errcode = 'P0001';
     end if;
@@ -473,7 +507,6 @@ begin
   end if;
   insert into public.chat_messages (guild_id, user_id, character_id, author, body)
   values (v_guild, v_char.user_id, v_char.id, v_char.name, v_body) returning * into v_row;
-  delete from public.chat_messages c where c.created_at < now() - make_interval(days => v_r.chat_keep_days);
   return jsonb_build_object('id', v_row.id, 'guild_id', v_row.guild_id, 'author', v_row.author, 'body', v_row.body, 'created_at', v_row.created_at);
 end;
 $$;
@@ -501,14 +534,16 @@ begin
         select row_number() over (order by c.level desc, c.xp desc, c.created_at) as ord,
                jsonb_build_object('name', c.name, 'class_id', c.class_id, 'level', c.level, 'xp', c.xp, 'guild_tag', g.tag) as x
         from public.characters c
-        left join public.guild_members m on m.character_id = c.id
+        left join public.guild_members m on m.character_id = c.id and m.left_at is null
         left join public.guilds g on g.id = m.guild_id
         order by c.level desc, c.xp desc, c.created_at limit v_size) p),
     'guilds', (
       select coalesce(jsonb_agg(x order by ord), '[]'::jsonb) from (
         select row_number() over (order by sum(c.level) desc, count(*) desc, g.name) as ord,
                jsonb_build_object('name', g.name, 'tag', g.tag, 'members', count(*), 'total_level', sum(c.level)) as x
-        from public.guilds g join public.guild_members m on m.guild_id = g.id join public.characters c on c.id = m.character_id
+        from public.guilds g join public.guild_members m on m.guild_id = g.id and m.left_at is null
+        join public.characters c on c.id = m.character_id
+        where g.disbanded_at is null
         group by g.id order by sum(c.level) desc, count(*) desc, g.name limit v_size) q));
 end;
 $$;

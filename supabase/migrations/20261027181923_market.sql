@@ -66,11 +66,12 @@ create table public.market_sales (
 alter table public.market_sales enable row level security;
 revoke all on public.market_sales from anon, authenticated;
 
--- Armazém da conta.
+-- Armazém da conta. Retirar tudo deixa a linha com quantidade 0 (não é apagada); quantidade 0 não aparece
+-- para o cliente nem conta no limite de tipos.
 create table public.storage_items (
   user_id    uuid not null references auth.users (id) on delete cascade,
   item_id    text not null references public.items (id),
-  quantity   bigint not null check (quantity > 0),
+  quantity   bigint not null check (quantity >= 0),
   updated_at timestamptz not null default now(),
   primary key (user_id, item_id)
 );
@@ -80,7 +81,7 @@ grant select on public.storage_items to authenticated;
 create policy "storage_items: dono lê o próprio armazém"
   on public.storage_items for select
   to authenticated
-  using (user_id = (select auth.uid()));
+  using (user_id = (select auth.uid()) and quantity > 0);
 
 -- ---------------------------------------------------------------------------
 -- Funções internas
@@ -291,8 +292,8 @@ begin
   -- Uma operação de armazém por vez para a conta (vários personagens usam o mesmo).
   perform pg_advisory_xact_lock(hashtextextended(v_char.user_id::text, 3));
   select r.max_stacks into v_max from public.storage_rules r where r.id = 1;
-  if not exists (select 1 from public.storage_items s where s.user_id = v_char.user_id and s.item_id = p_item_id)
-     and (select count(*) from public.storage_items s where s.user_id = v_char.user_id) >= v_max then
+  if not exists (select 1 from public.storage_items s where s.user_id = v_char.user_id and s.item_id = p_item_id and s.quantity > 0)
+     and (select count(*) from public.storage_items s where s.user_id = v_char.user_id and s.quantity > 0) >= v_max then
     raise exception 'O armazém está cheio (% tipos de item). Retire algo antes.', v_max using errcode = 'P0001';
   end if;
   v_total := public.inventory_add(v_char.id, p_item_id, -p_quantity);
@@ -324,14 +325,9 @@ begin
   if v_stored is null or v_stored < p_quantity then
     raise exception 'Você não tem tudo isso no armazém.' using errcode = 'P0001';
   end if;
-  if v_stored = p_quantity then
-    delete from public.storage_items s where s.user_id = v_char.user_id and s.item_id = p_item_id;
-    v_stored := 0;
-  else
-    update public.storage_items s set quantity = s.quantity - p_quantity, updated_at = now()
-    where s.user_id = v_char.user_id and s.item_id = p_item_id
-    returning s.quantity into v_stored;
-  end if;
+  update public.storage_items s set quantity = s.quantity - p_quantity, updated_at = now()
+  where s.user_id = v_char.user_id and s.item_id = p_item_id
+  returning s.quantity into v_stored;
   v_total := public.inventory_add(v_char.id, p_item_id, p_quantity);
   return jsonb_build_object('item_id', p_item_id, 'total', v_total, 'stored', v_stored);
 end;
