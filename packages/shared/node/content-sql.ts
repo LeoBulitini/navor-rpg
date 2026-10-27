@@ -1,4 +1,4 @@
-import { levelThresholds, type Content } from '../src/index.ts';
+import { itemValue, levelThresholds, shopBuys, type Content } from '../src/index.ts';
 
 /** Marca as migrations geradas por `npm run db:content`. */
 export const CONTENT_SYNC_SUFFIX = '_content_sync.sql';
@@ -7,22 +7,23 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
- * itens, regras das áreas, pesos das raridades, itens de cada área, baús, monstros e o que soltam, monstros
- * de cada área, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
+ * e o que soltam, monstros de cada área, lojas, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
 export function contentSql(content: Content): string {
   const items = content.items.items
-    .map((i) => `  (${q(i.id)}, ${q(i.name)}, ${q(i.rarity)}, ${q(i.category)})`)
+    .map((i) => `  (${q(i.id)}, ${q(i.name)}, ${q(i.rarity)}, ${q(i.category)}, ${itemValue(i, content.rarities)}, ${i.use?.hp ?? 0}, ${i.use?.mana ?? 0})`)
     .join(',\n');
   const areas = content.procedural.areas.filter((a) => a.resources);
   const lines = [
     '-- GERADO por scripts/db-content.ts a partir de content/. Não edite à mão: rode `npm run db:content`.',
     '',
-    'insert into public.items (id, name, rarity, category) values',
+    'insert into public.items (id, name, rarity, category, value, use_hp, use_mana) values',
     `${items}`,
-    'on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, category = excluded.category;',
+    'on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, category = excluded.category,',
+    '  value = excluded.value, use_hp = excluded.use_hp, use_mana = excluded.use_mana;',
   ];
   if (areas.length > 0) {
     const areaRows = areas
@@ -108,6 +109,30 @@ export function contentSql(content: Content): string {
       spawns.join(',\n'),
       'on conflict (area_id, creature_id) do update set weight = excluded.weight;',
     );
+  }
+  const { shops } = content;
+  const sells = shops.shops.flatMap((sh) => sh.sells.map((x) => `  (${q(sh.id)}, ${q(x.item)}, ${x.price}, ${q(x.currency)})`));
+  const buys = shops.shops.flatMap((sh) => content.items.items.filter((i) => shopBuys(sh, i)).map((i) => `  (${q(sh.id)}, ${q(i.id)})`));
+  lines.push(
+    '',
+    'insert into public.shops (id, name, rest_price, exchange) values',
+    shops.shops.map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange})`).join(',\n'),
+    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange;',
+    '',
+    'insert into public.economy_rules (id, sell_rate, copper_per_gold) values',
+    `  (1, ${shops.sellRate}, ${shops.copperPerGold})`,
+    'on conflict (id) do update set sell_rate = excluded.sell_rate, copper_per_gold = excluded.copper_per_gold;',
+  );
+  if (sells.length > 0) {
+    lines.push(
+      '',
+      'insert into public.shop_sells (shop_id, item_id, price, currency) values',
+      sells.join(',\n'),
+      'on conflict (shop_id, item_id) do update set price = excluded.price, currency = excluded.currency;',
+    );
+  }
+  if (buys.length > 0) {
+    lines.push('', 'insert into public.shop_buys (shop_id, item_id) values', buys.join(',\n'), 'on conflict (shop_id, item_id) do nothing;');
   }
   lines.push(
     '',

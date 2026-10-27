@@ -3,13 +3,14 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 9.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
-Arqueiro) protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função, mostram
-"em breve" na porta), um portão sul que leva à Gruta e um portão leste que leva à Floresta. A cada entrada o servidor
-sorteia a seed da área, o conteúdo dos pontos de coleta, os monstros ou animais e quantos baús há. O jogador coleta e
-abre baús com **E**, vê o inventário com **I** e ataca com **Espaço**. O servidor confere cada coleta, abate e baú e
-grava inventário, XP, nível, cobre e ouro; repetir não duplica nada. Ao cair, o jogador volta à cidade. Sem backend
-configurado, o jogo abre em modo offline (nada é salvo).
+**Estado atual: Fase 10.** Login por e-mail e senha (Supabase), criação e seleção de personagem (Mago, Guerreiro ou
+Arqueiro) protegidas por RLS, e o jogo começa na cidade principal. Alquimista, Taverna, Ferreiro e Mercado abrem com **E**
+na porta: compra de poções e comidas, venda de recursos, dormitório e câmbio de cobre e ouro. O portão sul leva à Gruta e
+o leste à Floresta. A cada entrada o servidor sorteia a seed da área, o conteúdo dos pontos de coleta, os monstros ou
+animais e quantos baús há. O jogador coleta e abre baús com **E**, vê o inventário com **I**, ataca com **Espaço** e usa
+poção de vida, de mana ou comida com **1**, **2** e **3**. O servidor confere cada coleta, abate, baú, compra, venda e uso
+de item e grava inventário, XP, nível, cobre e ouro; repetir não duplica nada. Ao cair, o jogador volta à cidade com
+metade da vida. Sem backend configurado, o jogo abre em modo offline (nada é salvo).
 Há um app Windows de teste (Tauri) que abre o mesmo jogo ligado ao mesmo Supabase; veja "App Windows" abaixo.
 O que cada critério de aceitação do GDD tem como evidência está em [docs/mvp-p1.md](docs/mvp-p1.md).
 
@@ -146,6 +147,14 @@ Depois de mudar monstros, curva de XP ou o teto de dano, rode `npm run db:conten
 ### Baús
 
 O bloco `chests` de cada área, em `content/procedural.json`, define quantos baús aparecem, a faixa de cobre, a chance da moeda de ouro e os itens possíveis. O servidor decide quantos baús a entrada tem; o navegador os põe no fundo da área pela seed. A tecla **E** perto de um baú chama `open_chest`, que confere dono e prazo, recusa abrir nos primeiros segundos da entrada (`minSecondsAfterStart`, contra entrar e sair só para abrir baús) e então sorteia e grava cobre, itens e, raramente, 1 moeda de ouro. Abrir de novo não dá nada.
+
+### Lojas e economia
+
+As lojas ficam em `content/shops.json`: o prédio de cada uma (`building`), o que o NPC vende e por quanto (`sells`), o que ele compra do jogador (`buys`, por categoria ou item), o dormitório da Taverna (`rest`) e o câmbio do Mercado (`exchange`). `sellRate` é a fração do valor do item que o NPC paga; `copperPerGold` é o câmbio. O valor de cada item é o `value` dele em `content/items.json` ou, sem ele, o `value` da raridade em `content/rarities.json`. Poções e comidas têm `use` (vida e mana devolvidas). Tudo provisório; veja [docs/decisions.md](docs/decisions.md).
+
+A janela da loja chama as funções `shop_buy`, `shop_sell`, `tavern_rest` e `exchange_currency`; usar um item (teclas 1, 2 e 3) chama `use_item`. O servidor confere dono, preço, saldo e estoque e grava moedas e inventário na mesma transação. As lojas só atendem quem está na cidade: voltar pela saída de uma área encerra a entrada no servidor, e com uma entrada aberta as lojas recusam. Depois de mudar lojas, preços ou valores, rode `npm run db:content`.
+
+Vida e mana não enchem mais sozinhas na cidade: enchem ao subir de nível e dormindo na Taverna; poções e comidas devolvem uma parte.
 
 ## Arte
 

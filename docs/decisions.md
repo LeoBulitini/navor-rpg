@@ -73,6 +73,17 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | Baús: Gruta com 1 a 2 (3 a 15 de cobre, 25% Pergaminho Simples, 6% Pergaminho Aprimorado, 2% de 1 moeda de ouro); Floresta com 0 a 1 (2 a 10 de cobre, 20% Pergaminho Simples, 1% de ouro). Sempre no fundo da área. Só abrem 10 s depois da entrada | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Moeda de ouro já é gravada no personagem (vem dos baús); conversão com cobre e uso ficam para a Fase 10 | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Mensagens de exploração encerrada dizem "Entre na área de novo" (não citam mais só a Gruta) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Fase 10: câmbio de 100 cobre = 1 ouro (proposta do GDD 11), nos dois sentidos, sem taxa, no Mercado | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Valor base dos itens por raridade: Comum 5, Incomum 15, Raro 50, Épico 200, Lendário 800, Sombrio 2500 cobre; o item pode ter valor próprio | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | NPCs pagam 40% do valor ao comprar do jogador (mínimo 1 cobre); nenhum item vendido por um NPC pode ser revendido com lucro (teste automático) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Alquimista vende Poção de Vida Pequena (15, +40 vida), Poção de Mana Pequena (15, +30 mana), Poção de Vida (40, +100) e Poção de Mana (40, +80); compra poções, cogumelos, ervas, flores, veneno, cristais e essências | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Taverna vende Pão (4, +20 vida), Carne Assada (10, +45 vida) e Torta de Frutas (12, +30 vida, +15 mana); compra carne, frutas e comida; dormitório por 15 cobre enche vida e mana | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Ferreiro compra minérios, ossos, peles, couro, presas, quitina, seda e madeira (venda de equipamentos na Fase 11) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Pergaminhos não são vendidos a NPCs (ficam para os focos de habilidade, Fase 12) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Vida e mana não enchem mais sozinhas na cidade; enchem ao subir de nível e dormindo na Taverna. Depois de cair, o jogador volta com metade da vida e mana cheia | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Teclas 1, 2 e 3 usam a menor poção de vida, a menor de mana e uma comida; o servidor gasta o item, o efeito vale no navegador (vida e mana continuam só no navegador) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Lojas, dormitório e câmbio só funcionam na cidade: o servidor recusa com uma exploração aberta. Voltar pela saída de uma área agora encerra a entrada | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Compra de até 99 unidades por vez; as janelas dos serviços são HTML por cima do jogo, com botões (sem campo de texto) | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 

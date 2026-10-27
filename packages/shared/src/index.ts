@@ -10,3 +10,4 @@ export * from './procgen/chests.ts';
 export * from './combat/progression.ts';
 export * from './combat/damage.ts';
 export * from './combat/ai.ts';
+export * from './economy/shop.ts';

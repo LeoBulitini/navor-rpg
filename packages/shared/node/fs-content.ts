@@ -23,6 +23,7 @@ export function readRawContent(): RawContent {
     combat: readJson('combat.json'),
     world: readJson('world.json'),
     procedural: readJson('procedural.json'),
+    shops: readJson('shops.json'),
     maps,
   };
 }
