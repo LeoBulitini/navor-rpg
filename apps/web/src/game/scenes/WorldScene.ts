@@ -1,12 +1,17 @@
 import * as Phaser from 'phaser';
 import {
+  attackFor,
   createRng,
+  defenseFor,
   exitAt,
   facingVector,
   generateCave,
   levelThresholds,
+  pathOfClass,
+  pathStatsFor,
   placeMonsters,
   rollDamage,
+  rollHit,
   statsForLevel,
   parseAsciiMap,
   placeResourceNodes,
@@ -17,6 +22,7 @@ import {
   type NodeContent,
   type ParsedMap,
   type PlacedObject,
+  type BasicAttack,
   type CharacterStats,
   type Rng,
 } from '@navor/shared';
@@ -285,11 +291,16 @@ export class WorldScene extends Phaser.Scene {
     this.hud = new CombatHud(this);
   }
 
-  /** Atributos da classe no nível atual. Classes sem tabela própria usam a do Mago (única jogável no MVP). */
+  /** Atributos do caminho da classe (Magia, Corpo a corpo, Distância) no nível atual. */
   private currentStats(): CharacterStats {
-    const { classStats } = content.progression;
-    const cls = classStats.find((c) => c.classId === sessionClassId(this)) ?? classStats.find((c) => c.classId === 'mage')!;
-    return statsForLevel(cls, getProgress(this).state.level);
+    const path = pathOfClass(content.classes, sessionClassId(this));
+    const stats = statsForLevel(pathStatsFor(content.progression, path), getProgress(this).state.level);
+    this.player.setSpeedTiles(stats.moveSpeedTilesPerSecond);
+    return stats;
+  }
+
+  private basicAttack(): BasicAttack {
+    return content.combat.basicAttacks[pathOfClass(content.classes, sessionClassId(this))]!;
   }
 
   private updateCombat(time: number, delta: number): void {
@@ -299,24 +310,42 @@ export class WorldScene extends Phaser.Scene {
     this.firePressed = false;
     if (fire) this.shoot(time);
 
-    const range = combat.basicAttack.rangeTiles * this.map.tileSize;
-    for (const obj of this.bolts.getChildren()) {
+    const range = this.basicAttack().rangeTiles * this.map.tileSize;
+    for (const obj of [...this.bolts.getChildren()]) {
       const bolt = obj as Phaser.Physics.Arcade.Image;
       const from = bolt.getData('from') as { x: number; y: number };
-      if (Phaser.Math.Distance.Between(from.x, from.y, bolt.x, bolt.y) > range) bolt.destroy();
+      // Confere o trecho percorrido desde o último quadro: com poucos FPS, um projétil rápido
+      // pularia por cima do monstro e a sobreposição da física não o pegaria.
+      const prev = (bolt.getData('prev') as { x: number; y: number } | undefined) ?? from;
+      const path = new Phaser.Geom.Line(prev.x, prev.y, bolt.x, bolt.y);
+      bolt.setData('prev', { x: bolt.x, y: bolt.y });
+      const struck = this.monsters.find((m) => {
+        if (m.state !== 'alive') return false;
+        const b = m.body;
+        return Phaser.Geom.Intersects.LineToRectangle(path, new Phaser.Geom.Rectangle(b.x - 4, b.y - 4, b.width + 8, b.height + 8));
+      });
+      if (struck) {
+        bolt.destroy();
+        this.hitMonster(struck);
+      } else if (Phaser.Math.Distance.Between(from.x, from.y, bolt.x, bolt.y) > range) {
+        bolt.destroy();
+      }
     }
 
     const c = this.player.body.center;
+    const noCrit = { critChance: 0, critDamage: 1 };
     for (const m of this.monsters) {
-      if (m.think(time, { x: c.x, y: c.y })) this.hurtPlayer(rollDamage(m.def.stats.attack, this.stats.defense, combat, this.rng).amount);
+      if (!m.think(time, { x: c.x, y: c.y })) continue;
+      const { attack, damageType } = m.def.stats;
+      this.hurtPlayer(rollDamage(attack, defenseFor(this.stats, damageType), noCrit, combat, this.rng).amount);
     }
     const level = getProgress(this).state.level;
     this.hud.draw(this.vitals, getProgress(this).state, [THRESHOLDS[level]!, THRESHOLDS[Math.min(level + 1, THRESHOLDS.length - 1)]!]);
   }
 
-  /** Projétil Arcano na direção em que o jogador está virado. */
+  /** Ataque básico da classe na direção em que o jogador está virado: projétil (Mago, Arqueiro) ou golpe (Guerreiro). */
   private shoot(time: number): void {
-    const attack = content.combat.basicAttack;
+    const attack = this.basicAttack();
     if (time - this.lastShot < attack.cooldownMs) return;
     if (this.vitals.mana < attack.manaCost) {
       this.showNotice('Sem mana.');
@@ -326,15 +355,38 @@ export class WorldScene extends Phaser.Scene {
     this.vitals.mana -= attack.manaCost;
     const c = this.player.body.center;
     const dir = facingVector(this.player.getFacing());
-    const speed = attack.projectileSpeedTilesPerSecond * this.map.tileSize;
+    const angle = Math.atan2(dir.vy, dir.vx);
+    const T = this.map.tileSize;
+    if (attack.kind === 'melee') {
+      // Golpe em arco à frente: acerta todo monstro vivo dentro do alcance e do ângulo.
+      const reach = attack.rangeTiles * T;
+      const slash = this.add.image(c.x + dir.vx * T * 0.6, c.y + dir.vy * T * 0.6, TextureKeys.effect(attack.sprite));
+      slash.setRotation(angle).setDepth(9000);
+      this.tweens.add({ targets: slash, alpha: 0, duration: 180, onComplete: () => slash.destroy() });
+      for (const m of this.monsters) {
+        if (m.state !== 'alive') continue;
+        const mc = m.body.center;
+        const d = Phaser.Math.Distance.Between(c.x, c.y, mc.x, mc.y);
+        const off = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(mc.y - c.y, mc.x - c.x) - angle));
+        if (d <= reach && (d < T * 0.5 || off <= Phaser.Math.DegToRad(attack.arcDegrees / 2))) this.hitMonster(m);
+      }
+      return;
+    }
+    const speed = attack.projectileSpeedTilesPerSecond * T;
     const bolt = this.bolts.create(c.x, c.y, TextureKeys.effect(attack.sprite)) as Phaser.Physics.Arcade.Image;
-    bolt.setDepth(9000).setData('from', { x: c.x, y: c.y });
-    bolt.body!.setCircle(4, 4, 4);
+    bolt.setDepth(9000).setRotation(angle).setData('from', { x: c.x, y: c.y });
+    bolt.body!.setCircle(4, bolt.width / 2 - 4, bolt.height / 2 - 4);
     bolt.setVelocity(dir.vx * speed, dir.vy * speed);
   }
 
   private hitMonster(m: Monster): void {
-    const hit = rollDamage(this.stats.attack, m.def.stats.defense, content.combat, this.rng);
+    const { combat } = content;
+    if (!rollHit(this.stats.precision, combat, this.rng)) {
+      this.floatText(m.x, m.y - 14, 'Errou', '#9ca3af');
+      return;
+    }
+    const type = this.basicAttack().damageType;
+    const hit = rollDamage(attackFor(this.stats, type), defenseFor(m.def.stats, type), this.stats, combat, this.rng);
     m.hp = Math.max(0, m.hp - hit.amount);
     m.flash();
     this.floatText(m.x, m.y - 14, `${hit.amount}${hit.crit ? '!' : ''}`, hit.crit ? '#fde047' : '#ffffff');
@@ -559,6 +611,8 @@ export class WorldScene extends Phaser.Scene {
       dead: () => this.dead,
       /** Dano direto no jogador (para testar a morte sem esperar os monstros). */
       hurtPlayer: (amount: number) => this.hurtPlayer(amount, true),
+      /** Enche a vida (para testes que não devem depender dos golpes dos monstros). */
+      heal: () => (this.vitals.hp = this.vitals.maxHp),
       zoom: () => this.scale.zoom,
       debugEnabled: () => this.debug.isEnabled(),
       session: () => this.registry.get('session'),

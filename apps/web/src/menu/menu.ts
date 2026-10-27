@@ -4,10 +4,11 @@ import { supabase } from '../services/supabase.ts';
 import { getSession, signIn, signOut, signUp } from '../services/auth.ts';
 import { createCharacter, listMyCharacters, listStartingClasses, type Character } from '../services/characters.ts';
 import { friendlyError } from '../services/errors.ts';
+import { content } from '../content.ts';
 
 export type PlaySession =
   | { mode: 'online'; character: Character }
-  | { mode: 'offline' };
+  | { mode: 'offline'; classId: string };
 
 const h = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -48,14 +49,19 @@ export function runMenu(host: HTMLElement): Promise<PlaySession> {
 
     // ---------- sem backend configurado ----------
     const showOffline = () => {
-      const play = h('button', { type: 'button' }, 'Jogar offline (sem salvar)');
-      play.onclick = () => finish({ mode: 'offline' });
+      // Uma opção por classe inicial (nível 0 de cada caminho).
+      const buttons = content.classes.paths.map((path) => {
+        const stage = path.stages.find((s) => s.level === 0)!;
+        const b = h('button', { type: 'button' }, `Jogar offline: ${stage.name}`);
+        b.onclick = () => finish({ mode: 'offline', classId: stage.classId });
+        return b;
+      });
       panel(
         h('h2', {}, 'Servidor não configurado'),
         h('p', { className: 'note' },
           'Faltam VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY (veja apps/web/.env.example). ',
           'Dá para testar a cena sem login, mas nada é salvo.'),
-        h('div', { className: 'row' }, play),
+        h('div', { className: 'col' }, ...buttons),
       );
     };
 

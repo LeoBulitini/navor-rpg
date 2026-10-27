@@ -1,16 +1,13 @@
 {
-  "$comment": "Combate em tempo real (GDD 17: tempo real ou turnos era A DEFINIR). Valores PROVISÓRIOS decididos por Claude em 2026-10-27. Dano = max(1, ataque * variação - defesa * defenseFactor), com crítico. 'server.maxDamagePerSecond' é o teto (base + perLevel × nível) que o servidor aceita ao validar abates: cerca de 1,5× o máximo possível do Mago.",
-  "basicAttack": {
-    "name": "Projétil Arcano",
-    "sprite": "arcane-bolt",
-    "manaCost": 3,
-    "cooldownMs": 450,
-    "projectileSpeedTilesPerSecond": 9,
-    "rangeTiles": 6
+  "$comment": "Combate em tempo real (GDD 17: A DEFINIR). PROVISÓRIO, decidido por Claude em 2026-10-27. Um ataque básico por caminho de classe. Dano = max(1, ataque × variação − defesa × defenseFactor), com ataque/defesa físicos ou mágicos conforme 'damageType'; crítico pela chance e multiplicador do personagem. Acerto = min(1, baseHitChance + precisão × hitPerPrecision). 'server.maxDamagePerSecond' é o teto (base + perLevel × nível) que o servidor aceita ao validar abates; um teste garante que fica acima do máximo de qualquer caminho.",
+  "basicAttacks": {
+    "magic": { "name": "Projétil Arcano", "kind": "projectile", "damageType": "magical", "sprite": "arcane-bolt", "manaCost": 3, "cooldownMs": 450, "projectileSpeedTilesPerSecond": 9, "rangeTiles": 6 },
+    "melee": { "name": "Golpe de Espada", "kind": "melee", "damageType": "physical", "sprite": "slash", "manaCost": 0, "cooldownMs": 500, "rangeTiles": 1.4, "arcDegrees": 110 },
+    "ranged": { "name": "Flecha", "kind": "projectile", "damageType": "physical", "sprite": "arrow", "manaCost": 0, "cooldownMs": 550, "projectileSpeedTilesPerSecond": 12, "rangeTiles": 7 }
   },
   "manaRegenPerSecond": 4,
-  "critChance": 0.05,
-  "critMultiplier": 1.5,
+  "baseHitChance": 0.85,
+  "hitPerPrecision": 0.005,
   "damageVariance": 0.1,
   "defenseFactor": 0.5,
   "invulnerableAfterHitMs": 500,

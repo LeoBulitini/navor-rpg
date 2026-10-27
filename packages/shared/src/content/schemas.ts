@@ -151,10 +151,14 @@ export const creaturesConfigSchema = z.object({
   spawn: z.array(z.object({ creature: z.string().min(1), weight: z.number().int().positive() })).min(1),
 });
 
-const stats = z.object({
-  hp: z.number().positive(),
+export const damageTypeSchema = z.enum(['physical', 'magical']);
+
+const creatureStats = z.object({
+  hp: z.number().int().positive(),
   attack: z.number().min(0),
-  defense: z.number().min(0),
+  damageType: damageTypeSchema,
+  physDefense: z.number().min(0),
+  magDefense: z.number().min(0),
 });
 
 export const creaturesSchema = z.object({
@@ -164,7 +168,7 @@ export const creaturesSchema = z.object({
         id: z.string().regex(/^[a-z0-9-]+$/, 'use letras minúsculas, números e hífen'),
         name: z.string().min(1),
         sprite: z.string().min(1),
-        stats: stats.extend({ hp: z.number().int().positive() }),
+        stats: creatureStats,
         moveSpeedTilesPerSecond: z.number().positive(),
         detectTiles: z.number().positive(),
         attackRangeTiles: z.number().positive(),
@@ -183,31 +187,52 @@ export const creaturesSchema = z.object({
     .min(1),
 });
 
+/** Atributos fixos do GDD 5.1 (a velocidade não cresce por nível). */
+const growth = {
+  hp: z.number().min(0),
+  mana: z.number().min(0),
+  physAttack: z.number().min(0),
+  physDefense: z.number().min(0),
+  magAttack: z.number().min(0),
+  magDefense: z.number().min(0),
+  precision: z.number().min(0),
+  critChance: z.number().min(0).max(1),
+  critDamage: z.number().min(0),
+};
+
 export const progressionSchema = z.object({
   xpCurve: z.object({ base: z.number().positive(), exponent: z.number().positive() }),
-  classStats: z
+  pathStats: z
     .array(
       z.object({
-        classId: z.string().min(1),
-        base: stats.extend({ mana: z.number().min(0) }),
-        perLevel: z.object({ hp: z.number().min(0), mana: z.number().min(0), attack: z.number().min(0), defense: z.number().min(0) }),
+        pathId: z.string().min(1),
+        base: z.object({ ...growth, hp: z.number().positive(), critDamage: z.number().min(1), moveSpeedTilesPerSecond: z.number().positive() }),
+        perLevel: z.object(growth),
       }),
     )
     .min(1),
 });
 
+const attackBase = {
+  name: z.string().min(1),
+  damageType: damageTypeSchema,
+  sprite: z.string().min(1),
+  manaCost: z.number().min(0),
+  cooldownMs: z.number().int().positive(),
+  rangeTiles: z.number().positive(),
+};
+
+export const basicAttackSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('projectile'), ...attackBase, projectileSpeedTilesPerSecond: z.number().positive() }),
+  z.object({ kind: z.literal('melee'), ...attackBase, arcDegrees: z.number().positive().max(360) }),
+]);
+
 export const combatSchema = z.object({
-  basicAttack: z.object({
-    name: z.string().min(1),
-    sprite: z.string().min(1),
-    manaCost: z.number().min(0),
-    cooldownMs: z.number().int().positive(),
-    projectileSpeedTilesPerSecond: z.number().positive(),
-    rangeTiles: z.number().positive(),
-  }),
+  /** um ataque básico por caminho de classe (id de classes.json paths) */
+  basicAttacks: z.record(z.string(), basicAttackSchema),
   manaRegenPerSecond: z.number().min(0),
-  critChance: z.number().min(0).max(1),
-  critMultiplier: z.number().min(1),
+  baseHitChance: z.number().min(0).max(1),
+  hitPerPrecision: z.number().min(0),
   damageVariance: z.number().min(0).max(0.9),
   defenseFactor: z.number().min(0),
   invulnerableAfterHitMs: z.number().int().min(0),
@@ -258,5 +283,7 @@ export type CreaturesConfig = z.infer<typeof creaturesConfigSchema>;
 export type Creatures = z.infer<typeof creaturesSchema>;
 export type CreatureDef = Creatures['creatures'][number];
 export type Progression = z.infer<typeof progressionSchema>;
-export type ClassStats = Progression['classStats'][number];
+export type PathStats = Progression['pathStats'][number];
+export type BasicAttack = z.infer<typeof basicAttackSchema>;
+export type DamageType = z.infer<typeof damageTypeSchema>;
 export type Combat = z.infer<typeof combatSchema>;

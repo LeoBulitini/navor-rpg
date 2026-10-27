@@ -56,6 +56,12 @@ Em 2026-10-27 Leonardo autorizou Claude a decidir os itens pendentes e seguir at
 | 2026-10-27 | Testes automáticos (typecheck, unitários, fumaça, banco) no GitHub Actions a cada PR; gratuito por o repositório ser público | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | As chaves públicas do Supabase (URL e publishable) ficam no workflow do Windows como valor padrão, porque o ambiente do Claude não consegue criar variáveis do repositório; podem ser trocadas por variáveis do repositório | Decidida por Claude (autorização de 2026-10-27), provisória |
 | 2026-10-27 | Ícone provisório do app feito do sprite do Mago | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Fase 8: Guerreiro e Arqueiro jogáveis desde a criação, ao lado do Mago (GDD 1.1) | Conforme GDD |
+| 2026-10-27 | Atributos do GDD 5.1 (Vida, Mana, Ataque e Defesa Físicos e Mágicos, Precisão, Chance e Dano Crítico, Velocidade) definidos por caminho de classe, com valor inicial e ganho por nível em `content/progression.json`; as classes evoluídas herdam os do caminho | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Ataque básico por caminho: Mago, Projétil Arcano (mágico, 3 de mana); Guerreiro, Golpe de Espada em arco de 110° à frente (físico, sem mana); Arqueiro, Flecha (física, sem mana, alcance 7) | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Acerto = 85% + 0,5% por ponto de Precisão (máximo 100%); errar mostra "Errou". Monstros têm Defesa Física e Mágica separadas e golpe físico | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | Velocidade do Arqueiro 4,25 tiles/s; Mago e Guerreiro 4 | Decidida por Claude (autorização de 2026-10-27), provisória |
+| 2026-10-27 | No modo offline dá para escolher qualquer classe inicial | Decidida por Claude (autorização de 2026-10-27), provisória |
 
 ## Pendentes (não decidir sem o dono do projeto)
 
