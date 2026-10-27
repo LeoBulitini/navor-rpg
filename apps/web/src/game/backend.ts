@@ -25,6 +25,11 @@ import {
   pickDailyQuests,
   questProgress,
   type QuestEvent,
+  chatMessage,
+  guildNameError,
+  tidyText,
+  trainingMinutes,
+  trainingXp,
   rollChestContents,
   rollChestCount,
   rollKillRewards,
@@ -42,6 +47,25 @@ import { exchangeCurrency, shopBuy, shopSell, tavernRest, useItem } from '../ser
 import { craftItem, equipGear, listGear, sellGear, unequipGear, upgradeGear, type GearRow } from '../services/gear.ts';
 import { evolveClass, learnSkill, listSkills } from '../services/skills.ts';
 import { claimQuest, listDailyQuests } from '../services/quests.ts';
+import { listListings, listStorage, marketBuy, marketCancel, marketList, storageDeposit, storageWithdraw, type ListingRow } from '../services/market.ts';
+import {
+  chatHistory,
+  chatSend,
+  guildCreate,
+  guildInfo,
+  guildJoin,
+  guildKick,
+  guildLeave,
+  joinPresence,
+  onChatMessage,
+  ranking,
+  trainingClaim,
+  trainingStart,
+  trainingStatus,
+  type ChatRow,
+  type PresenceInfo,
+  type TrainingRow,
+} from '../services/social.ts';
 import { collectNode, endExploration, killMonster, listInventory, openChest, startExploration } from '../services/exploration.ts';
 
 /** Uma entrada numa área gerada: a seed do mapa, o que cada ponto de coleta dá, quais monstros e quantos baús há. */
@@ -155,6 +179,34 @@ export interface ClaimResult extends Wallet {
   items: { itemId: string; quantity: number; total: number }[];
 }
 
+/** Um anúncio do mercado entre jogadores. */
+export interface Listing {
+  id: string;
+  itemId: string;
+  quantity: number;
+  price: number;
+  currency: 'copper' | 'gold';
+  sellerName: string;
+  /** instante em que vence (ms) */
+  expiresAt: number;
+  mine: boolean;
+}
+
+export interface MarketBoard {
+  /** anúncios ativos de outros jogadores, do mais barato ao mais caro */
+  offers: Listing[];
+  /** anúncios abertos deste personagem (inclusive vencidos, para recolher) */
+  mine: Listing[];
+}
+
+export interface StorageResult {
+  itemId: string;
+  /** total no inventário */
+  total: number;
+  /** total no armazém */
+  stored: number;
+}
+
 export interface EquipResult {
   gear: GearPiece;
   /** peça que saiu do espaço, se havia */
@@ -180,6 +232,56 @@ export interface ProgressState {
  * O que o jogo pede ao "servidor". Online, cada chamada vai ao Supabase, que decide e grava.
  * Offline, a mesma regra roda no navegador e nada é salvo.
  */
+/** Treino no Salão. `startedAt` já vem no relógio local (corrigido pela diferença para o servidor). */
+export interface TrainingState {
+  training: boolean;
+  startedAt: number;
+  level: number;
+  minutes: number;
+  xp: number;
+}
+
+export interface TrainingClaim {
+  minutes: number;
+  xpGained: number;
+  xp: number;
+  level: number;
+  leveledUp: boolean;
+}
+
+export interface GuildMember {
+  name: string;
+  classId: string;
+  level: number;
+  role: 'leader' | 'member';
+}
+
+export interface GuildBoard {
+  maxMembers: number;
+  mine: { id: string; name: string; tag: string; role: 'leader' | 'member'; members: GuildMember[] } | null;
+  guilds: { id: string; name: string; tag: string; members: number; totalLevel: number }[];
+}
+
+export interface Ranking {
+  players: { name: string; classId: string; level: number; xp: number; guildTag: string | null }[];
+  guilds: { name: string; tag: string; members: number; totalLevel: number }[];
+}
+
+export interface ChatMessage {
+  id: string;
+  channel: 'global' | 'guild';
+  author: string;
+  body: string;
+  at: number;
+}
+
+export type { PresenceInfo };
+
+export interface Presence {
+  update(info: Partial<PresenceInfo>): void;
+  leave(): void;
+}
+
 export interface GameBackend {
   readonly saves: boolean;
   startExploration(areaId: string): Promise<ExplorationRun>;
@@ -205,6 +307,28 @@ export interface GameBackend {
   evolve(): Promise<EvolveResult>;
   loadQuests(): Promise<QuestBoard>;
   claimQuest(slot: number): Promise<ClaimResult>;
+  loadMarket(): Promise<MarketBoard>;
+  listOnMarket(shopId: string, itemId: string, quantity: number, price: number, currency: 'copper' | 'gold'): Promise<{ itemId: string; total: number }>;
+  buyFromMarket(shopId: string, listingId: string, quantity: number): Promise<TradeResult>;
+  cancelListing(shopId: string, listingId: string): Promise<{ itemId: string; total: number; returned: number }>;
+  loadStorage(): Promise<Map<string, number>>;
+  deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult>;
+  withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult>;
+  loadTraining(): Promise<TrainingState>;
+  startTraining(): Promise<TrainingState>;
+  claimTraining(): Promise<TrainingClaim>;
+  loadGuilds(): Promise<GuildBoard>;
+  createGuild(name: string, tag: string): Promise<Wallet & { name: string; tag: string }>;
+  joinGuild(guildId: string): Promise<void>;
+  leaveGuild(): Promise<void>;
+  kickMember(name: string): Promise<void>;
+  loadRanking(): Promise<Ranking>;
+  loadChat(): Promise<ChatMessage[]>;
+  sendChat(channel: 'global' | 'guild', body: string): Promise<ChatMessage>;
+  /** mensagens novas de outros jogadores; devolve a função que cancela */
+  onChat(handler: (m: ChatMessage) => void): () => void;
+  /** quem está jogando agora (só para mostrar) */
+  joinPresence(info: PresenceInfo, onChange: (online: PresenceInfo[]) => void): Presence;
 }
 
 /** Recusa de uma regra do jogo no modo offline, com o mesmo código dos erros das funções do banco (P0001). */
@@ -212,11 +336,111 @@ class RuleError extends Error {
   readonly code = 'P0001';
 }
 
+const fromListing = (r: ListingRow, characterId: string): Listing => ({
+  id: r.id,
+  itemId: r.item_id,
+  quantity: r.quantity,
+  price: r.price,
+  currency: r.currency,
+  sellerName: r.seller_name,
+  expiresAt: Date.parse(r.expires_at),
+  mine: r.seller_id === characterId,
+});
+
+const fromTraining = (r: TrainingRow): TrainingState => {
+  // o tempo conta pelo relógio do servidor: traz o começo para o relógio local
+  const offset = Date.now() - Date.parse(r.now);
+  return {
+    training: r.training,
+    startedAt: r.started_at ? Date.parse(r.started_at) + offset : 0,
+    level: r.level ?? 0,
+    minutes: r.minutes ?? 0,
+    xp: r.xp ?? 0,
+  };
+};
+
+const fromChat = (r: ChatRow): ChatMessage => ({
+  id: String(r.id),
+  channel: r.guild_id ? 'guild' : 'global',
+  author: r.author,
+  body: r.body,
+  at: Date.parse(r.created_at),
+});
+
 const fromRow = (r: GearRow): GearPiece => ({ id: r.id, itemId: r.item_id, upgrade: r.upgrade, slot: r.slot });
 
 class OnlineBackend implements GameBackend {
   readonly saves = true;
   constructor(private readonly characterId: string) {}
+
+  async loadTraining(): Promise<TrainingState> {
+    return fromTraining(await trainingStatus(this.characterId));
+  }
+
+  async startTraining(): Promise<TrainingState> {
+    return fromTraining(await trainingStart(this.characterId));
+  }
+
+  async claimTraining(): Promise<TrainingClaim> {
+    const r = await trainingClaim(this.characterId);
+    return { minutes: Number(r.minutes), xpGained: Number(r.xp_gained), xp: Number(r.xp), level: r.level, leveledUp: r.leveled_up };
+  }
+
+  async loadGuilds(): Promise<GuildBoard> {
+    const r = await guildInfo(this.characterId);
+    return {
+      maxMembers: r.max_members,
+      mine: r.mine && {
+        id: r.mine.id,
+        name: r.mine.name,
+        tag: r.mine.tag,
+        role: r.mine.role,
+        members: r.mine.members.map((m) => ({ name: m.name, classId: m.class_id, level: m.level, role: m.role })),
+      },
+      guilds: r.guilds.map((g) => ({ id: g.id, name: g.name, tag: g.tag, members: Number(g.members), totalLevel: Number(g.total_level) })),
+    };
+  }
+
+  async createGuild(name: string, tag: string): Promise<Wallet & { name: string; tag: string }> {
+    const r = await guildCreate(this.characterId, name, tag);
+    return { name: r.name, tag: r.tag, copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async joinGuild(guildId: string): Promise<void> {
+    await guildJoin(this.characterId, guildId);
+  }
+
+  async leaveGuild(): Promise<void> {
+    await guildLeave(this.characterId);
+  }
+
+  async kickMember(name: string): Promise<void> {
+    await guildKick(this.characterId, name);
+  }
+
+  async loadRanking(): Promise<Ranking> {
+    const r = await ranking();
+    return {
+      players: r.players.map((p) => ({ name: p.name, classId: p.class_id, level: p.level, xp: Number(p.xp), guildTag: p.guild_tag })),
+      guilds: r.guilds.map((g) => ({ name: g.name, tag: g.tag, members: Number(g.members), totalLevel: Number(g.total_level) })),
+    };
+  }
+
+  async loadChat(): Promise<ChatMessage[]> {
+    return (await chatHistory(content.social.chat.history)).map(fromChat);
+  }
+
+  async sendChat(channel: 'global' | 'guild', body: string): Promise<ChatMessage> {
+    return fromChat(await chatSend(this.characterId, channel, body));
+  }
+
+  onChat(handler: (m: ChatMessage) => void): () => void {
+    return onChatMessage((r) => handler(fromChat(r)));
+  }
+
+  joinPresence(info: PresenceInfo, onChange: (online: PresenceInfo[]) => void): Presence {
+    return joinPresence(this.characterId, info, onChange);
+  }
 
   async startExploration(areaId: string): Promise<ExplorationRun> {
     const r = await startExploration(this.characterId, areaId);
@@ -354,6 +578,41 @@ class OnlineBackend implements GameBackend {
     };
   }
 
+  async loadMarket(): Promise<MarketBoard> {
+    const rows = (await listListings()).map((r) => fromListing(r, this.characterId));
+    const now = Date.now();
+    return { offers: rows.filter((l) => !l.mine && l.quantity > 0 && l.expiresAt > now), mine: rows.filter((l) => l.mine) };
+  }
+
+  async listOnMarket(shopId: string, itemId: string, quantity: number, price: number, currency: 'copper' | 'gold'): Promise<{ itemId: string; total: number }> {
+    const r = await marketList(this.characterId, shopId, itemId, quantity, price, currency);
+    return { itemId: r.item_id, total: Number(r.total) };
+  }
+
+  async buyFromMarket(shopId: string, listingId: string, quantity: number): Promise<TradeResult> {
+    const r = await marketBuy(this.characterId, shopId, listingId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), copper: Number(r.copper), gold: Number(r.gold) };
+  }
+
+  async cancelListing(shopId: string, listingId: string): Promise<{ itemId: string; total: number; returned: number }> {
+    const r = await marketCancel(this.characterId, shopId, listingId);
+    return { itemId: r.item_id, total: Number(r.total), returned: r.returned };
+  }
+
+  async loadStorage(): Promise<Map<string, number>> {
+    return new Map((await listStorage()).map((r) => [r.item_id, Number(r.quantity)]));
+  }
+
+  async deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    const r = await storageDeposit(this.characterId, shopId, itemId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), stored: Number(r.stored) };
+  }
+
+  async withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    const r = await storageWithdraw(this.characterId, shopId, itemId, quantity);
+    return { itemId: r.item_id, total: Number(r.total), stored: Number(r.stored) };
+  }
+
   async claimQuest(slot: number): Promise<ClaimResult> {
     const r = await claimQuest(this.characterId, slot);
     return {
@@ -410,6 +669,8 @@ export class OfflineBackend implements GameBackend {
     if (!area) throw new RuleError(`Área desconhecida: ${areaId}`);
     // mesmas regras de start_exploration (migration daily): nível mínimo e uma entrada por dia
     if (this.progress.level < area.minLevel) throw new RuleError(`Você precisa estar no nível ${area.minLevel} para entrar aqui.`);
+    // gatilho explorations_block_training (migration social)
+    if (this.training) throw new RuleError('Você está treinando no Salão. Encerre o treino para sair da cidade.');
     if (area.daily) {
       const key = `${gameDay(new Date())}:${areaId}`;
       if (this.dailyEntries.has(key)) throw new RuleError('Você já entrou aqui hoje. Volte amanhã (o dia vira à meia-noite, horário de Brasília).');
@@ -740,6 +1001,222 @@ export class OfflineBackend implements GameBackend {
     p.copper += t.reward.copper;
     const items = [...t.reward.items].sort((a, b) => a.item.localeCompare(b.item)).map((r) => ({ itemId: r.item, quantity: r.quantity, total: this.addItem(r.item, r.quantity) }));
     return { slot, questId: t.id, xpGained: t.reward.xp, xp: p.xp, level: p.level, leveledUp: p.level > before, copperGained: t.reward.copper, copper: p.copper, gold: p.gold, items };
+  }
+
+  /** Mesmas regras de market_list, market_buy, market_cancel, storage_deposit e storage_withdraw (migration market). */
+  private readonly listings: (Listing & { closed: boolean })[] = [];
+  private readonly storage = new Map<string, number>();
+  private listingSeq = 0;
+
+  private service(shopId: string, kind: 'playerMarket' | 'storage'): void {
+    if (!this.shop(shopId)[kind]) throw new RuleError('Este serviço não fica aqui.');
+  }
+
+  private tradable(itemId: string): void {
+    const item = this.itemById.get(itemId);
+    if (!item) throw new RuleError('Item desconhecido.');
+    if (item.equip) throw new RuleError('Equipamentos ainda não podem ir ao mercado nem ao armazém.');
+  }
+
+  async loadMarket(): Promise<MarketBoard> {
+    // offline não há outros jogadores: só os próprios anúncios
+    return { offers: [], mine: this.listings.filter((l) => !l.closed).map(({ closed: _, ...l }) => ({ ...l })) };
+  }
+
+  async listOnMarket(shopId: string, itemId: string, quantity: number, price: number, currency: 'copper' | 'gold'): Promise<{ itemId: string; total: number }> {
+    this.inTown();
+    this.service(shopId, 'playerMarket');
+    this.tradable(itemId);
+    const rules = content.shops.market;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new RuleError('Quantidade inválida');
+    if (!Number.isInteger(price) || price < 1 || price > rules.maxPricePerUnit) throw new RuleError(`Preço inválido (de 1 a ${rules.maxPricePerUnit}).`);
+    const now = Date.now();
+    if (this.listings.filter((l) => !l.closed && l.quantity > 0 && l.expiresAt > now).length >= rules.maxListings) {
+      throw new RuleError(`Você já tem ${rules.maxListings} anúncios ativos.`);
+    }
+    const total = this.addItem(itemId, -quantity);
+    this.listings.push({ id: `offline-listing-${++this.listingSeq}`, itemId, quantity, price, currency, sellerName: 'Você', expiresAt: now + rules.expiresHours * 3600_000, mine: true, closed: false });
+    return { itemId, total };
+  }
+
+  async buyFromMarket(shopId: string, listingId: string): Promise<TradeResult> {
+    this.inTown();
+    this.service(shopId, 'playerMarket');
+    const l = this.listings.find((x) => x.id === listingId && !x.closed && x.expiresAt > Date.now());
+    if (!l) throw new RuleError('Este anúncio não está mais disponível.');
+    throw new RuleError('Você não pode comprar os próprios anúncios.');
+  }
+
+  async cancelListing(shopId: string, listingId: string): Promise<{ itemId: string; total: number; returned: number }> {
+    this.inTown();
+    this.service(shopId, 'playerMarket');
+    const l = this.listings.find((x) => x.id === listingId);
+    if (!l) throw new RuleError('Anúncio não encontrado.');
+    if (l.closed) throw new RuleError('Este anúncio já foi encerrado.');
+    l.closed = true;
+    const total = l.quantity > 0 ? this.addItem(l.itemId, l.quantity) : (this.inventory.get(l.itemId) ?? 0);
+    return { itemId: l.itemId, total, returned: l.quantity };
+  }
+
+  async loadStorage(): Promise<Map<string, number>> {
+    return new Map(this.storage);
+  }
+
+  async deposit(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    this.inTown();
+    this.service(shopId, 'storage');
+    this.tradable(itemId);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) throw new RuleError('Quantidade inválida');
+    const max = content.shops.storage.maxStacks;
+    if (!this.storage.has(itemId) && this.storage.size >= max) throw new RuleError(`O armazém está cheio (${max} tipos de item). Retire algo antes.`);
+    const total = this.addItem(itemId, -quantity);
+    const stored = (this.storage.get(itemId) ?? 0) + quantity;
+    this.storage.set(itemId, stored);
+    return { itemId, total, stored };
+  }
+
+  async withdraw(shopId: string, itemId: string, quantity: number): Promise<StorageResult> {
+    this.inTown();
+    this.service(shopId, 'storage');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) throw new RuleError('Quantidade inválida');
+    const have = this.storage.get(itemId) ?? 0;
+    if (have < quantity) throw new RuleError('Você não tem tudo isso no armazém.');
+    const stored = have - quantity;
+    if (stored === 0) this.storage.delete(itemId);
+    else this.storage.set(itemId, stored);
+    return { itemId, total: this.addItem(itemId, quantity), stored };
+  }
+
+  /** Mesmas regras de training_*, guild_*, chat_send e ranking (migration social). Offline não há outros jogadores. */
+  private training: { startedAt: number; level: number } | null = null;
+  private guild: { id: string; name: string; tag: string } | null = null;
+  private chat: ChatMessage[] = [];
+  private lastChat = 0;
+
+  private trainingState(): TrainingState {
+    const t = this.training;
+    if (!t) return { training: false, startedAt: 0, level: 0, minutes: 0, xp: 0 };
+    const ms = Date.now() - t.startedAt;
+    return { training: true, startedAt: t.startedAt, level: t.level, minutes: trainingMinutes(content.social.training, ms), xp: trainingXp(content.social.training, t.level, ms) };
+  }
+
+  async loadTraining(): Promise<TrainingState> {
+    return this.trainingState();
+  }
+
+  async startTraining(): Promise<TrainingState> {
+    this.inTown();
+    if (this.training) throw new RuleError('Você já está treinando.');
+    this.training = { startedAt: Date.now(), level: this.progress.level };
+    return this.trainingState();
+  }
+
+  async claimTraining(): Promise<TrainingClaim> {
+    this.inTown();
+    if (!this.training) throw new RuleError('Você não está treinando.');
+    const { minutes, xp: gained } = this.trainingState();
+    this.training = null;
+    const p = this.progress;
+    const before = p.level;
+    p.xp += gained;
+    p.level = levelForXp(p.xp, this.thresholds);
+    return { minutes, xpGained: gained, xp: p.xp, level: p.level, leveledUp: p.level > before };
+  }
+
+  private selfMember(): GuildMember {
+    return { name: 'Você', classId: this.classId, level: this.progress.level, role: 'leader' };
+  }
+
+  async loadGuilds(): Promise<GuildBoard> {
+    const g = this.guild;
+    return {
+      maxMembers: content.social.guilds.maxMembers,
+      mine: g && { ...g, role: 'leader', members: [this.selfMember()] },
+      guilds: g ? [{ ...g, members: 1, totalLevel: this.progress.level }] : [],
+    };
+  }
+
+  async createGuild(name: string, tag: string): Promise<Wallet & { name: string; tag: string }> {
+    this.inTown();
+    const rules = content.social.guilds;
+    if (this.guild) throw new RuleError('Saia da sua guilda antes de fundar outra.');
+    const error = guildNameError(name, tag, rules);
+    if (error) throw new RuleError(error);
+    if (this.progress.copper < rules.createCost) throw new RuleError(`Fundar uma guilda custa ${rules.createCost} de cobre.`);
+    this.progress.copper -= rules.createCost;
+    this.guild = { id: 'offline-guild', name: tidyText(name), tag: tidyText(tag).toUpperCase() };
+    return { name: this.guild.name, tag: this.guild.tag, copper: this.progress.copper, gold: this.progress.gold };
+  }
+
+  async joinGuild(): Promise<void> {
+    throw new RuleError('Guilda não encontrada.');
+  }
+
+  async leaveGuild(): Promise<void> {
+    this.inTown();
+    if (!this.guild) throw new RuleError('Você não está numa guilda.');
+    // sozinho na guilda: ela acaba junto com o canal dela
+    this.guild = null;
+    this.chat = this.chat.filter((m) => m.channel === 'global');
+  }
+
+  async kickMember(): Promise<void> {
+    throw new RuleError('Esse personagem não é da sua guilda.');
+  }
+
+  async loadRanking(): Promise<Ranking> {
+    const p = this.progress;
+    return {
+      players: [{ name: 'Você', classId: this.classId, level: p.level, xp: p.xp, guildTag: this.guild?.tag ?? null }],
+      guilds: this.guild ? [{ name: this.guild.name, tag: this.guild.tag, members: 1, totalLevel: p.level }] : [],
+    };
+  }
+
+  async loadChat(): Promise<ChatMessage[]> {
+    return [...this.chat];
+  }
+
+  async sendChat(channel: 'global' | 'guild', body: string): Promise<ChatMessage> {
+    const rules = content.social.chat;
+    const m = chatMessage(body, rules);
+    if (!m.ok) throw new RuleError(m.error);
+    if (channel === 'guild' && !this.guild) throw new RuleError('Você não está numa guilda.');
+    if (Date.now() - this.lastChat < rules.cooldownSeconds * 1000) throw new RuleError('Espere um pouco antes de mandar outra mensagem.');
+    this.lastChat = Date.now();
+    const msg: ChatMessage = { id: `offline-chat-${this.chat.length + 1}`, channel, author: 'Você', body: m.text, at: Date.now() };
+    this.chat = [...this.chat, msg].slice(-rules.history);
+    return msg;
+  }
+
+  onChat(): () => void {
+    return () => {};
+  }
+
+  joinPresence(info: PresenceInfo, onChange: (online: PresenceInfo[]) => void): Presence {
+    let current = info;
+    queueMicrotask(() => onChange([current]));
+    return {
+      update: (next) => {
+        current = { ...current, ...next };
+        onChange([current]);
+      },
+      leave: () => {},
+    };
+  }
+
+  /** Só para o teste de fumaça: adianta o treino em `minutes` minutos. */
+  testShiftTraining(minutes: number): void {
+    if (this.training) this.training.startedAt -= minutes * 60_000;
+  }
+
+  /** Só para o teste de fumaça: libera o intervalo do chat. */
+  testResetChatCooldown(): void {
+    this.lastChat = 0;
+  }
+
+  /** Só para o teste de fumaça: vence um anúncio próprio (para testar o "Recolher"). */
+  testExpireListings(): void {
+    for (const l of this.listings) l.expiresAt = Date.now() - 1000;
   }
 
   /** Só para o teste de fumaça: completa uma missão do dia. */

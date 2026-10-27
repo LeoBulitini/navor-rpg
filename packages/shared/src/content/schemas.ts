@@ -450,9 +450,21 @@ export const shopsSchema = z.object({
         exchange: z.boolean().default(false),
         /** melhora equipamentos (equipment.json upgrade) */
         upgrades: z.boolean().default(false),
+        /** mercado entre jogadores (regras em 'market') */
+        playerMarket: z.boolean().default(false),
+        /** armazém da conta (regras em 'storage') */
+        storage: z.boolean().default(false),
       }),
     )
     .min(1),
+  market: z.object({
+    /** % do valor da venda que some da economia (cobrado do vendedor) */
+    taxPercent: z.number().int().min(0).max(50),
+    maxListings: z.number().int().min(1),
+    expiresHours: z.number().int().min(1),
+    maxPricePerUnit: z.number().int().min(1),
+  }),
+  storage: z.object({ maxStacks: z.number().int().min(1) }),
 });
 
 /** Missões diárias (GDD 12). O servidor sorteia as do dia, conta o progresso e entrega a recompensa. */
@@ -479,6 +491,36 @@ export const questsSchema = z.object({
     .min(1),
 });
 
+/** Salão de Treinamento, guildas, chat e ranking (GDD 7.1 e 17). O servidor confere e grava tudo. */
+export const socialSchema = z.object({
+  training: z.object({
+    /** prédio de objects.json onde se treina */
+    building: z.string().min(1),
+    maxHours: z.number().int().min(1).max(24),
+    xpPerMinuteBase: z.number().min(0),
+    xpPerMinutePerLevel: z.number().min(0),
+  }),
+  guilds: z.object({
+    building: z.string().min(1),
+    /** cobre para fundar */
+    createCost: z.number().int().min(0),
+    maxMembers: z.number().int().min(2),
+    nameMin: z.number().int().min(1),
+    nameMax: z.number().int().min(1).max(40),
+    tagMin: z.number().int().min(1),
+    tagMax: z.number().int().min(1).max(6),
+  }),
+  chat: z.object({
+    maxLength: z.number().int().min(1).max(500),
+    cooldownSeconds: z.number().int().min(0),
+    /** mensagens carregadas ao abrir */
+    history: z.number().int().min(1).max(200),
+    /** mensagens mais antigas que isso são apagadas */
+    keepDays: z.number().int().min(1),
+  }),
+  ranking: z.object({ size: z.number().int().min(1).max(100) }),
+});
+
 export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
 
 export type Rarities = z.infer<typeof raritiesSchema>;
@@ -503,6 +545,7 @@ export type Recipes = z.infer<typeof recipesSchema>;
 export type RecipeDef = Recipes['recipes'][number];
 export type Skills = z.infer<typeof skillsSchema>;
 export type Quests = z.infer<typeof questsSchema>;
+export type Social = z.infer<typeof socialSchema>;
 export type QuestTemplate = Quests['templates'][number];
 export type ActiveSkill = z.infer<typeof activeSkillSchema>;
 export type PassiveSkill = z.infer<typeof passiveSkillSchema>;

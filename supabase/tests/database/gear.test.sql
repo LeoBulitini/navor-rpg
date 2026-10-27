@@ -5,7 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(37);
+select plan(39);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.local'),
@@ -111,6 +111,10 @@ select throws_ok($$ select public.upgrade_gear(pg_temp.a(), 'blacksmith', pg_tem
 insert into t select 'sold', public.sell_gear(pg_temp.a(), 'blacksmith', pg_temp.g('helm'))::text;
 select is((select (v::jsonb ->> 'earned')::int from t where k = 'sold'), 18, 'o capuz +5 vale 18 de cobre no Ferreiro');
 select ok(not exists (select 1 from public.character_gear where id = pg_temp.g('helm')), 'a peça vendida some');
+select throws_ok($$ select public.sell_gear(pg_temp.a(), 'blacksmith', pg_temp.g('helm')) $$, 'P0001', 'Peça não encontrada', 'a peça vendida não é vendida de novo');
+reset role;
+select ok((select sold_at is not null and slot is null from public.character_gear where id = pg_temp.g('helm')), 'a venda fica marcada no histórico');
+set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 
 -- Outro jogador e escrita direta
 reset role; set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}', true);
@@ -120,7 +124,7 @@ select throws_ok($$ select public.sell_gear(pg_temp.b(), 'blacksmith', pg_temp.g
 select throws_ok($$ update public.character_gear set upgrade = 10 $$, '42501', null, 'cliente não altera peças direto');
 
 -- Limite da bolsa
-reset role; update public.equipment_rules set max_pieces = (select count(*) from public.character_gear where character_id = pg_temp.a());
+reset role; update public.equipment_rules set max_pieces = (select count(*) from public.character_gear where character_id = pg_temp.a() and sold_at is null);
 set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 select throws_ok($$ select public.shop_buy(pg_temp.a(), 'blacksmith', 'axe-iron', 1) $$, 'P0001',
   'Sua bolsa de equipamentos está cheia. Venda alguma peça no Ferreiro.', 'bolsa cheia não recebe peça nova');

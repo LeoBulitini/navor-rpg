@@ -14,6 +14,7 @@ import {
   recipesSchema,
   skillsSchema,
   questsSchema,
+  socialSchema,
   shopsSchema,
   tilesSchema,
   worldSchema,
@@ -31,6 +32,7 @@ import {
   type Recipes,
   type Skills,
   type Quests,
+  type Social,
   type Shops,
   type TileDefs,
   type World,
@@ -58,6 +60,7 @@ export interface RawContent {
   recipes: unknown;
   skills: unknown;
   quests: unknown;
+  social: unknown;
   maps: Record<string, unknown>;
 }
 
@@ -78,6 +81,7 @@ export interface Content {
   recipes: Recipes;
   skills: Skills;
   quests: Quests;
+  social: Social;
   maps: Record<string, AsciiMap>;
 }
 
@@ -234,6 +238,8 @@ export function loadContent(raw: RawContent): Content {
     }
     for (const c of shop.buys.categories) if (!categories.has(c as never)) throw new Error(`${where}: categoria "${c}" não existe`);
   }
+  if (!shops.shops.some((x) => x.playerMarket)) throw new Error('shops.json: nenhum prédio tem o mercado entre jogadores (playerMarket)');
+  if (!shops.shops.some((x) => x.storage)) throw new Error('shops.json: nenhum prédio tem o armazém (storage)');
 
   const equipment = parseWith(equipmentSchema, raw.equipment, 'equipment.json');
   assertUnique(equipment.slots.map((x) => x.id), 'equipment.json (slots)');
@@ -309,6 +315,13 @@ export function loadContent(raw: RawContent): Content {
     if (n < quests.perDay) throw new Error(`quests.json: o nível ${level} só tem ${n} missões (precisa de ${quests.perDay})`);
   }
 
+  const social = parseWith(socialSchema, raw.social, 'social.json');
+  for (const [label, building] of [['training', social.training.building], ['guilds', social.guilds.building]] as const) {
+    if (!objects.objects.find((o) => o.id === building)?.door) throw new Error(`social.json: ${label}.building "${building}" não é um prédio com porta em objects.json`);
+    if (shops.shops.some((x) => x.building === building)) throw new Error(`social.json: o prédio "${building}" já tem uma loja em shops.json`);
+  }
+  if (social.guilds.nameMin > social.guilds.nameMax || social.guilds.tagMin > social.guilds.tagMax) throw new Error('social.json: guilds com mínimo maior que o máximo');
+
   if (!maps[world.startMap]) throw new Error(`world.json: startMap "${world.startMap}" não existe em maps/`);
 
   // Ponto de chegada num mapa fixo: livre, alcançável e fora de outra saída (senão o jogador ficaria indo e voltando).
@@ -328,5 +341,5 @@ export function loadContent(raw: RawContent): Content {
   }
   for (const area of procedural.areas) checkArrival(`procedural.json: ${area.id}.returnTo`, area.returnTo.map, area.returnTo.arriveAt);
 
-  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, skills, quests, maps };
+  return { rarities, classes, tiles, balance, objects, items, creatures, progression, combat, world, procedural, shops, equipment, recipes, skills, quests, social, maps };
 }

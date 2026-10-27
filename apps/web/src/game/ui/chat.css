@@ -1,0 +1,16 @@
+/* Chat no canto inferior esquerdo, por cima do jogo. */
+.chat-box {
+  position: fixed; left: 12px; bottom: 72px; width: min(440px, calc(100vw - 24px)); z-index: 5;
+  font: 13px/1.35 ui-monospace, "Cascadia Mono", "Consolas", monospace; color: #e5e7eb; pointer-events: none;
+}
+.chat-box .chat-online { display: inline-block; font-size: 12px; color: #86efac; background: rgba(11, 13, 18, 0.7); padding: 1px 6px; margin-bottom: 4px; pointer-events: auto; }
+.chat-box .chat-log div { background: rgba(11, 13, 18, 0.55); padding: 1px 6px; overflow-wrap: anywhere; text-shadow: 1px 1px 0 #000; }
+.chat-box .chat-log div.guild { color: #93c5fd; }
+.chat-box .chat-log b { color: #e0b23a; font-weight: normal; }
+.chat-box .chat-log div.guild b { color: #93c5fd; }
+.chat-box .chat-status { color: #fca5a5; font-size: 12px; min-height: 0; }
+.chat-box input {
+  width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px; pointer-events: auto;
+  background: #0b0d12; color: #e5e7eb; border: 2px solid #2c3342; border-radius: 0;
+}
+.chat-box.open .chat-log div { background: rgba(11, 13, 18, 0.8); }

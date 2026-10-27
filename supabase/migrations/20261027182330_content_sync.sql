@@ -239,12 +239,23 @@ insert into public.area_creatures (area_id, creature_id, weight) values
   ('dragon-lair', 'dragon', 1)
 on conflict (area_id, creature_id) do update set weight = excluded.weight;
 
-insert into public.shops (id, name, rest_price, exchange, upgrades) values
-  ('alchemist', 'Alquimista', null, false, false),
-  ('tavern', 'Taverna', 15, false, false),
-  ('blacksmith', 'Ferreiro', null, false, true),
-  ('market', 'Mercado', null, true, false)
-on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;
+insert into public.shops (id, name, rest_price, exchange, upgrades, player_market, storage) values
+  ('alchemist', 'Alquimista', null, false, false, false, false),
+  ('tavern', 'Taverna', 15, false, false, false, false),
+  ('blacksmith', 'Ferreiro', null, false, true, false, false),
+  ('market', 'Mercado', null, true, false, true, false),
+  ('warehouse', 'Armazém', null, false, false, false, true)
+on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades,
+  player_market = excluded.player_market, storage = excluded.storage;
+
+insert into public.market_rules (id, tax_percent, max_listings, expires_hours, max_price) values
+  (1, 5, 10, 48, 100000)
+on conflict (id) do update set tax_percent = excluded.tax_percent, max_listings = excluded.max_listings,
+  expires_hours = excluded.expires_hours, max_price = excluded.max_price;
+
+insert into public.storage_rules (id, max_stacks) values
+  (1, 40)
+on conflict (id) do update set max_stacks = excluded.max_stacks;
 
 insert into public.economy_rules (id, sell_rate, copper_per_gold) values
   (1, 0.4, 100)
@@ -674,6 +685,19 @@ insert into public.quest_reward_items (quest_id, item_id, quantity) values
   ('skeletons', 'scroll-improved', 1),
   ('dragon', 'scroll-rare', 1)
 on conflict (quest_id, item_id) do update set quantity = excluded.quantity;
+
+insert into public.social_rules (id, training_building, training_max_hours, training_rate_base_milli, training_rate_level_milli,
+  guild_building, guild_create_cost, guild_max_members, guild_name_min, guild_name_max, guild_tag_min, guild_tag_max,
+  chat_max_length, chat_cooldown_seconds, chat_keep_days, ranking_size) values
+  (1, 'training-hall', 8, 1000, 400,
+  'guild', 1000, 20, 3, 20, 2, 4,
+  200, 2, 7, 20)
+on conflict (id) do update set training_building = excluded.training_building, training_max_hours = excluded.training_max_hours,
+  training_rate_base_milli = excluded.training_rate_base_milli, training_rate_level_milli = excluded.training_rate_level_milli,
+  guild_building = excluded.guild_building, guild_create_cost = excluded.guild_create_cost, guild_max_members = excluded.guild_max_members,
+  guild_name_min = excluded.guild_name_min, guild_name_max = excluded.guild_name_max, guild_tag_min = excluded.guild_tag_min,
+  guild_tag_max = excluded.guild_tag_max, chat_max_length = excluded.chat_max_length, chat_cooldown_seconds = excluded.chat_cooldown_seconds,
+  chat_keep_days = excluded.chat_keep_days, ranking_size = excluded.ranking_size;
 
 insert into public.level_thresholds (level, total_xp) values
   (0, 0),

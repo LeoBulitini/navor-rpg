@@ -8,7 +8,7 @@ const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 /**
  * SQL que copia para o banco os dados de content/ que o servidor usa para validar a coleta:
  * itens (com valor e efeito de uso), regras das áreas, pesos das raridades, itens de cada área, baús, monstros
- * e o que soltam, monstros de cada área, lojas, equipamentos, receitas, habilidades, evolução de classe, missões diárias, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
+ * e o que soltam, monstros de cada área, lojas, mercado, armazém, equipamentos, receitas, habilidades, evolução de classe, missões diárias, tabela de XP por nível e o teto de dano por segundo. Pode rodar várias vezes.
  * Só insere e atualiza, nunca apaga: itens porque o inventário aponta para eles; e tirar uma
  * raridade ou um item de uma área exige uma migration escrita à mão com o `delete`.
  */
@@ -158,9 +158,21 @@ export function contentSql(content: Content): string {
   const buys = shops.shops.flatMap((sh) => content.items.items.filter((i) => shopBuys(sh, i)).map((i) => `  (${q(sh.id)}, ${q(i.id)})`));
   lines.push(
     '',
-    'insert into public.shops (id, name, rest_price, exchange, upgrades) values',
-    shops.shops.map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades})`).join(',\n'),
-    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades;',
+    'insert into public.shops (id, name, rest_price, exchange, upgrades, player_market, storage) values',
+    shops.shops
+      .map((sh) => `  (${q(sh.id)}, ${q(sh.name)}, ${sh.rest ? sh.rest.price : 'null'}, ${sh.exchange}, ${sh.upgrades}, ${sh.playerMarket}, ${sh.storage})`)
+      .join(',\n'),
+    'on conflict (id) do update set name = excluded.name, rest_price = excluded.rest_price, exchange = excluded.exchange, upgrades = excluded.upgrades,',
+    '  player_market = excluded.player_market, storage = excluded.storage;',
+    '',
+    'insert into public.market_rules (id, tax_percent, max_listings, expires_hours, max_price) values',
+    `  (1, ${shops.market.taxPercent}, ${shops.market.maxListings}, ${shops.market.expiresHours}, ${shops.market.maxPricePerUnit})`,
+    'on conflict (id) do update set tax_percent = excluded.tax_percent, max_listings = excluded.max_listings,',
+    '  expires_hours = excluded.expires_hours, max_price = excluded.max_price;',
+    '',
+    'insert into public.storage_rules (id, max_stacks) values',
+    `  (1, ${shops.storage.maxStacks})`,
+    'on conflict (id) do update set max_stacks = excluded.max_stacks;',
     '',
     'insert into public.economy_rules (id, sell_rate, copper_per_gold) values',
     `  (1, ${shops.sellRate}, ${shops.copperPerGold})`,
@@ -244,6 +256,22 @@ export function contentSql(content: Content): string {
       'on conflict (quest_id, item_id) do update set quantity = excluded.quantity;',
     );
   }
+  const so = content.social;
+  lines.push(
+    '',
+    'insert into public.social_rules (id, training_building, training_max_hours, training_rate_base_milli, training_rate_level_milli,',
+    '  guild_building, guild_create_cost, guild_max_members, guild_name_min, guild_name_max, guild_tag_min, guild_tag_max,',
+    '  chat_max_length, chat_cooldown_seconds, chat_keep_days, ranking_size) values',
+    `  (1, ${q(so.training.building)}, ${so.training.maxHours}, ${Math.round(so.training.xpPerMinuteBase * 1000)}, ${Math.round(so.training.xpPerMinutePerLevel * 1000)},`,
+    `  ${q(so.guilds.building)}, ${so.guilds.createCost}, ${so.guilds.maxMembers}, ${so.guilds.nameMin}, ${so.guilds.nameMax}, ${so.guilds.tagMin}, ${so.guilds.tagMax},`,
+    `  ${so.chat.maxLength}, ${so.chat.cooldownSeconds}, ${so.chat.keepDays}, ${so.ranking.size})`,
+    'on conflict (id) do update set training_building = excluded.training_building, training_max_hours = excluded.training_max_hours,',
+    '  training_rate_base_milli = excluded.training_rate_base_milli, training_rate_level_milli = excluded.training_rate_level_milli,',
+    '  guild_building = excluded.guild_building, guild_create_cost = excluded.guild_create_cost, guild_max_members = excluded.guild_max_members,',
+    '  guild_name_min = excluded.guild_name_min, guild_name_max = excluded.guild_name_max, guild_tag_min = excluded.guild_tag_min,',
+    '  guild_tag_max = excluded.guild_tag_max, chat_max_length = excluded.chat_max_length, chat_cooldown_seconds = excluded.chat_cooldown_seconds,',
+    '  chat_keep_days = excluded.chat_keep_days, ranking_size = excluded.ranking_size;',
+  );
   lines.push(
     '',
     'insert into public.level_thresholds (level, total_xp) values',
