@@ -24,6 +24,11 @@ export function readRawContent(): RawContent {
     world: readJson('world.json'),
     procedural: readJson('procedural.json'),
     shops: readJson('shops.json'),
+    equipment: readJson('equipment.json'),
+    recipes: readJson('recipes.json'),
+    skills: readJson('skills.json'),
+    quests: readJson('quests.json'),
+    social: readJson('social.json'),
     maps,
   };
 }

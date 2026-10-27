@@ -1,31 +1,197 @@
 {
   "$comment": "Prédios e decoração posicionados nos mapas. Medidas em pixels, relativas ao canto superior esquerdo do sprite (apps/web/public/assets/city/objects/<sprite>.png). 'collider' é a parte sólida (a base; o telhado fica por cima do jogador). 'door' é a área em frente à porta que mostra 'message'. Prédios com loja em shops.json abrem com E na porta; os outros mostram só a mensagem.",
   "objects": [
-    { "id": "market", "name": "Mercado", "sprite": "market", "width": 192, "height": 128,
-      "collider": { "x": 4, "y": 72, "w": 184, "h": 52 },
-      "door": { "x": 82, "y": 118, "w": 28, "h": 16, "message": "Mercado" } },
-    { "id": "tavern", "name": "Taverna", "sprite": "tavern", "width": 192, "height": 128,
-      "collider": { "x": 4, "y": 72, "w": 184, "h": 52 },
-      "door": { "x": 82, "y": 118, "w": 28, "h": 16, "message": "Taverna" } },
-    { "id": "blacksmith", "name": "Ferreiro", "sprite": "blacksmith", "width": 160, "height": 128,
-      "collider": { "x": 4, "y": 72, "w": 152, "h": 52 },
-      "door": { "x": 62, "y": 118, "w": 36, "h": 16, "message": "Ferreiro" } },
-    { "id": "alchemist", "name": "Alquimista", "sprite": "alchemist", "width": 128, "height": 128,
-      "collider": { "x": 4, "y": 72, "w": 120, "h": 52 },
-      "door": { "x": 53, "y": 118, "w": 22, "h": 16, "message": "Alquimista" } },
-    { "id": "training-hall", "name": "Salão de Treinamento", "sprite": "training-hall", "width": 192, "height": 128,
-      "collider": { "x": 4, "y": 72, "w": 184, "h": 52 },
-      "door": { "x": 85, "y": 118, "w": 22, "h": 16, "message": "Salão de Treinamento: fechado (em breve)" } },
-    { "id": "guild", "name": "Guilda", "sprite": "guild", "width": 160, "height": 128,
-      "collider": { "x": 4, "y": 72, "w": 152, "h": 52 },
-      "door": { "x": 69, "y": 118, "w": 22, "h": 16, "message": "Guilda: fechada (em breve)" } },
-    { "id": "fountain", "name": "Chafariz", "sprite": "fountain", "width": 64, "height": 64,
-      "collider": { "x": 6, "y": 30, "w": 52, "h": 24 } },
-    { "id": "tree", "name": "Árvore", "sprite": "tree", "width": 64, "height": 64,
-      "collider": { "x": 26, "y": 44, "w": 12, "h": 12 } },
-    { "id": "anvil", "name": "Bigorna", "sprite": "anvil", "width": 32, "height": 32,
-      "collider": { "x": 6, "y": 14, "w": 20, "h": 14 } },
-    { "id": "barrel", "name": "Barril", "sprite": "barrel", "width": 32, "height": 32,
-      "collider": { "x": 8, "y": 14, "w": 16, "h": 14 } }
+    {
+      "id": "market",
+      "name": "Mercado",
+      "sprite": "market",
+      "width": 192,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 184,
+        "h": 52
+      },
+      "door": {
+        "x": 82,
+        "y": 118,
+        "w": 28,
+        "h": 16,
+        "message": "Mercado"
+      }
+    },
+    {
+      "id": "tavern",
+      "name": "Taverna",
+      "sprite": "tavern",
+      "width": 192,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 184,
+        "h": 52
+      },
+      "door": {
+        "x": 82,
+        "y": 118,
+        "w": 28,
+        "h": 16,
+        "message": "Taverna"
+      }
+    },
+    {
+      "id": "blacksmith",
+      "name": "Ferreiro",
+      "sprite": "blacksmith",
+      "width": 160,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 152,
+        "h": 52
+      },
+      "door": {
+        "x": 62,
+        "y": 118,
+        "w": 36,
+        "h": 16,
+        "message": "Ferreiro"
+      }
+    },
+    {
+      "id": "alchemist",
+      "name": "Alquimista",
+      "sprite": "alchemist",
+      "width": 128,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 120,
+        "h": 52
+      },
+      "door": {
+        "x": 53,
+        "y": 118,
+        "w": 22,
+        "h": 16,
+        "message": "Alquimista"
+      }
+    },
+    {
+      "id": "training-hall",
+      "name": "Salão de Treinamento",
+      "sprite": "training-hall",
+      "width": 192,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 184,
+        "h": 52
+      },
+      "door": {
+        "x": 85,
+        "y": 118,
+        "w": 22,
+        "h": 16,
+        "message": "Salão de Treinamento"
+      }
+    },
+    {
+      "id": "guild",
+      "name": "Guilda",
+      "sprite": "guild",
+      "width": 160,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 152,
+        "h": 52
+      },
+      "door": {
+        "x": 69,
+        "y": 118,
+        "w": 22,
+        "h": 16,
+        "message": "Guilda"
+      }
+    },
+    {
+      "id": "fountain",
+      "name": "Chafariz",
+      "sprite": "fountain",
+      "width": 64,
+      "height": 64,
+      "collider": {
+        "x": 6,
+        "y": 30,
+        "w": 52,
+        "h": 24
+      }
+    },
+    {
+      "id": "tree",
+      "name": "Árvore",
+      "sprite": "tree",
+      "width": 64,
+      "height": 64,
+      "collider": {
+        "x": 26,
+        "y": 44,
+        "w": 12,
+        "h": 12
+      }
+    },
+    {
+      "id": "anvil",
+      "name": "Bigorna",
+      "sprite": "anvil",
+      "width": 32,
+      "height": 32,
+      "collider": {
+        "x": 6,
+        "y": 14,
+        "w": 20,
+        "h": 14
+      }
+    },
+    {
+      "id": "barrel",
+      "name": "Barril",
+      "sprite": "barrel",
+      "width": 32,
+      "height": 32,
+      "collider": {
+        "x": 8,
+        "y": 14,
+        "w": 16,
+        "h": 14
+      }
+    },
+    {
+      "id": "warehouse",
+      "name": "Armazém",
+      "sprite": "warehouse",
+      "width": 128,
+      "height": 128,
+      "collider": {
+        "x": 4,
+        "y": 72,
+        "w": 120,
+        "h": 52
+      },
+      "door": {
+        "x": 50,
+        "y": 118,
+        "w": 28,
+        "h": 16,
+        "message": "Armazém"
+      }
+    }
   ]
 }

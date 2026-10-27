@@ -212,6 +212,50 @@
       "index": 27,
       "solid": true,
       "name": "Mata fechada (variação)"
+    },
+    {
+      "id": "lair-floor",
+      "char": "_",
+      "index": 28,
+      "solid": false,
+      "name": "Chão do covil",
+      "variants": [
+        "lair-floor-b"
+      ]
+    },
+    {
+      "id": "lair-wall",
+      "char": "M",
+      "index": 29,
+      "solid": true,
+      "name": "Rocha vulcânica"
+    },
+    {
+      "id": "lair-lava",
+      "char": "L",
+      "index": 30,
+      "solid": true,
+      "name": "Poça de lava"
+    },
+    {
+      "id": "lair-in",
+      "char": "(",
+      "index": 31,
+      "solid": false,
+      "name": "Entrada do covil"
+    },
+    {
+      "id": "lair-out",
+      "char": ")",
+      "index": 32,
+      "solid": false,
+      "name": "Saída do covil"
+    },
+    {
+      "id": "lair-floor-b",
+      "index": 33,
+      "solid": false,
+      "name": "Chão do covil (variação)"
     }
   ]
 }

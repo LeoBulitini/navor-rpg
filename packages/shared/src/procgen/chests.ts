@@ -25,11 +25,11 @@ export function rollChestCount(config: ChestsConfig, rng: Rng): number {
 }
 
 /** Conteúdo de um baú. É a mesma regra de open_chest; aqui serve ao modo offline. */
-export function rollChestContents(config: ChestsConfig, rng: Rng): ChestContents {
+export function rollChestContents(config: ChestsConfig, rng: Rng, dropMultiplier = 1): ChestContents {
   const copper = rng.int(config.copper.min, config.copper.max);
   const gold = rng.next() < config.goldChance ? 1 : 0;
   const drops = config.items
-    .filter((d) => rng.next() < d.chance)
+    .filter((d) => rng.next() < Math.min(1, d.chance * dropMultiplier))
     .map((d) => ({ itemId: d.item, quantity: rng.int(d.quantity.min, d.quantity.max) }));
   return { copper, gold, drops };
 }

@@ -346,7 +346,193 @@ def pie():
     return img
 
 
+def line(img, x0, y0, x1, y1, c, w=1):
+    """Linha reta de (x0, y0) a (x1, y1) com espessura w."""
+    n = max(abs(x1 - x0), abs(y1 - y0), 1)
+    for i in range(n + 1):
+        x = round(x0 + (x1 - x0) * i / n)
+        y = round(y0 + (y1 - y0) * i / n)
+        img.rect(x, y, w, w, c)
+
+
+def handle(img, top=(20, 8), bottom=(9, 26)):
+    line(img, *top, *bottom, hx('#7a5230'), 2)
+    line(img, top[0] + 1, top[1], bottom[0] + 1, bottom[1], hx('#4a2e19'))
+
+
+def pickaxe(head, dark):
+    img = Img(32, 32)
+    handle(img)
+    line(img, 10, 9, 20, 5, hx(head), 2)
+    line(img, 20, 5, 27, 11, hx(head), 2)
+    img.px(10, 10, hx(dark)); img.px(27, 12, hx(dark))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def axe(head, dark):
+    img = Img(32, 32)
+    handle(img)
+    for y in range(4, 17):
+        w = 6 - abs(y - 10) // 2
+        img.rect(20, y, w, 1, hx(head) if y < 14 else hx(dark))
+        img.px(19 + w, y, hx('#f1f5f9'))
+    img.rect(17, 8, 3, 4, hx(dark))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def sword(blade, light, hilt):
+    img = Img(32, 32)
+    line(img, 10, 22, 24, 7, hx(blade), 2)
+    line(img, 11, 21, 24, 8, hx(light))
+    line(img, 7, 19, 13, 25, hx(hilt), 2)
+    line(img, 9, 23, 6, 26, hx('#4a2e19'), 2)
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def staff(wood, gem, glow):
+    img = Img(32, 32)
+    line(img, 9, 27, 21, 9, hx(wood), 2)
+    blob(img, 22, 7, 3, 3, hx(gem), None, hx(glow))
+    img.px(19, 7, hx(wood)); img.px(25, 9, hx(wood))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def bow(wood, dark):
+    img = Img(32, 32)
+    for i in range(19):
+        y = 6 + i
+        x = 11 + round(6 * (1 - ((i - 9) / 9.5) ** 2))
+        img.rect(x, y, 2, 1, hx(wood) if i % 5 else hx(dark))
+    line(img, 12, 6, 12, 24, hx('#ecebe6'))
+    line(img, 12, 15, 25, 15, hx('#c8b07a'))
+    img.rect(24, 14, 2, 3, P['s3'])
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def shield(face, rim, boss):
+    img = Img(32, 32)
+    for y in range(7, 26):
+        w = 8 if y < 18 else 8 - (y - 18)
+        for x in range(16 - w, 16 + w + 1):
+            edge = abs(x - 16) >= w - 1 or y == 7
+            img.px(x, y, hx(rim) if edge else hx(face))
+    blob(img, 16, 15, 2, 2, hx(boss))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def helmet(base, dark):
+    img = Img(32, 32)
+    blob(img, 16, 16, 8, 7, hx(base), hx(dark))
+    img.rect(8, 20, 17, 3, hx(dark))
+    img.rect(11, 17, 11, 2, OL)
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def chestplate(base, dark, light):
+    img = Img(32, 32)
+    img.rect(10, 9, 13, 15, hx(base))
+    img.rect(6, 9, 5, 6, hx(base)); img.rect(22, 9, 5, 6, hx(base))
+    img.rect(13, 8, 7, 3, OL)
+    img.rect(11, 22, 11, 2, hx(dark))
+    line(img, 16, 12, 16, 21, hx(dark))
+    img.rect(11, 11, 2, 4, hx(light))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def gloves(base, dark):
+    img = Img(32, 32)
+    for cx in (11, 21):
+        img.rect(cx - 4, 12, 8, 9, hx(base))
+        img.rect(cx - 4, 20, 8, 3, hx(dark))
+        img.rect(cx + 4, 15, 2, 4, hx(base))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def pants(base, dark):
+    img = Img(32, 32)
+    img.rect(9, 8, 15, 4, hx(dark))
+    img.rect(9, 12, 7, 13, hx(base)); img.rect(17, 12, 7, 13, hx(base))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def boots(base, dark):
+    img = Img(32, 32)
+    for x0 in (7, 18):
+        img.rect(x0 + 1, 9, 5, 12, hx(base))
+        img.rect(x0 + 1, 19, 8, 4, hx(base))
+        img.rect(x0 + 1, 22, 8, 2, hx(dark))
+        img.rect(x0 + 1, 9, 5, 2, hx(dark))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def ring(metal, gem):
+    img = Img(32, 32)
+    for y in range(12, 26):
+        for x in range(9, 24):
+            d = ((x - 16) / 6.5) ** 2 + ((y - 19) / 6) ** 2
+            if 0.45 <= d <= 1:
+                img.px(x, y, hx(metal))
+    blob(img, 16, 12, 2, 2, hx(gem), None, hx('#ffffff'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def amulet(cord, charm, dark):
+    img = Img(32, 32)
+    for i in range(15):
+        x = 9 + i
+        y = 7 + round(9 * (1 - ((i - 7) / 7.5) ** 2))
+        img.px(x, y, hx(cord))
+    for x, y in ((12, 17), (16, 19), (20, 17)):
+        line(img, x, y, x, y + 5, hx(charm), 2)
+        img.px(x, y + 5, hx(dark))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
 ROCK = (P['s2'], P['s1'], P['s3'])
+def scale_icon(base, dark, light):
+    """Escama grande em forma de gota, com nervuras."""
+    img = Img(32, 32)
+    for y in range(6, 27):
+        half = int(9 * ((y - 6) / 20) ** 0.6) if y < 22 else int(9 * (1 - (y - 22) / 5))
+        for x in range(16 - half, 16 + half + 1):
+            d = (x - 16) + (y - 16)
+            img.px(x, y, hx(light) if d < -6 else hx(base) if d < 6 else hx(dark))
+    for y in range(10, 24, 4):
+        for x in range(12, 21):
+            if img.im.getpixel((x, y))[3]:
+                img.px(x, y, hx(dark))
+    img.rect(16, 8, 1, 16, hx(light))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
 ICONS = {
     'iron': lambda: ore(ROCK, [hx('#b5651d'), hx('#8a4b1a')], 1),
     'copper': lambda: ore(ROCK, [hx('#e08a4a'), hx('#c46a2a'), hx('#3fa38a')], 2),
@@ -388,6 +574,30 @@ ICONS = {
     'bread': bread,
     'roast-meat': roast,
     'berry-pie': pie,
+    'pickaxe-iron': lambda: pickaxe('#9ca3af', '#4b5563'),
+    'pickaxe-silver': lambda: pickaxe('#e6e8ec', '#8b93a1'),
+    'axe-iron': lambda: axe('#9ca3af', '#4b5563'),
+    'axe-steel': lambda: axe('#cbd5e1', '#475569'),
+    'sword-short': lambda: sword('#9ca3af', '#d1d5db', '#7a5230'),
+    'sword-iron': lambda: sword('#b8c0cc', '#f1f5f9', '#a16207'),
+    'staff-apprentice': lambda: staff('#7a5230', '#a78bfa', '#ede9fe'),
+    'staff-crystal': lambda: staff('#5f3d22', '#4a8fe0', '#9cd0ff'),
+    'bow-short': lambda: bow('#a0703f', '#6e4a28'),
+    'bow-sturdy': lambda: bow('#5f3d22', '#2a160b'),
+    'shield-wood': lambda: shield('#a0703f', '#6b7280', '#d1d5db'),
+    'helmet-leather': lambda: helmet('#a0703f', '#6e4a28'),
+    'chest-leather': lambda: chestplate('#a0703f', '#6e4a28', '#c8935a'),
+    'chest-iron': lambda: chestplate('#9ca3af', '#4b5563', '#e5e7eb'),
+    'gloves-leather': lambda: gloves('#a0703f', '#6e4a28'),
+    'pants-leather': lambda: pants('#8a5a32', '#5a3a1f'),
+    'boots-leather': lambda: boots('#7a4a2a', '#4a2e19'),
+    'ring-silver': lambda: ring('#e6e8ec', '#4a8fe0'),
+    'amulet-fangs': lambda: amulet('#7a4a2a', '#f5f0e8', '#a89f8a'),
+    'dragon-scale': lambda: scale_icon('#b8321e', '#6e1a10', '#f07a3a'),
+    'monster-essence': lambda: vial('#7a3ab8', '#c8a0f0'),
+    'scroll-rare': lambda: scroll('#e8dcc0', '#3b82f6'),
+    'scroll-ancient': lambda: scroll('#d8c8a0', '#a855f7'),
+    'mithril': lambda: ore(ROCK, [hx('#b8e0e8'), hx('#7ab8c8'), hx('#ffffff')], 7),
     'unknown': unknown,
 }
 

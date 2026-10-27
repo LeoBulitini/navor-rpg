@@ -1,5 +1,5 @@
 {
-  "$comment": "Serviços da cidade com loja (GDD 7.1 e 11). PROVISÓRIO, decidido por Claude em 2026-10-27. 'building' é o prédio de objects.json onde o serviço fica (E na porta abre). 'sells': o que o NPC vende e por quanto. 'buys': o que o NPC compra do jogador (por categoria ou item), pagando o valor do item × 'sellRate'. 'rest': dormitório da Taverna (enche vida e mana). 'exchange': câmbio de cobre e ouro. Tudo é conferido e gravado pelo servidor.",
+  "$comment": "Serviços da cidade com loja (GDD 7.1 e 11). PROVISÓRIO, decidido por Claude em 2026-10-27. 'building' é o prédio de objects.json onde o serviço fica (E na porta abre). 'sells': o que o NPC vende e por quanto. 'buys': o que o NPC compra do jogador (por categoria ou item), pagando o valor do item × 'sellRate'. 'rest': dormitório da Taverna (enche vida e mana). 'exchange': câmbio de cobre e ouro. Tudo é conferido e gravado pelo servidor. O Ferreiro também fabrica (recipes.json) e melhora equipamentos ('upgrades'). 'playerMarket': mercado entre jogadores neste prédio (regras em 'market'). 'storage': armazém da conta (regras em 'storage').",
   "sellRate": 0.4,
   "copperPerGold": 100,
   "shops": [
@@ -82,10 +82,36 @@
       "id": "blacksmith",
       "name": "Ferreiro",
       "building": "blacksmith",
-      "sells": [],
+      "sells": [
+        {
+          "item": "pickaxe-iron",
+          "price": 25
+        },
+        {
+          "item": "axe-iron",
+          "price": 25
+        },
+        {
+          "item": "staff-apprentice",
+          "price": 30
+        },
+        {
+          "item": "sword-short",
+          "price": 30
+        },
+        {
+          "item": "bow-short",
+          "price": 30
+        }
+      ],
       "buys": {
         "categories": [
-          "ore"
+          "ore",
+          "weapon",
+          "armor",
+          "shield",
+          "accessory",
+          "tool"
         ],
         "items": [
           "bones",
@@ -106,7 +132,8 @@
           "wood-ancient",
           "wood-enchanted"
         ]
-      }
+      },
+      "upgrades": true
     },
     {
       "id": "market",
@@ -117,7 +144,30 @@
         "categories": [],
         "items": []
       },
-      "exchange": true
+      "exchange": true,
+      "playerMarket": true
+    },
+    {
+      "id": "warehouse",
+      "name": "Armazém",
+      "building": "warehouse",
+      "sells": [],
+      "buys": {
+        "categories": [],
+        "items": []
+      },
+      "storage": true
     }
-  ]
+  ],
+  "market": {
+    "$comment": "Mercado entre jogadores (GDD 7.1 e 11). PROVISÓRIO, decidido por Claude em 2026-10-27. O item anunciado sai do inventário e fica guardado no anúncio; vender cobra 'taxPercent' do vendedor (some da economia); o anúncio vence em 'expiresHours' e o vendedor recolhe o que sobrou. Equipamentos ainda não podem ser anunciados.",
+    "taxPercent": 5,
+    "maxListings": 10,
+    "expiresHours": 48,
+    "maxPricePerUnit": 100000
+  },
+  "storage": {
+    "$comment": "Armazém (GDD 7.1, serviço recomendado). PROVISÓRIO, decidido por Claude em 2026-10-27. É da conta: todos os personagens do jogador usam o mesmo. 'maxStacks' = tipos de item diferentes guardados ao mesmo tempo.",
+    "maxStacks": 40
+  }
 }

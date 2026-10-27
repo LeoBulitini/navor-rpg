@@ -12,13 +12,13 @@ export interface CritStats {
 }
 
 /**
- * Dano de um golpe: ataque com variação de ±damageVariance, menos defesa × defenseFactor,
- * mínimo 1, e crítico com a chance e o multiplicador de quem ataca.
+ * Dano de um golpe: ataque com variação de ±damageVariance, menos defesa × defenseFactor (menos a
+ * parte que a penetração ignora), mínimo 1, e crítico com a chance e o multiplicador de quem ataca.
  */
-export function rollDamage(attack: number, defense: number, crit: CritStats, combat: Combat, rng: Rng): Hit {
+export function rollDamage(attack: number, defense: number, crit: CritStats, combat: Combat, rng: Rng, penetration = 0): Hit {
   const variance = 1 + (rng.next() * 2 - 1) * combat.damageVariance;
   const isCrit = rng.next() < crit.critChance;
-  const raw = attack * variance - defense * combat.defenseFactor;
+  const raw = attack * variance - defense * (1 - Math.min(1, penetration)) * combat.defenseFactor;
   return { amount: Math.max(1, Math.round(raw * (isCrit ? crit.critDamage : 1))), crit: isCrit };
 }
 
@@ -40,7 +40,11 @@ export function defenseFor(stats: { physDefense: number; magDefense: number }, t
   return type === 'physical' ? stats.physDefense : stats.magDefense;
 }
 
-/** Teto de dano por segundo que o servidor aceita para um personagem desse nível. */
-export function serverMaxDps(combat: Combat, level: number): number {
-  return combat.server.maxDamagePerSecond.base + combat.server.maxDamagePerSecond.perLevel * level;
+/**
+ * Teto de dano por segundo que o servidor aceita: nível, ataque dos equipamentos e pontos de habilidade gastos.
+ * Mesma conta de kill_monster no banco.
+ */
+export function serverMaxDps(combat: Combat, level: number, gearAttack = 0, skillPoints = 0): number {
+  const m = combat.server.maxDamagePerSecond;
+  return (m.base + m.perLevel * level + m.perAttackBonus * gearAttack) * (1 + (m.perSkillPointPercent * skillPoints) / 100);
 }

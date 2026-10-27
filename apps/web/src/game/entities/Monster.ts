@@ -39,16 +39,26 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(16, 10);
     this.body.setOffset(8, 18);
     this.setCollideWorldBounds(true);
+    // Chefes são maiores (o corpo acompanha a escala).
+    if (def.scale !== 1) this.setScale(def.scale);
     this.play(creatureAnimKey(def.sprite, 'idle'));
     if (def.hidden) this.setAlpha(HIDDEN_ALPHA);
   }
 
-  /** Um passo da IA. Devolve true quando o monstro desfere um golpe neste quadro. */
-  think(now: number, player: { x: number; y: number } | null): boolean {
+  /**
+   * Um passo da IA. Devolve true quando o monstro desfere um golpe neste quadro.
+   * `stealth` (0 a 1, Furtividade): o monstro só nota o jogador mais de perto, até começar a persegui-lo.
+   */
+  think(now: number, player: { x: number; y: number } | null, stealth = 0): boolean {
     if (this.state !== 'alive') return false;
     const T = content.balance.tileSize;
     const c = this.body.center;
     const tiles = (p: { x: number; y: number }) => ({ x: p.x / T, y: p.y / T });
+    const engaged = this.intent === 'chase' || this.intent === 'attack';
+    if (player && stealth > 0 && !engaged && this.def.behavior !== 'flee') {
+      const d = Math.hypot(player.x - c.x, player.y - c.y) / T;
+      if (d > Math.max(this.def.attackRangeTiles, this.def.detectTiles * (1 - stealth))) player = null;
+    }
     this.intent = monsterIntent(this.def, tiles(c), tiles(this.home), player && tiles(player), this.intent === 'chase' || this.intent === 'attack');
     let target: { x: number; y: number } | null = null;
     if (this.intent === 'chase') target = player;

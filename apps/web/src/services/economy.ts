@@ -20,6 +20,8 @@ export interface ShopItemRow extends WalletRow {
   item_id: string;
   /** quantidade do item no inventário depois da operação */
   total: number;
+  /** equipamento comprado: a peça nova */
+  gear?: { id: string; item_id: string; upgrade: number; slot: string | null };
 }
 
 /** Compra de um NPC (função shop_buy): o servidor confere preço, saldo e se o jogador está na cidade. */
