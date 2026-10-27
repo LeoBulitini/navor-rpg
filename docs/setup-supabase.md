@@ -2,6 +2,9 @@
 
 O Navor RPG usa um único projeto Supabase (Auth + Postgres) para o navegador e o futuro cliente Windows.
 
+Projeto hospedado: `navor-rpg` (ref `orfkmjxkaiotmojwchmc`, região São Paulo `sa-east-1`), na organização Supabase "Navor", plano gratuito.
+Observação: o plano gratuito permite 2 projetos ativos por pessoa somando todas as organizações; projetos sem uso por ~7 dias são pausados.
+
 ## Segurança: o que vai para o cliente
 
 | Valor | Onde fica | Pode ir para o navegador? |
@@ -30,6 +33,9 @@ npx supabase login
 npx supabase link --project-ref SEU_PROJECT_REF
 npx supabase db push
 ```
+
+O advisor de segurança do Supabase avisa que `create_character` é `SECURITY DEFINER` executável por usuários logados.
+Isso é intencional: é a única forma de o cliente criar personagem, e a função valida tudo e usa `auth.uid()` como dono.
 
 ## Desenvolvimento local
 
