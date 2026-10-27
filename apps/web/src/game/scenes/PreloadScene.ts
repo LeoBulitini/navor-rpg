@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { FACINGS, type Facing } from '@navor/shared';
-import { assets, characterSpritePath, TextureKeys } from '../../assets/index.ts';
+import { assets, characterSpritePath, objectSpritePath, TextureKeys } from '../../assets/index.ts';
+import { content } from '../../content.ts';
 import { sessionClassId } from '../session.ts';
 
 export const animKey = (classId: string, state: 'idle' | 'walk', facing: Facing) => `${classId}-${state}-${facing}`;
@@ -16,11 +17,14 @@ export class PreloadScene extends Phaser.Scene {
     label.setOrigin(0.5);
 
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
-      label.setText(`Erro ao carregar "${file.key}" (${file.url}).\nVerifique se rodou "npm run placeholders".`);
+      label.setText(`Erro ao carregar "${file.key}" (${file.url}).`);
       label.setColor('#fca5a5');
     });
 
     this.load.image(TextureKeys.tileset, assets.tileset.path);
+    for (const sprite of new Set(content.objects.objects.map((o) => o.sprite))) {
+      this.load.image(TextureKeys.object(sprite), objectSpritePath(sprite));
+    }
     const classId = sessionClassId(this);
     const { frameWidth, frameHeight } = assets.characters;
     for (const facing of FACINGS) {
@@ -36,7 +40,7 @@ export class PreloadScene extends Phaser.Scene {
     const loaded = FACINGS.every((f) => this.textures.exists(TextureKeys.character(classId, f)));
     if (!loaded || !this.textures.exists(TextureKeys.tileset)) return;
     this.createCharacterAnimations(classId);
-    this.scene.start('Test');
+    this.scene.start('World', { mapId: content.world.startMap });
   }
 
   /** Cada direção é uma tira horizontal: "idle" e "walk" escolhem colunas dela. */

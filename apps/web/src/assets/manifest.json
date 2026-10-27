@@ -1,8 +1,9 @@
 {
-  "$comment": "Chave lógica -> arquivo. Para trocar a arte, substitua os PNGs (mesmo nome) ou mude o 'path'.",
+  "$comment": "Chave lógica -> arquivo. Para trocar a arte, substitua os PNGs (mesmo nome e tamanho) ou mude o 'path'.",
   "tileset": {
-    "path": "assets/placeholder/tileset.png",
-    "placeholder": true
+    "$comment": "Uma fileira de tiles 32x32 na ordem do 'index' de content/tiles.json.",
+    "path": "assets/city/terrain.png",
+    "placeholder": false
   },
   "characters": {
     "$comment": "Uma pasta por classe com <direção>.png; cada PNG é uma tira horizontal de quadros. Quais classes têm arte vem de characters.json (npm run sprites:import).",
@@ -10,7 +11,16 @@
     "placeholderPath": "assets/placeholder/character",
     "frameWidth": 32,
     "frameHeight": 32,
-    "frames": { "idle": 0, "walk": [0] },
+    "frames": {
+      "idle": 0,
+      "walk": [
+        0
+      ]
+    },
     "walkFrameRate": 8
+  },
+  "objects": {
+    "$comment": "Um PNG por 'sprite' de content/objects.json, com o 'width'/'height' definidos lá.",
+    "path": "assets/city/objects"
   }
 }

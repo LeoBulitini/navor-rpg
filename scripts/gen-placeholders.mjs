@@ -1,15 +1,13 @@
-// Gera a arte TEMPORÁRIA (placeholder) da Fase 1, sem dependências externas.
-// Todos os arquivos saem em apps/web/public/assets/placeholder/. Cada quadro de personagem
-// leva a marca "PH" em magenta e cada tile um ponto magenta 2x2 no canto (uma marca "PH"
-// por tile poluía demais a tela); o jogo também mostra "ARTE PLACEHOLDER" na interface.
+// Gera o personagem TEMPORÁRIO (placeholder), sem dependências externas, em
+// apps/web/public/assets/placeholder/character/. Cada quadro leva a marca "PH" em magenta e o
+// jogo mostra "ARTE PLACEHOLDER" na interface quando ele está em uso.
 // O personagem placeholder (8 direções, 1 quadro cada) só aparece para classes que ainda
 // não têm arte importada por npm run sprites:import. Uso: npm run placeholders
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { join } from 'node:path';
 
-const ROOT = join(import.meta.dirname, '..');
-const OUT = join(ROOT, 'apps/web/public/assets/placeholder');
+const OUT = join(import.meta.dirname, '..', 'apps/web/public/assets/placeholder');
 const T = 32;
 
 // ---------- PNG mínimo (RGBA 8 bits) ----------
@@ -62,13 +60,6 @@ function set(img, x, y, c) {
 function rect(img, x, y, w, h, c) {
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) set(img, x + i, y + j, c);
 }
-// ruído determinístico (sem Math.random) para a arte ser idêntica a cada geração
-function noise(x, y, seed) {
-  let n = (x * 374761393 + y * 668265263 + seed * 2147483647) | 0;
-  n = Math.imul(n ^ (n >>> 13), 1274126177);
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-}
-
 // marca "PH" 3x5 em magenta no canto superior esquerdo
 const GLYPHS = { P: ['111', '101', '111', '100', '100'], H: ['101', '101', '111', '101', '101'] };
 const MAGENTA = hex('#ff00ff');
@@ -77,66 +68,6 @@ function markPH(img, ox, oy) {
   ['P', 'H'].forEach((ch, k) => {
     GLYPHS[ch].forEach((row, y) => [...row].forEach((b, x) => b === '1' && set(img, ox + 2 + k * 4 + x, oy + 2 + y, MAGENTA)));
   });
-}
-
-// ---------- tileset ----------
-function textured(img, ox, base, dark, light, seed, density = 0.12) {
-  rect(img, ox, 0, T, T, hex(base));
-  for (let y = 0; y < T; y++)
-    for (let x = 0; x < T; x++) {
-      const n = noise(x, y, seed);
-      if (n < density) set(img, ox + x, y, hex(dark));
-      else if (n > 1 - density / 2) set(img, ox + x, y, hex(light));
-    }
-}
-const TILE_PAINTERS = {
-  grass: (img, ox) => textured(img, ox, '#4a8f3c', '#3b7530', '#62a84f', 1),
-  path: (img, ox) => textured(img, ox, '#a8865a', '#8f6f47', '#bf9d70', 2),
-  wall: (img, ox) => {
-    rect(img, ox, 0, T, T, hex('#6b6f78'));
-    for (let row = 0; row < 4; row++) {
-      const y = row * 8;
-      rect(img, ox, y, T, 1, hex('#3f424a'));
-      const shift = row % 2 ? 8 : 0;
-      for (let x = shift; x < T; x += 16) rect(img, ox + x, y, 1, 8, hex('#3f424a'));
-      rect(img, ox, y + 1, T, 1, hex('#858a94'));
-    }
-  },
-  tree: (img, ox) => {
-    TILE_PAINTERS.grass(img, ox);
-    rect(img, ox + 13, 20, 6, 10, hex('#5b3a1e'));
-    for (let y = 2; y < 24; y++)
-      for (let x = 3; x < 29; x++) {
-        const d = Math.hypot(x - 16, y - 12);
-        if (d < 12) set(img, ox + x, y, hex(d < 9 && noise(x, y, 7) > 0.3 ? '#2f6b2a' : '#1f4f1c'));
-      }
-  },
-  rock: (img, ox) => {
-    TILE_PAINTERS.grass(img, ox);
-    for (let y = 6; y < 28; y++)
-      for (let x = 4; x < 28; x++) {
-        const d = Math.hypot((x - 16) / 12, (y - 18) / 10);
-        if (d < 1) set(img, ox + x, y, hex(d < 0.6 && y < 18 ? '#a3a6ad' : '#7c8089'));
-      }
-  },
-  water: (img, ox) => {
-    rect(img, ox, 0, T, T, hex('#2c5d9e'));
-    for (let y = 3; y < T; y += 8)
-      for (let x = 0; x < T; x++) if ((x + y) % 8 < 3) set(img, ox + x, y + ((x >> 2) % 2), hex('#5b8fd1'));
-  },
-};
-
-function buildTileset() {
-  const { tiles } = JSON.parse(readFileSync(join(ROOT, 'content/tiles.json'), 'utf8'));
-  const cols = Math.max(...tiles.map((t) => t.index)) + 1;
-  const img = image(cols * T, T);
-  for (const t of tiles) {
-    const paint = TILE_PAINTERS[t.id];
-    if (!paint) throw new Error(`Sem desenho placeholder para o tile "${t.id}"`);
-    paint(img, t.index * T);
-    rect(img, t.index * T, 0, 2, 2, MAGENTA);
-  }
-  return img;
 }
 
 // ---------- Personagem placeholder (desenho de um mago genérico) ----------
@@ -191,7 +122,7 @@ const FACING_TO_DRAWING = {
 };
 
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, 'tileset.png'), encodePng(buildTileset()));
+rmSync(join(OUT, 'tileset.png'), { force: true });
 rmSync(join(OUT, 'mage.png'), { force: true });
 const CHAR_OUT = join(OUT, 'character');
 mkdirSync(CHAR_OUT, { recursive: true });
@@ -200,4 +131,4 @@ for (const [facing, drawing] of Object.entries(FACING_TO_DRAWING)) {
   drawMage(img, 0, 0, drawing, 0);
   writeFileSync(join(CHAR_OUT, `${facing}.png`), encodePng(img));
 }
-console.log(`Placeholders gerados em ${OUT}: tileset.png, character/*.png`);
+console.log(`Placeholders gerados em ${OUT}: character/*.png`);

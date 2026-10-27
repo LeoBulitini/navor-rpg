@@ -3,8 +3,9 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e, no futuro, Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 2, fundação online.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
-protegidas por RLS, e a cena de teste da Fase 1 (movimento e colisão). Sem backend configurado, o jogo abre em modo offline.
+**Estado atual: Fase 3, cidade pequena.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
+protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função, mostram "em breve"
+na porta) e um portão que leva à área de exploração de teste e volta. Sem backend configurado, o jogo abre em modo offline.
 
 ## Requisitos
 
@@ -26,7 +27,7 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | Tecla | Ação |
 | --- | --- |
 | Setas ou WASD | Mover (8 direções) |
-| F3 | Liga/desliga a depuração: caixas de colisão, tiles sólidos em vermelho, posição e FPS |
+| F3 | Liga/desliga a depuração: caixas de colisão, células bloqueadas em vermelho, posição e FPS |
 
 ## Comandos
 
@@ -40,7 +41,8 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | `npm run build` | Build de produção em `apps/web/dist` |
 | `npm run preview` | Serve o build de produção em http://localhost:4173 |
 | `npm run smoke` | Teste de fumaça no navegador real (requer `npm run build` e `npx playwright install chromium` uma vez) |
-| `npm run placeholders` | Regenera a arte temporária em `apps/web/public/assets/placeholder/` |
+| `npm run placeholders` | Regenera o personagem temporário em `apps/web/public/assets/placeholder/` |
+| `python3 tools/art/city_art.py` | Regenera a arte da cidade (tiles e prédios); requer Python 3 e Pillow |
 | `npm run sprites:import -- "<pasta>"` | Copia a arte dos personagens da pasta do artista para o jogo (veja abaixo) |
 
 ## Estrutura
@@ -49,21 +51,35 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 apps/web/            cliente Phaser 4 + Vite
   src/game/          cenas, entidades, sistemas (input), UI de depuração
   src/assets/        manifest.json: chave lógica -> arquivo de arte
-  public/assets/     characters/ (arte real dos personagens) e placeholder/ (arte temporária)
+  public/assets/     characters/ (personagens), city/ (tiles e prédios) e placeholder/ (personagem temporário)
 packages/shared/     lógica pura em TypeScript, sem Phaser (será usada também pelo backend)
-content/             dados configuráveis: raridades, classes, tiles, valores de protótipo, mapas
+content/             dados configuráveis: raridades, classes, tiles, objetos (prédios), mapas, valores de protótipo
   src/menu/          menu HTML: login, lista e criação de personagem
   src/services/      cliente Supabase, autenticação, personagens
 supabase/            migrations (schema + RLS), testes pgTAP, config da CLI
-scripts/             validação de conteúdo, gerador de placeholders, testes de fumaça e de banco
+scripts/             validação de conteúdo, importação de sprites, placeholders, testes de fumaça e de banco
+tools/art/           gerador da arte provisória da cidade (Python + Pillow)
 docs/                arquitetura, decisões, setup do Supabase e da Vercel
 ```
 
-## Editar o mapa de teste
+## Editar os mapas
 
-O mapa está em `content/maps/test-map.json`, uma linha de texto por fileira de tiles.
-A legenda está em `content/tiles.json` (`.` grama, `,` caminho, `#` muro, `T` árvore, `R` rocha, `~` água) e `P` é o ponto de nascimento.
-O mapa precisa ser retangular, ter a borda toda sólida e exatamente um `P`; `npm run content:check` aponta a linha e a coluna de qualquer erro.
+Os mapas ficam em `content/maps/` (`city.json` é a cidade, `test-map.json` a área de exploração de teste). Cada mapa tem:
+
+- `rows`: uma linha de texto por fileira de tiles. A legenda está em `content/tiles.json`: `.` grama, `,` terra, `=` calçada, `*` flores, `#` muro, `T` arbusto, `R` rocha, `~` água e `|` cerca. `P` é o ponto de nascimento.
+- `objects`: prédios e decoração de `content/objects.json` (`ref`), pelo canto superior esquerdo do sprite, em tiles.
+- `exits`: retângulos (em tiles) que levam a outro mapa (`to`). `arriveAt` é a célula onde o jogador aparece lá.
+
+O mapa inicial é o de `content/world.json`. `npm run content:check` (também roda no build) recusa o mapa e aponta o erro se:
+
+- o mapa não for retangular;
+- a borda estiver aberta fora de uma saída;
+- não houver exatamente um `P`;
+- um objeto sair do mapa;
+- o nascimento, uma porta ou uma saída ficar inalcançável;
+- um `arriveAt` cair em lugar bloqueado ou dentro de outra saída.
+
+Em `content/objects.json`, cada objeto define o tamanho do sprite, a parte sólida (`collider`, a base; o telhado fica por cima do jogador) e, nos prédios, a área da porta com a mensagem.
 
 ## Arte
 
@@ -84,9 +100,14 @@ Classes sem arte completa usam o personagem placeholder e o jogo mostra o aviso 
 
 Quando houver quadros de caminhada, basta deixar os PNGs mais largos (2, 3, 4... quadros) e ajustar `frames.walk` em `apps/web/src/assets/manifest.json`.
 
-### Tiles (ainda placeholder)
+### Cidade (arte provisória)
 
-Cada tile tem um ponto magenta no canto. Para trocar: coloque uma fileira de tiles 32×32, na ordem do campo `index` de `content/tiles.json`, troque o `path` do `tileset` em `apps/web/src/assets/manifest.json` e mude `placeholder` para `false`.
+O tileset (`apps/web/public/assets/city/terrain.png`) e os objetos (`apps/web/public/assets/city/objects/*.png`) foram desenhados por código em `tools/art/city_art.py`. Para trocar pela arte definitiva:
+
+- **Tileset**: uma fileira de tiles 32×32 na ordem do `index` de `content/tiles.json`.
+- **Prédios e decoração**: um PNG por `sprite` de `content/objects.json`, com o `width`/`height` definidos lá. Se o tamanho mudar, ajuste também `collider` e `door`.
+
+`npm test` confere tamanhos e a existência de todos os arquivos.
 
 ## Valores de protótipo
 

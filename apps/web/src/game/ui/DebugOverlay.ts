@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import type { ParsedMap } from '@navor/shared';
 import type { Player } from '../entities/Player.ts';
 
-/** F3 liga/desliga: caixas de colisão, tiles sólidos destacados, posição e FPS. */
+/** F3 liga/desliga: caixas de colisão, células bloqueadas destacadas, posição e FPS. */
 export class DebugOverlay {
   private enabled = false;
   private readonly text: Phaser.GameObjects.Text;
@@ -57,9 +57,9 @@ export class DebugOverlay {
 
   private drawSolids(): void {
     this.solids.lineStyle(1, 0xff3b3b, 0.8);
-    this.map.tiles.forEach((row, y) =>
-      row.forEach((tile, x) => {
-        if (tile.solid) this.solids.strokeRect(x * this.tileSize + 0.5, y * this.tileSize + 0.5, this.tileSize - 1, this.tileSize - 1);
+    this.map.blocked.forEach((row, y) =>
+      row.forEach((blocked, x) => {
+        if (blocked) this.solids.strokeRect(x * this.tileSize + 0.5, y * this.tileSize + 0.5, this.tileSize - 1, this.tileSize - 1);
       }),
     );
   }
