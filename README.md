@@ -1,13 +1,16 @@
 # Navor RPG
 
-RPG medieval online 2D em pixel art 32×32, para navegador e, no futuro, Windows, usando o mesmo backend.
+RPG medieval online 2D em pixel art 32×32, para navegador e Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 5, coleta e inventário.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
-protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função, mostram "em breve"
-na porta) e um portão que leva à Gruta. A cada entrada o servidor sorteia a seed da Gruta e o conteúdo dos pontos de
-coleta; o jogador coleta com **E** e vê o inventário com **I**. O servidor confere cada coleta e grava o inventário, e
-coletar de novo o mesmo ponto não duplica o item. Sem backend configurado, o jogo abre em modo offline (nada é salvo).
+**Estado atual: Fase 7, protótipo do MVP P1 fechado.** Login por e-mail e senha (Supabase), criação e seleção de
+personagem Mago protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função,
+mostram "em breve" na porta) e um portão que leva à Gruta. A cada entrada o servidor sorteia a seed da Gruta, o conteúdo
+dos pontos de coleta e os monstros. O jogador coleta com **E**, vê o inventário com **I** e ataca com **Espaço**.
+O servidor confere cada coleta e cada abate e grava inventário, XP, nível e cobre; repetir não duplica nada. Ao cair,
+o jogador volta à cidade. Sem backend configurado, o jogo abre em modo offline (nada é salvo).
+Há um app Windows de teste (Tauri) que abre o mesmo jogo ligado ao mesmo Supabase; veja "App Windows" abaixo.
+O que cada critério de aceitação do GDD tem como evidência está em [docs/mvp-p1.md](docs/mvp-p1.md).
 
 ## Requisitos
 
@@ -29,6 +32,9 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | Tecla | Ação |
 | --- | --- |
 | Setas ou WASD | Mover (8 direções) |
+| Espaço | Projétil Arcano na direção em que o Mago está virado (gasta mana) |
+| E | Coletar o recurso mais próximo |
+| I | Abrir e fechar o inventário |
 | F3 | Liga/desliga a depuração: caixas de colisão, células bloqueadas em vermelho, posição e FPS |
 
 ## Comandos
@@ -47,11 +53,15 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | `npm run placeholders` | Regenera o personagem temporário em `apps/web/public/assets/placeholder/` |
 | `python3 tools/art/city_art.py` | Regenera a arte da cidade (tiles e prédios); requer Python 3 e Pillow |
 | `python3 tools/art/item_art.py` | Regenera os ícones dos itens; requer Python 3 e Pillow |
+| `python3 tools/art/creature_art.py` | Regenera os monstros e o projétil; requer Python 3 e Pillow |
+| `npm run desktop:dev` | Abre o app Tauri apontando para o `npm run dev` (requer Rust; veja "App Windows") |
+| `npm run desktop:build` | Gera o instalador do app para o sistema atual em `apps/desktop/src-tauri/target/release/bundle` |
 | `npm run sprites:import -- "<pasta>"` | Copia a arte dos personagens da pasta do artista para o jogo (veja abaixo) |
 
 ## Estrutura
 
 ```
+apps/desktop/        app Windows (Tauri 2): abre o build de apps/web/dist, sem dados próprios
 apps/web/            cliente Phaser 4 + Vite
   src/game/          cenas, entidades, sistemas (input), UI de depuração
   src/assets/        manifest.json: chave lógica -> arquivo de arte
@@ -65,6 +75,29 @@ scripts/             validação de conteúdo, importação de sprites, placehol
 tools/art/           geradores da arte provisória da cidade e dos ícones (Python + Pillow)
 docs/                arquitetura, decisões, setup do Supabase e da Vercel
 ```
+
+## App Windows (Tauri)
+
+O app em `apps/desktop` é só uma janela com o mesmo jogo do navegador (o build de `apps/web/dist`). Ele usa o mesmo
+Supabase, então conta, personagens e inventário são os mesmos do site. Não há dados guardados no computador.
+
+**Baixar o instalador de teste:** a cada push na `main`, o GitHub Actions (workflow "App Windows") gera o instalador.
+Abra a aba **Actions** do repositório, entre na execução mais recente de "App Windows" e baixe o artifact
+`navor-windows` (precisa estar logado no GitHub). Dentro há `Navor_0.1.0_x64-setup.exe` e `Navor_0.1.0_x64_en-US.msi`.
+O instalador não é assinado digitalmente, então o Windows SmartScreen avisa "Editor desconhecido": clique em
+"Mais informações" e "Executar assim mesmo". Para rodar o workflow na hora, use "Run workflow" na página dele.
+
+**Gerar na sua máquina** (Windows): instale [Rust](https://rustup.rs) e o "Desktop development with C++" do
+Visual Studio Build Tools, crie `apps/web/.env.local` como em "Rodar localmente" e rode `npm run desktop:build`.
+
+O ícone (`apps/desktop/app-icon.png`) é provisório, feito do sprite do Mago por `tools/art/app_icon.py`. Para trocar,
+substitua o PNG (1024×1024) e rode `npx tauri icon app-icon.png` dentro de `apps/desktop`.
+
+## Testes automáticos no GitHub
+
+O workflow "Testes" (`.github/workflows/ci.yml`) roda a cada pull request e push na `main`: typecheck, `npm test`,
+build, teste de fumaça no Chromium e testes de banco (pgTAP). As capturas do teste de fumaça ficam no artifact
+`capturas-do-teste`. O repositório é público, então esses minutos não têm custo.
 
 ## Editar os mapas
 
