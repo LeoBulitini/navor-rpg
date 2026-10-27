@@ -6,6 +6,7 @@
   "type": "module",
   "workspaces": [
     "apps/web",
+    "apps/desktop",
     "packages/shared"
   ],
   "engines": {
@@ -23,7 +24,9 @@
     "smoke": "node scripts/smoke-test.mjs",
     "test:db": "bash scripts/test-db.sh",
     "db:content": "node --experimental-strip-types scripts/db-content.ts",
-    "sprites:import": "node scripts/import-character-sprites.mjs"
+    "sprites:import": "node scripts/import-character-sprites.mjs",
+    "desktop:dev": "npm run dev -w @navor/desktop",
+    "desktop:build": "npm run build && npm run build -w @navor/desktop"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
