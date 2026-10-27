@@ -1,5 +1,7 @@
 # Gera o app Windows de teste (Tauri): o mesmo build web, ligado ao mesmo Supabase.
-# O instalador fica nos "Artifacts" da execução (aba Actions do GitHub), por 30 dias.
+# O instalador fica nos "Artifacts" da execução (aba Actions do GitHub), por 30 dias. A cada push na main ele
+# também é publicado no Release "app-windows", com um link de download fixo:
+# https://github.com/LeoBulitini/navor-rpg/releases/download/app-windows/Navor-Setup.exe
 name: App Windows
 
 on:
@@ -18,6 +20,9 @@ env:
   # NUNCA coloque aqui a chave secreta (service_role / sb_secret_).
   VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://orfkmjxkaiotmojwchmc.supabase.co' }}
   VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_-v1bCLfgct-BfkRdtxQ2DA_Z6UKYKkx' }}
+
+permissions:
+  contents: write
 
 jobs:
   windows:
@@ -43,3 +48,14 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
           retention-days: 30
+      - name: Publicar no Release "app-windows" (só na main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp apps/desktop/src-tauri/target/release/bundle/nsis/*.exe Navor-Setup.exe
+          gh release view app-windows >/dev/null 2>&1 || gh release create app-windows --prerelease --target main \
+            --title "App Windows (teste)" \
+            --notes "Instalador de teste do Navor RPG para Windows, gerado a cada atualização da main. Não é assinado: o SmartScreen avisa \"Editor desconhecido\"; clique em \"Mais informações\" e \"Executar assim mesmo\"."
+          gh release upload app-windows Navor-Setup.exe --clobber

@@ -86,6 +86,8 @@ O app em `apps/desktop` é só uma janela com o mesmo jogo do navegador (o build
 Supabase, então conta, personagens e inventário são os mesmos do site. Não há dados guardados no computador.
 
 **Baixar o instalador de teste:** a cada push na `main`, o GitHub Actions (workflow "App Windows") gera o instalador.
+Link direto do mais recente (sem precisar de login): [Navor-Setup.exe](https://github.com/LeoBulitini/navor-rpg/releases/download/app-windows/Navor-Setup.exe)
+(Release "app-windows"). Também dá para baixar pelos artifacts:
 Abra a aba **Actions** do repositório, entre na execução mais recente de "App Windows" e baixe o artifact
 `navor-windows` (precisa estar logado no GitHub). Dentro há `Navor_0.1.0_x64-setup.exe` e `Navor_0.1.0_x64_en-US.msi`.
 O instalador não é assinado digitalmente, então o Windows SmartScreen avisa "Editor desconhecido": clique em
