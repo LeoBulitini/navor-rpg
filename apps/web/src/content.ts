@@ -15,6 +15,8 @@ import shops from '@content/shops.json';
 import equipment from '@content/equipment.json';
 import recipes from '@content/recipes.json';
 import skills from '@content/skills.json';
+import quests from '@content/quests.json';
+import social from '@content/social.json';
 
 const mapFiles = import.meta.glob('@content/maps/*.json', { eager: true, import: 'default' });
 
@@ -34,5 +36,7 @@ export const content: Content = loadContent({
   equipment,
   recipes,
   skills,
+  quests,
+  social,
   maps: Object.fromEntries(Object.entries(mapFiles).map(([path, data]) => [path.split('/').pop()!, data])),
 });

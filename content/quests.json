@@ -1,0 +1,220 @@
+{
+  "$comment": "Missões diárias (GDD 12: Daily Quest). PROVISÓRIO, decidido por Claude em 2026-10-27. A cada dia (00:00 de Brasília, pela hora do servidor) cada personagem recebe 'perDay' missões sorteadas entre as do nível dele (minLevel até maxLevel). 'kill' conta abates da criatura 'target'; 'collect' conta unidades do item 'target' coletadas em pontos de coleta. O servidor conta o progresso e entrega a recompensa uma vez, na cidade. As missões do dia não mudam se o personagem subir de nível.",
+  "perDay": 3,
+  "templates": [
+    {
+      "id": "rats",
+      "name": "Ratos no porão",
+      "kind": "kill",
+      "target": "cave-rat",
+      "count": 6,
+      "minLevel": 0,
+      "maxLevel": 6,
+      "reward": {
+        "xp": 40,
+        "copper": 12
+      }
+    },
+    {
+      "id": "bats",
+      "name": "Asas na escuridão",
+      "kind": "kill",
+      "target": "cave-bat",
+      "count": 5,
+      "minLevel": 0,
+      "maxLevel": 6,
+      "reward": {
+        "xp": 40,
+        "copper": 12
+      }
+    },
+    {
+      "id": "rabbits",
+      "name": "Coelhos na horta",
+      "kind": "kill",
+      "target": "rabbit",
+      "count": 3,
+      "minLevel": 0,
+      "maxLevel": 6,
+      "reward": {
+        "xp": 30,
+        "copper": 10
+      }
+    },
+    {
+      "id": "mushrooms",
+      "name": "Cogumelos para o Alquimista",
+      "kind": "collect",
+      "target": "mushroom-common",
+      "count": 4,
+      "minLevel": 0,
+      "maxLevel": 6,
+      "reward": {
+        "xp": 30,
+        "copper": 10
+      }
+    },
+    {
+      "id": "firewood",
+      "name": "Lenha para a Taverna",
+      "kind": "collect",
+      "target": "wood-common",
+      "count": 4,
+      "minLevel": 0,
+      "maxLevel": 6,
+      "reward": {
+        "xp": 30,
+        "copper": 10
+      }
+    },
+    {
+      "id": "goblins",
+      "name": "Saqueadores goblins",
+      "kind": "kill",
+      "target": "goblin-raider",
+      "count": 5,
+      "minLevel": 4,
+      "maxLevel": 14,
+      "reward": {
+        "xp": 120,
+        "copper": 30,
+        "items": [
+          {
+            "item": "scroll-simple",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "wolves",
+      "name": "Matilha na trilha",
+      "kind": "kill",
+      "target": "wolf",
+      "count": 5,
+      "minLevel": 4,
+      "maxLevel": 14,
+      "reward": {
+        "xp": 120,
+        "copper": 30
+      }
+    },
+    {
+      "id": "boars",
+      "name": "Javalis na plantação",
+      "kind": "kill",
+      "target": "wild-boar",
+      "count": 4,
+      "minLevel": 4,
+      "maxLevel": 14,
+      "reward": {
+        "xp": 120,
+        "copper": 30
+      }
+    },
+    {
+      "id": "iron",
+      "name": "Ferro para o Ferreiro",
+      "kind": "collect",
+      "target": "iron",
+      "count": 5,
+      "minLevel": 4,
+      "maxLevel": 14,
+      "reward": {
+        "xp": 90,
+        "copper": 25
+      }
+    },
+    {
+      "id": "herbs",
+      "name": "Ervas para curar",
+      "kind": "collect",
+      "target": "medicinal-herbs",
+      "count": 3,
+      "minLevel": 4,
+      "maxLevel": 14,
+      "reward": {
+        "xp": 90,
+        "copper": 25,
+        "items": [
+          {
+            "item": "potion-health-small",
+            "quantity": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "skeletons",
+      "name": "Ossos que andam",
+      "kind": "kill",
+      "target": "ancient-skeleton",
+      "count": 4,
+      "minLevel": 10,
+      "reward": {
+        "xp": 300,
+        "copper": 60,
+        "items": [
+          {
+            "item": "scroll-improved",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "bears",
+      "name": "O urso da floresta",
+      "kind": "kill",
+      "target": "bear",
+      "count": 3,
+      "minLevel": 10,
+      "reward": {
+        "xp": 300,
+        "copper": 60
+      }
+    },
+    {
+      "id": "spiders",
+      "name": "Teias na floresta",
+      "kind": "kill",
+      "target": "giant-spider",
+      "count": 5,
+      "minLevel": 10,
+      "reward": {
+        "xp": 260,
+        "copper": 55
+      }
+    },
+    {
+      "id": "dragon",
+      "name": "Desafio do Covil",
+      "kind": "kill",
+      "target": "dragon",
+      "count": 1,
+      "minLevel": 8,
+      "reward": {
+        "xp": 600,
+        "copper": 150,
+        "items": [
+          {
+            "item": "scroll-rare",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "ancient-wood",
+      "name": "Madeira antiga",
+      "kind": "collect",
+      "target": "wood-ancient",
+      "count": 2,
+      "minLevel": 10,
+      "reward": {
+        "xp": 220,
+        "copper": 50
+      }
+    }
+  ]
+}

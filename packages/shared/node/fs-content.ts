@@ -27,6 +27,8 @@ export function readRawContent(): RawContent {
     equipment: readJson('equipment.json'),
     recipes: readJson('recipes.json'),
     skills: readJson('skills.json'),
+    quests: readJson('quests.json'),
+    social: readJson('social.json'),
     maps,
   };
 }

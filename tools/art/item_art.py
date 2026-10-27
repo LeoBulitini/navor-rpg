@@ -515,6 +515,24 @@ def amulet(cord, charm, dark):
 
 
 ROCK = (P['s2'], P['s1'], P['s3'])
+def scale_icon(base, dark, light):
+    """Escama grande em forma de gota, com nervuras."""
+    img = Img(32, 32)
+    for y in range(6, 27):
+        half = int(9 * ((y - 6) / 20) ** 0.6) if y < 22 else int(9 * (1 - (y - 22) / 5))
+        for x in range(16 - half, 16 + half + 1):
+            d = (x - 16) + (y - 16)
+            img.px(x, y, hx(light) if d < -6 else hx(base) if d < 6 else hx(dark))
+    for y in range(10, 24, 4):
+        for x in range(12, 21):
+            if img.im.getpixel((x, y))[3]:
+                img.px(x, y, hx(dark))
+    img.rect(16, 8, 1, 16, hx(light))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
 ICONS = {
     'iron': lambda: ore(ROCK, [hx('#b5651d'), hx('#8a4b1a')], 1),
     'copper': lambda: ore(ROCK, [hx('#e08a4a'), hx('#c46a2a'), hx('#3fa38a')], 2),
@@ -575,6 +593,11 @@ ICONS = {
     'boots-leather': lambda: boots('#7a4a2a', '#4a2e19'),
     'ring-silver': lambda: ring('#e6e8ec', '#4a8fe0'),
     'amulet-fangs': lambda: amulet('#7a4a2a', '#f5f0e8', '#a89f8a'),
+    'dragon-scale': lambda: scale_icon('#b8321e', '#6e1a10', '#f07a3a'),
+    'monster-essence': lambda: vial('#7a3ab8', '#c8a0f0'),
+    'scroll-rare': lambda: scroll('#e8dcc0', '#3b82f6'),
+    'scroll-ancient': lambda: scroll('#d8c8a0', '#a855f7'),
+    'mithril': lambda: ore(ROCK, [hx('#b8e0e8'), hx('#7ab8c8'), hx('#ffffff')], 7),
     'unknown': unknown,
 }
 

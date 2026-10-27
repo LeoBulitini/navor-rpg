@@ -5,6 +5,7 @@ import { friendlyError } from '../../services/errors.ts';
 import type { GameBackend, GearBag, Inventory, Progress, Wallet } from '../backend.ts';
 import type { PanelContent, PanelRow, PanelSection, ServicePanel } from './ServicePanel.ts';
 import { craftSection, gearDetail, gearSellRows, upgradeSection } from './gearContent.ts';
+import { marketSections, storageSections, type MarketState } from './marketContent.ts';
 
 export interface ServiceContext {
   backend: GameBackend;
@@ -16,6 +17,8 @@ export interface ServiceContext {
   panel: ServicePanel;
   /** dormiu na Taverna: o jogo enche vida e mana */
   onRested: () => void;
+  /** mercado entre jogadores e armazém, lidos do servidor ao abrir (só nos prédios que têm esses serviços) */
+  market?: MarketState;
 }
 
 const coin = (currency: 'copper' | 'gold') => (currency === 'gold' ? 'ouro' : 'cobre');
@@ -97,6 +100,7 @@ export function shopContent(shop: ShopDef, ctx: ServiceContext): () => PanelCont
       });
     }
     for (const extra of [craftSection(shop, ctx), upgradeSection(shop, ctx)]) if (extra) sections.push(extra);
+    if (shop.storage && ctx.market) sections.push(...storageSections(shop, ctx, ctx.market));
     if (shop.rest) {
       const price = shop.rest.price;
       sections.push({
@@ -162,6 +166,13 @@ export function shopContent(shop: ShopDef, ctx: ServiceContext): () => PanelCont
           ],
         }))],
       });
+    }
+    if (shop.playerMarket && ctx.market) {
+      const state = ctx.market;
+      const reload = async () => {
+        state.board = await ctx.backend.loadMarket();
+      };
+      sections.push(...marketSections(shop, ctx, state, reload));
     }
     return { title: shop.name, subtitle: walletText(w), sections };
   };

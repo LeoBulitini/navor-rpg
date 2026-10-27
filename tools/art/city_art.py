@@ -318,6 +318,9 @@ def draw_icon(b, kind, x, y):
             half = 4 if j < 4 else 4 - (j - 3)
             b.rect(x + 5 - half, y + j, half * 2, 1, P['bl3'])
         b.rect(x + 4, y + 1, 2, 5, P['y']); b.rect(x + 2, y + 2, 6, 2, P['y'])
+    elif kind == 'box':
+        b.rect(x + 1, y + 1, 8, 7, P['k3']); b.rect(x + 1, y + 1, 8, 2, P['k4'])
+        b.rect(x + 1, y + 4, 8, 1, P['k1']); b.rect(x + 4, y + 3, 2, 3, P['s4'])
 
 
 def draw_sign(b, x, y, icon):
@@ -648,12 +651,86 @@ def forest_light(from_top):
     return t
 
 
+# ---------------- covil do dragão ----------------
+
+LAVA = [hx('#5a1206'), hx('#a8280a'), hx('#e0560f'), hx('#f59a1e'), hx('#ffd36a')]
+
+
+def lair_floor(seed):
+    """Basalto escuro com rachaduras que brilham (calor da lava por baixo)."""
+    rng = random.Random(seed)
+    t = Img(T, T)
+    speckle(t, 0, 0, T, T, hx('#2a1f1f'), [(hx('#1c1414'), 60), (hx('#3a2b28'), 50)], rng)
+    for _ in range(2):
+        x, y = rng.randrange(3, 26), rng.randrange(3, 26)
+        for i in range(rng.randrange(5, 10)):
+            xx, yy = x + i, y + (i // 2) * (1 if rng.random() < 0.5 else -1)
+            t.px(xx, yy, LAVA[1])
+            if i % 3 == 1:
+                t.px(xx, yy - 1, LAVA[2])
+    for _ in range(4):
+        t.px(rng.randrange(T), rng.randrange(T), hx('#4a3a34'))
+    return t
+
+
+def lair_wall(seed):
+    """Rocha vulcânica: blocos escuros com bordas avermelhadas."""
+    rng = random.Random(seed)
+    t = Img(T, T)
+    t.rect(0, 0, T, T, hx('#140c0c'))
+    for _ in range(7):
+        cx, cy = rng.randrange(0, T), rng.randrange(0, T)
+        rx, ry = rng.randrange(6, 12), rng.randrange(5, 9)
+        for y in range(cy - ry, cy + ry + 1):
+            for x in range(cx - rx, cx + rx + 1):
+                e = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+                if e <= 1:
+                    d = (x - cx) + (y - cy)
+                    c = hx('#4a3430') if d < -rx // 2 else hx('#352523') if d < rx // 2 else hx('#251917')
+                    if e > 0.8:
+                        c = hx('#140c0c')
+                    t.px(x % T, y % T, c)
+    for _ in range(6):
+        t.px(rng.randrange(T), rng.randrange(T), LAVA[0])
+    return t
+
+
+def lair_lava():
+    """Poça de lava (sólida): borda de rocha, miolo brilhante."""
+    t = lair_floor(501)
+    rng = random.Random(502)
+    for y in range(T):
+        for x in range(T):
+            e = ((x - 16) / 13) ** 2 + ((y - 17) / 10) ** 2
+            if e <= 1:
+                c = LAVA[3] if e < 0.25 else LAVA[2] if e < 0.6 else LAVA[1] if e < 0.85 else hx('#140c0c')
+                t.px(x, y, c)
+    for _ in range(10):
+        x, y = rng.randrange(8, 24), rng.randrange(10, 24)
+        if ((x - 16) / 13) ** 2 + ((y - 17) / 10) ** 2 < 0.5:
+            t.px(x, y, LAVA[4])
+    return t
+
+
+def lair_light(from_top):
+    """Passagem do covil: chão com luz fria entrando (entrada em cima, saída embaixo)."""
+    t = lair_floor(503 if from_top else 504)
+    for y in range(T):
+        k = (T - y) / T if from_top else y / T
+        a = int(100 * k * k)
+        for x in range(T):
+            if a > 0:
+                t.px(x, y, P['light'][:3] + (a,))
+    return t
+
+
 BUILDINGS = {
     'market': dict(w_tiles=6, roof='gr', wall='wood', door='double', icon='coin', awning=('r3', 'f1')),
     'tavern': dict(w_tiles=6, roof='r', wall='mixed', door='double', icon='mug', chimney=True, lit=True),
     'blacksmith': dict(w_tiles=5, roof='r', wall='mixed', door='forge', icon='hammer', chimney=True),
     'alchemist': dict(w_tiles=4, roof='pu', wall='wood', door='arch', icon='potion'),
     'training-hall': dict(w_tiles=6, roof='sl', wall='stone', door='boarded', icon='swords'),
+    'warehouse': dict(w_tiles=4, roof='sl', wall='wood', door='double', icon='box'),
     'guild': dict(w_tiles=5, roof='bl', wall='stone', door='boarded', icon='shield', banners=True),
 }
 
@@ -687,6 +764,12 @@ TERRAIN = [
     ('forest-out', lambda: forest_light(False)),
     ('forest-floor-b', lambda: forest_floor(17)),
     ('forest-wall-b', lambda: forest_wall(18)),
+    ('lair-floor', lambda: lair_floor(19)),
+    ('lair-wall', lambda: lair_wall(20)),
+    ('lair-lava', lair_lava),
+    ('lair-in', lambda: lair_light(True)),
+    ('lair-out', lambda: lair_light(False)),
+    ('lair-floor-b', lambda: lair_floor(21)),
 ]
 
 

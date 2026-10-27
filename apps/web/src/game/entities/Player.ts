@@ -13,7 +13,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene: Phaser.Scene,
     x: number,
     y: number,
-    private readonly classId: string,
+    private classId: string,
   ) {
     super(scene, x, y, TextureKeys.character(classId, 'south'), 0);
     scene.add.existing(this);
@@ -35,6 +35,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.facing = facingFromVelocity(v, this.facing);
     const moving = v.vx !== 0 || v.vy !== 0;
     this.play(animKey(this.classId, moving ? 'walk' : 'idle', this.facing), true);
+  }
+
+  /** Troca a arte (evolução de classe). As animações da classe nova já foram criadas no carregamento. */
+  setClass(classId: string): void {
+    this.classId = classId;
+    this.play(animKey(classId, 'idle', this.facing));
   }
 
   /** Piscar em vermelho ao levar dano. */
