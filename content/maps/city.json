@@ -154,12 +154,8 @@
       "y": 29,
       "w": 2,
       "h": 1,
-      "to": "test-map",
-      "arriveAt": {
-        "x": 9,
-        "y": 20
-      },
-      "label": "Saída para a área de exploração"
+      "to": "cave",
+      "label": "Portão para a Gruta"
     }
   ]
 }

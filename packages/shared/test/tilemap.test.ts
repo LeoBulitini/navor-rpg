@@ -10,15 +10,15 @@ const mapOf = (rows: string[], extra: Partial<AsciiMap> = {}): AsciiMap => ({
 });
 
 describe('parseAsciiMap', () => {
-  it('lê o mapa de teste e encontra o ponto de nascimento', () => {
-    const map = parseAsciiMap(content.maps['test-map']!, tiles);
-    expect(map.width).toBe(32);
-    expect(map.height).toBe(23);
+  it('lê a cidade e encontra o ponto de nascimento', () => {
+    const map = parseAsciiMap(content.maps['city']!, tiles, content.objects);
+    expect(map.width).toBe(40);
+    expect(map.height).toBe(30);
     expect(isWalkable(map, map.spawn)).toBe(true);
   });
 
-  it('no mapa de teste, toda célula andável é alcançável a partir do nascimento', () => {
-    const map = parseAsciiMap(content.maps['test-map']!, tiles);
+  it('na cidade, toda célula andável é alcançável a partir do nascimento', () => {
+    const map = parseAsciiMap(content.maps['city']!, tiles, content.objects);
     const reach = reachableFrom(map, map.spawn);
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
@@ -85,9 +85,9 @@ describe('cidade', () => {
     expect(city.blocked[roofRow]![col]).toBe(false);
   });
 
-  it('a saída do portão é alcançável e leva à área de exploração', () => {
+  it('o portão é alcançável e leva à Gruta', () => {
     const exit = city.exits[0]!;
-    expect(exit.to).toBe('test-map');
+    expect(exit.to).toBe('cave');
     expect(exitAt(city, { x: exit.x, y: exit.y })).toBe(exit);
   });
 
@@ -124,8 +124,15 @@ describe('objetos e saídas', () => {
 
   it('recusa chegada dentro de uma saída do outro mapa (evita ir e voltar sem parar)', () => {
     const raw = readRawContent();
-    const city = raw.maps['city.json'] as { exits: { arriveAt: { x: number; y: number } }[] };
-    city.exits[0]!.arriveAt = { x: 9, y: 22 };
+    const proc = raw.procedural as { areas: { returnTo: { arriveAt: { x: number; y: number } } }[] };
+    proc.areas[0]!.returnTo.arriveAt = { x: 19, y: 29 };
     expect(() => loadContent(raw)).toThrow(/dentro de uma saída/);
+  });
+
+  it('recusa saída para mapa fixo sem arriveAt', () => {
+    const raw = readRawContent();
+    const city = raw.maps['city.json'] as { exits: { to: string }[] };
+    city.exits[0]!.to = 'city';
+    expect(() => loadContent(raw)).toThrow(/falta arriveAt/);
   });
 });

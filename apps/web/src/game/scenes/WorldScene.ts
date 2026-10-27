@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { exitAt, parseAsciiMap, toTileIndexGrid, type GridPoint, type MapExit, type ParsedMap, type PlacedObject } from '@navor/shared';
+import { exitAt, generateCave, parseAsciiMap, toTileIndexGrid, type AsciiMap, type GridPoint, type MapExit, type ParsedMap, type PlacedObject } from '@navor/shared';
 import { content } from '../../content.ts';
 import { TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { Player } from '../entities/Player.ts';
@@ -11,6 +11,8 @@ export interface WorldSceneData {
   mapId: string;
   /** Célula onde o jogador aparece; sem ela, usa o ponto de nascimento do mapa. */
   arriveAt?: GridPoint;
+  /** Só para áreas geradas (Gruta): sem seed, sorteia uma nova a cada entrada. */
+  seed?: number;
 }
 
 const FADE_MS = 250;
@@ -23,6 +25,7 @@ export class WorldScene extends Phaser.Scene {
   private map!: ParsedMap;
   private doorText!: Phaser.GameObjects.Text;
   private leaving = false;
+  private seed: number | null = null;
 
   constructor() {
     super('World');
@@ -30,9 +33,7 @@ export class WorldScene extends Phaser.Scene {
 
   create(data: WorldSceneData): void {
     const T = content.balance.tileSize;
-    const asciiMap = content.maps[data.mapId];
-    if (!asciiMap) throw new Error(`Mapa "${data.mapId}" não encontrado em content/maps`);
-    this.map = parseAsciiMap(asciiMap, content.tiles, content.objects, T);
+    this.map = parseAsciiMap(this.resolveMap(data), content.tiles, content.objects, T);
     this.leaving = false;
 
     const tilemap = this.make.tilemap({ data: toTileIndexGrid(this.map, content.tiles), tileWidth: T, tileHeight: T });
@@ -74,6 +75,23 @@ export class WorldScene extends Phaser.Scene {
     const exit = exitAt(this.map, this.playerCell());
     if (exit) this.leaveThrough(exit);
     this.debug.update();
+  }
+
+  /**
+   * Mapa fixo de content/maps, ou área gerada de content/procedural.json. A área é gerada uma vez,
+   * ao entrar, e não muda até o jogador sair (GDD 7.3).
+   */
+  private resolveMap(data: WorldSceneData): AsciiMap {
+    this.seed = null;
+    const fixed = content.maps[data.mapId];
+    if (fixed) return fixed;
+    const area = content.procedural.areas.find((a) => a.id === data.mapId);
+    if (!area) throw new Error(`Mapa "${data.mapId}" não existe em content/maps nem em procedural.json`);
+    const urlSeed = new URLSearchParams(window.location.search).get('seed');
+    const requested = data.seed ?? (urlSeed !== null ? Number(urlSeed) >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!);
+    const cave = generateCave(area, content.tiles, requested);
+    this.seed = cave.seed;
+    return cave.map;
   }
 
   private addObject(obj: PlacedObject, solids: Phaser.Physics.Arcade.StaticGroup): void {
@@ -122,7 +140,8 @@ export class WorldScene extends Phaser.Scene {
       session?.mode === 'online'
         ? `${session.character.name} · nível ${session.character.level}`
         : 'Modo offline (nada é salvo)';
-    this.add.text(4, height - 4, `${who} · ${this.map.name}`, style).setOrigin(0, 1).setScrollFactor(0).setDepth(10000);
+    const place = this.seed === null ? this.map.name : `${this.map.name} (seed ${this.seed})`;
+    this.add.text(4, height - 4, `${who} · ${place}`, style).setOrigin(0, 1).setScrollFactor(0).setDepth(10000);
     this.doorText = this.add
       .text(width / 2, height - 28, '', { ...style, fontSize: '12px', color: '#fde68a' })
       .setOrigin(0.5, 1)
@@ -145,6 +164,8 @@ export class WorldScene extends Phaser.Scene {
     (window as unknown as { __navor: unknown }).__navor = {
       ready: true,
       mapId: this.map.id,
+      seed: this.seed,
+      rows: this.map.tiles.map((row) => row.map((t) => t.id).join(',')),
       tileSize: T,
       spawn: this.map.spawn,
       exits: this.map.exits,

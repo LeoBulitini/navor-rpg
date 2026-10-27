@@ -100,12 +100,41 @@ export const asciiMapSchema = z.object({
         w: z.number().int().positive(),
         h: z.number().int().positive(),
         to: z.string().min(1),
-        arriveAt: gridPoint,
+        /** Obrigatório para mapas fixos; mapas gerados (Gruta) usam o próprio ponto de entrada. */
+        arriveAt: gridPoint.optional(),
         label: z.string().min(1),
       }),
     )
     .default([]),
 });
+
+const range = z
+  .object({ min: z.number().int().min(0), max: z.number().int().min(0) })
+  .refine((r) => r.min <= r.max, 'min deve ser menor ou igual a max');
+
+/** Parâmetros de uma área gerada por seed. Valores provisórios (GDD 7.3: tamanhos e densidades A DEFINIR). */
+export const caveConfigSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  width: z.number().int().min(16).max(64),
+  height: z.number().int().min(16).max(64),
+  rooms: range,
+  roomSize: range,
+  corridorWidth: z.number().int().min(1).max(3),
+  extraCorridors: range,
+  rocks: range,
+  spawnChar: z.string().length(1),
+  spawnTile: z.string().min(1),
+  chars: z.object({
+    floor: z.string().length(1),
+    wall: z.string().length(1),
+    rock: z.string().length(1),
+    entrance: z.string().length(1),
+    exit: z.string().length(1),
+  }),
+  returnTo: z.object({ map: z.string().min(1), arriveAt: gridPoint }),
+});
+export const proceduralSchema = z.object({ areas: z.array(caveConfigSchema).min(1) });
 
 export type Rarities = z.infer<typeof raritiesSchema>;
 export type Classes = z.infer<typeof classesSchema>;
@@ -116,3 +145,5 @@ export type AsciiMap = z.infer<typeof asciiMapSchema>;
 export type ObjectDefs = z.infer<typeof objectsSchema>;
 export type ObjectDef = ObjectDefs['objects'][number];
 export type World = z.infer<typeof worldSchema>;
+export type CaveConfig = z.infer<typeof caveConfigSchema>;
+export type Procedural = z.infer<typeof proceduralSchema>;

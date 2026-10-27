@@ -3,9 +3,10 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e, no futuro, Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 3, cidade pequena.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
+**Estado atual: Fase 4, Gruta procedural.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
 protegidas por RLS, e o jogo começa na cidade principal: seis prédios de serviço (ainda sem função, mostram "em breve"
-na porta) e um portão que leva à área de exploração de teste e volta. Sem backend configurado, o jogo abre em modo offline.
+na porta) e um portão que leva à Gruta. A Gruta é gerada por seed a cada entrada, validada antes de aparecer e não muda
+enquanto o jogador está dentro. Sem backend configurado, o jogo abre em modo offline.
 
 ## Requisitos
 
@@ -34,7 +35,7 @@ do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso
 | Comando | O que faz |
 | --- | --- |
 | `npm run dev` | Servidor de desenvolvimento com recarga automática |
-| `npm test` | Testes automatizados (Vitest): dados de conteúdo, leitura de mapas, alcance, movimento |
+| `npm test` | Testes automatizados (Vitest): dados de conteúdo, mapas, alcance, Gruta procedural (500 seeds), movimento, arte |
 | `npm run test:db` | Testes de acesso do banco (pgTAP) num Postgres local, sem Docker; ver docs/setup-supabase.md |
 | `npm run content:check` | Valida os JSON de `content/` (também roda antes do build) |
 | `npm run typecheck` | Checagem de tipos do TypeScript |
@@ -64,11 +65,11 @@ docs/                arquitetura, decisões, setup do Supabase e da Vercel
 
 ## Editar os mapas
 
-Os mapas ficam em `content/maps/` (`city.json` é a cidade, `test-map.json` a área de exploração de teste). Cada mapa tem:
+Os mapas fixos ficam em `content/maps/` (hoje só `city.json`, a cidade). Cada mapa tem:
 
 - `rows`: uma linha de texto por fileira de tiles. A legenda está em `content/tiles.json`: `.` grama, `,` terra, `=` calçada, `*` flores, `#` muro, `T` arbusto, `R` rocha, `~` água e `|` cerca. `P` é o ponto de nascimento.
 - `objects`: prédios e decoração de `content/objects.json` (`ref`), pelo canto superior esquerdo do sprite, em tiles.
-- `exits`: retângulos (em tiles) que levam a outro mapa (`to`). `arriveAt` é a célula onde o jogador aparece lá.
+- `exits`: retângulos (em tiles) que levam a outro mapa (`to`). `arriveAt` é a célula onde o jogador aparece lá (não se usa quando o destino é gerado, como a Gruta).
 
 O mapa inicial é o de `content/world.json`. `npm run content:check` (também roda no build) recusa o mapa e aponta o erro se:
 
@@ -78,6 +79,12 @@ O mapa inicial é o de `content/world.json`. `npm run content:check` (também ro
 - um objeto sair do mapa;
 - o nascimento, uma porta ou uma saída ficar inalcançável;
 - um `arriveAt` cair em lugar bloqueado ou dentro de outra saída.
+
+### Gruta (gerada por seed)
+
+Os parâmetros ficam em `content/procedural.json` (tamanho, número e tamanho das salas, largura dos corredores, atalhos, rochas e para onde as saídas levam); são valores provisórios.
+O gerador (`packages/shared/src/procgen/cave.ts`) monta salas, liga todas por corredores (mais alguns atalhos que criam desvios), abre a entrada no topo e a saída embaixo, e valida antes de mostrar: tamanho, número de salas, todas as salas alcançáveis e caminho da entrada até a saída. Se uma seed não servir, tenta a seguinte.
+A mesma seed sempre gera a mesma Gruta; no jogo, a seed aparece no canto da tela, e `?seed=123` na URL fixa uma seed para testar.
 
 Em `content/objects.json`, cada objeto define o tamanho do sprite, a parte sólida (`collider`, a base; o telhado fica por cima do jogador) e, nos prédios, a área da porta com a mensagem.
 
@@ -102,7 +109,7 @@ Quando houver quadros de caminhada, basta deixar os PNGs mais largos (2, 3, 4...
 
 ### Cidade (arte provisória)
 
-O tileset (`apps/web/public/assets/city/terrain.png`) e os objetos (`apps/web/public/assets/city/objects/*.png`) foram desenhados por código em `tools/art/city_art.py`. Para trocar pela arte definitiva:
+O tileset (`apps/web/public/assets/city/terrain.png`, com os tiles da cidade e da Gruta) e os objetos (`apps/web/public/assets/city/objects/*.png`) foram desenhados por código em `tools/art/city_art.py`. Para trocar pela arte definitiva:
 
 - **Tileset**: uma fileira de tiles 32×32 na ordem do `index` de `content/tiles.json`.
 - **Prédios e decoração**: um PNG por `sprite` de `content/objects.json`, com o `width`/`height` definidos lá. Se o tamanho mudar, ajuste também `collider` e `door`.

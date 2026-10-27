@@ -18,6 +18,7 @@ export function readRawContent(): RawContent {
     balance: readJson('balance.prototype.json'),
     objects: readJson('objects.json'),
     world: readJson('world.json'),
+    procedural: readJson('procedural.json'),
     maps,
   };
 }

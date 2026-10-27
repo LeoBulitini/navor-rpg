@@ -6,6 +6,7 @@ import tiles from '@content/tiles.json';
 import balance from '@content/balance.prototype.json';
 import objects from '@content/objects.json';
 import world from '@content/world.json';
+import procedural from '@content/procedural.json';
 
 const mapFiles = import.meta.glob('@content/maps/*.json', { eager: true, import: 'default' });
 
@@ -16,5 +17,6 @@ export const content: Content = loadContent({
   balance,
   objects,
   world,
+  procedural,
   maps: Object.fromEntries(Object.entries(mapFiles).map(([path, data]) => [path.split('/').pop()!, data])),
 });
