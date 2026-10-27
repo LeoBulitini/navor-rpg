@@ -39,13 +39,16 @@ describe('sprites de combate', () => {
     expect(w % manifest.creatures.frameWidth).toBe(0);
   });
 
-  it.each(Object.values(combat.basicAttacks).map((a) => a.sprite))('efeito %s tem PNG', (sprite) => {
+  it.each([...Object.values(combat.basicAttacks).map((a) => a.sprite), ...manifest.effects.always])('efeito %s tem PNG', (sprite) => {
     expect(existsSync(join(PUBLIC, manifest.effects.path, `${sprite}.png`))).toBe(true);
   });
 
-  it('todo item que um monstro solta tem ícone próprio', () => {
+  it('todo item que um monstro, um baú ou um ponto de coleta dá tem ícone próprio', () => {
     const withIcon = new Set(items.items.filter((i) => 'icon' in i && i.icon).map((i) => i.id));
-    const dropItems = creatures.creatures.flatMap((c) => c.drops.map((d) => d.item));
+    const dropItems = [
+      ...creatures.creatures.flatMap((c) => c.drops.map((d) => d.item)),
+      ...procedural.areas.flatMap((a) => [...(a.resources?.items ?? []), ...(a.chests?.items.map((x) => x.item) ?? [])]),
+    ];
     expect(dropItems.filter((id) => !withIcon.has(id))).toEqual([]);
   });
 });

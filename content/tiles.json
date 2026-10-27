@@ -159,6 +159,59 @@
       "index": 20,
       "solid": true,
       "name": "Parede de rocha (variação)"
+    },
+    {
+      "id": "forest-floor",
+      "char": ";",
+      "index": 21,
+      "solid": false,
+      "name": "Chão da floresta",
+      "variants": [
+        "forest-floor-b"
+      ]
+    },
+    {
+      "id": "forest-wall",
+      "char": "Y",
+      "index": 22,
+      "solid": true,
+      "name": "Mata fechada",
+      "variants": [
+        "forest-wall-b"
+      ]
+    },
+    {
+      "id": "forest-bush",
+      "char": "b",
+      "index": 23,
+      "solid": true,
+      "name": "Arbusto de frutinhas"
+    },
+    {
+      "id": "forest-in",
+      "char": "n",
+      "index": 24,
+      "solid": false,
+      "name": "Entrada da floresta"
+    },
+    {
+      "id": "forest-out",
+      "char": "u",
+      "index": 25,
+      "solid": false,
+      "name": "Saída da floresta"
+    },
+    {
+      "id": "forest-floor-b",
+      "index": 26,
+      "solid": false,
+      "name": "Chão da floresta (variação)"
+    },
+    {
+      "id": "forest-wall-b",
+      "index": 27,
+      "solid": true,
+      "name": "Mata fechada (variação)"
     }
   ]
 }

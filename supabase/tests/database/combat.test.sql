@@ -32,8 +32,10 @@ select throws_ok($$ select * from public.exploration_monsters $$, '42501', null,
 select throws_ok($$ select * from public.creature_drops $$, '42501', null, 'usuário não lê a tabela de drops');
 insert into t select 'run', public.start_exploration((select v::uuid from t where k = 'char_a'), 'cave')::text;
 select ok((select jsonb_array_length(v::jsonb -> 'monsters') between 4 and 6 from t where k = 'run'), 'entre 4 e 6 monstros');
-select ok((select bool_and(m ->> 'creature_id' in ('cave-rat', 'goblin-raider')) from t, jsonb_array_elements(v::jsonb -> 'monsters') m where k = 'run'),
+reset role;
+select ok((select bool_and(m ->> 'creature_id' in (select creature_id from public.area_creatures where area_id = 'cave')) from t, jsonb_array_elements(v::jsonb -> 'monsters') m where k = 'run'),
   'só monstros da Gruta');
+reset role; set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 
 -- Abate logo ao entrar: rápido demais
 select throws_ok($$ select public.kill_monster((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run'), 0) $$,
@@ -88,7 +90,7 @@ select is((select closed_at from public.explorations where id = (select (v::json
 reset role; set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 select public.end_exploration((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run'));
 select throws_ok($$ select public.kill_monster((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run'), 2) $$,
-  'P0001', 'Esta exploração terminou. Entre na Gruta de novo.', 'depois da morte, a exploração não aceita abate');
+  'P0001', 'Esta exploração terminou. Entre na área de novo.', 'depois da morte, a exploração não aceita abate');
 
 reset role; set local role anon; select set_config('request.jwt.claims', '{"role":"anon"}', true);
 select throws_ok($$ select public.kill_monster(gen_random_uuid(), 0) $$, '42501', null, 'anônimo não chama kill_monster');

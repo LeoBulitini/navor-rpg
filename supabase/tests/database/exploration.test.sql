@@ -112,14 +112,14 @@ update public.explorations set last_collect_at = null, expires_at = now() - inte
   where id = (select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1');
 reset role; set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 select throws_ok($$ select public.collect_node((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1'), 2) $$,
-  'P0001', 'Esta exploração terminou. Entre na Gruta de novo.', 'exploração vencida não aceita coleta');
+  'P0001', 'Esta exploração terminou. Entre na área de novo.', 'exploração vencida não aceita coleta');
 reset role;
 update public.explorations set expires_at = now() + interval '30 minutes'
   where id = (select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1');
 reset role; set local role authenticated; select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 insert into t select 'run2', public.start_exploration((select v::uuid from t where k = 'char_a'), 'cave')::text;
 select throws_ok($$ select public.collect_node((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run1'), 2) $$,
-  'P0001', 'Esta exploração terminou. Entre na Gruta de novo.', 'entrar de novo encerra a exploração anterior');
+  'P0001', 'Esta exploração terminou. Entre na área de novo.', 'entrar de novo encerra a exploração anterior');
 select is((public.collect_node((select (v::jsonb ->> 'exploration_id')::uuid from t where k = 'run2'), 0) ->> 'collected')::boolean, true,
   'na exploração nova a coleta funciona');
 reset role;

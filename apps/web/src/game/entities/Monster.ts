@@ -5,9 +5,13 @@ import { content } from '../../content.ts';
 
 export const creatureAnimKey = (sprite: string, state: 'idle' | 'walk') => `creature-${sprite}-${state}`;
 
+/** Transparência de um bicho escondido (Aranha Gigante) enquanto não percebeu o jogador. */
+const HIDDEN_ALPHA = 0.2;
+
 /**
- * Um monstro da Gruta. A IA (monsterIntent) decide; aqui só se move e anima.
+ * Um monstro ou animal de uma área gerada. A IA (monsterIntent) decide; aqui só se move e anima.
  * O dano que ele causa e recebe é calculado na cena; a recompensa do abate vem do servidor.
+ * Bichos decorativos (Esquilo) usam a mesma classe, com `index` -1: fogem, mas não são alvo.
  */
 export class Monster extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -36,6 +40,7 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     this.body.setOffset(8, 18);
     this.setCollideWorldBounds(true);
     this.play(creatureAnimKey(def.sprite, 'idle'));
+    if (def.hidden) this.setAlpha(HIDDEN_ALPHA);
   }
 
   /** Um passo da IA. Devolve true quando o monstro desfere um golpe neste quadro. */
@@ -48,6 +53,9 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     let target: { x: number; y: number } | null = null;
     if (this.intent === 'chase') target = player;
     if (this.intent === 'return') target = this.home;
+    // fugir: correr para o ponto oposto ao jogador
+    if (this.intent === 'flee' && player) target = { x: 2 * c.x - player.x, y: 2 * c.y - player.y };
+    if (this.def.hidden) this.setAlpha(this.intent === 'chase' || this.intent === 'attack' ? 1 : HIDDEN_ALPHA);
     if (target) {
       const angle = Phaser.Math.Angle.Between(c.x, c.y, target.x, target.y);
       this.setVelocity(Math.cos(angle) * this.speed, Math.sin(angle) * this.speed);

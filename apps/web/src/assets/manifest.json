@@ -36,7 +36,11 @@
     "walkFrameRate": 6
   },
   "effects": {
-    "$comment": "Efeitos de combate, um PNG por 'sprite' (ex.: basicAttack.sprite de content/combat.json). Arte provisória.",
-    "path": "assets/effects"
+    "$comment": "Efeitos, um PNG por 'sprite': os ataques básicos de content/combat.json e os de 'always' (baú fechado e aberto). Arte provisória (tools/art/creature_art.py).",
+    "path": "assets/effects",
+    "always": [
+      "chest",
+      "chest-open"
+    ]
   }
 }

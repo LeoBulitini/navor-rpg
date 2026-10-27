@@ -145,28 +145,152 @@ def unknown():
     return img
 
 
-def pelt():
+def pelt(base='#8a7868', dark='#64554a', light='#ab9a8a'):
     img = Img(32, 32)
-    blob(img, 16, 18, 10, 6, hx('#8a7868'), hx('#64554a'), hx('#ab9a8a'))
+    blob(img, 16, 18, 10, 6, hx(base), hx(dark), hx(light))
     for x, y in ((6, 13), (26, 13), (6, 23), (26, 23)):
-        blob(img, x, y, 2, 2, hx('#8a7868'), hx('#64554a'))
+        blob(img, x, y, 2, 2, hx(base), hx(dark))
     for x in (11, 15, 19):
-        img.px(x, 17, hx('#64554a'))
-        img.px(x + 1, 19, hx('#64554a'))
+        img.px(x, 17, hx(dark))
+        img.px(x + 1, 19, hx(dark))
     outline(img)
     ground_shadow(img)
     return img
 
 
-def fangs():
+def fangs(cord='#7a4a2a', length=14, tips=((11, 9), (17, 7), (22, 11))):
     img = Img(32, 32)
-    for cx, top in ((11, 9), (17, 7), (22, 11)):
-        for y in range(top, top + 14):
-            w = max(0, (top + 14 - y) // 4)
+    for cx, top in tips:
+        for y in range(top, top + length):
+            w = max(0, (top + length - y) // 4)
             for x in range(cx - w, cx + w + 1):
                 img.px(x, y, P['f1'] if x <= cx else hx('#c8bfa8'))
     for x in range(8, 26):
-        img.px(x, 24, hx('#7a4a2a'))
+        img.px(x, 24, hx(cord))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def log(bark, dark, ring, glow=None):
+    """Tora de madeira deitada, com os anéis à mostra na ponta."""
+    img = Img(32, 32)
+    img.rect(6, 14, 18, 9, hx(bark))
+    for x in range(6, 24, 3):
+        img.px(x, 16, hx(dark)); img.px(x + 1, 20, hx(dark))
+    img.rect(6, 22, 18, 1, hx(dark))
+    blob(img, 24, 18, 3, 4, hx(ring), hx(dark))
+    img.px(24, 18, hx(dark))
+    if glow:
+        for x, y in ((9, 13), (14, 12), (19, 13), (12, 23)):
+            img.px(x, y, hx(glow))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def berries():
+    img = Img(32, 32)
+    for x, y in ((13, 18), (18, 17), (16, 21), (21, 21), (11, 22)):
+        blob(img, x, y, 2, 2, hx('#b0284a'), hx('#7a1830'), hx('#e85a7a'))
+    for x, y in ((15, 12), (16, 13), (17, 14), (14, 13)):
+        img.px(x, y, P['g3'])
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def herbs(leaf, dark, flower=None):
+    img = Img(32, 32)
+    for i, (x, h) in enumerate(((11, 10), (14, 14), (17, 12), (20, 9), (16, 7))):
+        img.rect(x, 24 - h, 1, h, hx(dark))
+        blob(img, x + (1 if i % 2 else -1), 24 - h + 2, 2, 1, hx(leaf), hx(dark))
+        if flower:
+            blob(img, x, 24 - h, 1, 1, hx(flower))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def flower(petal, dark, center):
+    img = Img(32, 32)
+    img.rect(16, 15, 1, 10, P['g2'])
+    blob(img, 13, 20, 2, 1, P['g3'], P['g1'])
+    for dx, dy in ((0, -4), (4, 0), (0, 4), (-4, 0)):
+        blob(img, 16 + dx, 11 + dy, 2, 2, hx(petal), hx(dark))
+    blob(img, 16, 11, 1, 1, hx(center))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def leather(base, dark):
+    img = Img(32, 32)
+    for y in range(11, 25):
+        w = 9 - abs(y - 18) // 3
+        for x in range(16 - w, 16 + w + 1):
+            img.px(x, y, hx(base) if (x + y) % 7 else hx(dark))
+    for x in range(9, 24, 2):
+        img.px(x, 12, hx(dark))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def chitin():
+    img = Img(32, 32)
+    for i, (x, y) in enumerate(((10, 14), (17, 12), (14, 19), (21, 18))):
+        blob(img, x, y, 4, 3, hx('#3d2a3a'), hx('#24161f'), hx('#7a5a75'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def scroll(paper, ribbon):
+    img = Img(32, 32)
+    img.rect(9, 11, 14, 12, hx(paper))
+    for y in range(13, 21, 2):
+        img.rect(11, y, 10, 1, hx('#8a7a5a'))
+    for x in (8, 23):
+        img.rect(x, 9, 2, 16, hx('#c8b07a'))
+        img.px(x, 9, hx('#e8d8aa'))
+    img.rect(14, 22, 4, 3, hx(ribbon))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def meat():
+    img = Img(32, 32)
+    blob(img, 14, 18, 7, 5, hx('#b8433a'), hx('#7a2420'), hx('#e07a6a'))
+    for x, y in ((11, 17), (14, 19), (16, 16)):
+        img.px(x, y, hx('#f0d0c0'))
+    img.rect(20, 17, 6, 2, P['f1'])
+    blob(img, 26, 17, 2, 2, P['f1'], hx('#a89f8a'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def vial(liquid, light):
+    img = Img(32, 32)
+    img.rect(14, 7, 4, 2, hx('#8a5a32'))  # rolha
+    img.rect(14, 9, 4, 4, hx('#c8d3e0', 200))
+    blob(img, 16, 18, 6, 6, hx('#c8d3e0', 200))
+    blob(img, 16, 19, 5, 4, hx(liquid), None, hx(light))
+    img.px(13, 15, hx('#ffffff'))
+    outline(img)
+    ground_shadow(img)
+    return img
+
+
+def silk():
+    img = Img(32, 32)
+    blob(img, 16, 18, 7, 6, hx('#ecebe6'), hx('#b8b6ae'), hx('#ffffff'))
+    for i in range(12):
+        img.px(10 + i, 14 + (i * 7) % 9, hx('#b8b6ae'))
+    for x, y in ((23, 12), (24, 11), (25, 10)):
+        img.px(x, y, hx('#ecebe6'))
     outline(img)
     ground_shadow(img)
     return img
@@ -188,6 +312,25 @@ ICONS = {
     'ancient-bone': lambda: big_bone(hx('#d8c48a'), hx('#9c8a52')),
     'rat-pelt': pelt,
     'goblin-fangs': fangs,
+    'bat-chitin': chitin,
+    'wood-common': lambda: log('#7a5230', '#4a2e19', '#d9b27a'),
+    'wood-sturdy': lambda: log('#5f3d22', '#2a160b', '#b08050'),
+    'wood-ancient': lambda: log('#4a4a3a', '#22221a', '#c8c08a', glow='#9cd0ff'),
+    'wild-berries': berries,
+    'medicinal-herbs': lambda: herbs('#5aa05a', '#2f6a36', '#e8f5c8'),
+    'blue-flower': lambda: flower('#4a8fe0', '#2a5aa8', '#f3d27a'),
+    'leather-simple': lambda: leather('#a0703f', '#6e4a28'),
+    'boar-tusks': lambda: fangs('#3d2a1f', 12, ((12, 10), (20, 10))),
+    'wolf-pelt': lambda: pelt('#7d8089', '#4f525a', '#a8abb3'),
+    'wolf-fangs': lambda: fangs('#4f525a'),
+    'rabbit-pelt': lambda: pelt('#ddd0bc', '#86735e', '#f5f0e8'),
+    'bear-pelt': lambda: pelt('#5a3a22', '#3a2414', '#7a5434'),
+    'bear-fangs': lambda: fangs('#5a3a22', 16, ((10, 6), (16, 5), (22, 6))),
+    'meat': meat,
+    'spider-venom': lambda: vial('#5ab84a', '#a8f07a'),
+    'spider-silk': silk,
+    'scroll-simple': lambda: scroll('#e8dcc0', '#9ca3af'),
+    'scroll-improved': lambda: scroll('#e8dcc0', '#22c55e'),
     'unknown': unknown,
 }
 

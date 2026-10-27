@@ -19,8 +19,9 @@ export interface GeneratedCave {
 const center = (r: Room): GridPoint => ({ x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) });
 
 /**
- * Gera uma Gruta a partir de uma seed: salas retangulares ligadas por corredores
- * (árvore geradora mínima + alguns atalhos), entrada no topo e saída embaixo.
+ * Gera uma área (Gruta, Floresta) a partir de uma seed: salas retangulares ligadas por corredores
+ * (árvore geradora mínima + alguns atalhos), entrada no topo e saída embaixo. Na Floresta, as
+ * salas são clareiras e as paredes são mata fechada; só mudam os tiles (procedural.json).
  * A mesma seed e a mesma configuração sempre produzem o mesmo mapa.
  * O resultado passa pelo validador comum de mapas e por checagens próprias; se uma
  * tentativa falhar, tenta a seed seguinte (até `maxAttempts`).
@@ -92,7 +93,7 @@ function buildCave(config: CaveConfig, seed: number): GeneratedCave {
     objects: [],
     exits: [
       { x: ex, y: 0, w: 2, h: 1, to: returnTo.map, arriveAt: returnTo.arriveAt, label: 'Voltar para a cidade' },
-      { x: sx, y: H - 1, w: 2, h: 1, to: returnTo.map, arriveAt: returnTo.arriveAt, label: 'Saída da Gruta' },
+      { x: sx, y: H - 1, w: 2, h: 1, to: returnTo.map, arriveAt: returnTo.arriveAt, label: `Saída: ${config.name}` },
     ],
   };
   return { seed, map, rooms };

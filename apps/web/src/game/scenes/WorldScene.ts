@@ -9,6 +9,8 @@ import {
   levelThresholds,
   pathOfClass,
   pathStatsFor,
+  placeChests,
+  placeDecor,
   placeMonsters,
   rollDamage,
   rollHit,
@@ -29,7 +31,7 @@ import {
 import { content } from '../../content.ts';
 import { itemTexture, TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { friendlyError } from '../../services/errors.ts';
-import { getBackend, getInventory, getProgress, type ExplorationRun, type KillResult } from '../backend.ts';
+import { getBackend, getInventory, getProgress, type ChestResult, type ExplorationRun, type KillResult } from '../backend.ts';
 import { CombatHud, type Vitals } from '../ui/CombatHud.ts';
 import { Monster } from '../entities/Monster.ts';
 import { InventoryPanel } from '../ui/InventoryPanel.ts';
@@ -42,7 +44,7 @@ export interface WorldSceneData {
   mapId: string;
   /** Célula onde o jogador aparece; sem ela, usa o ponto de nascimento do mapa. */
   arriveAt?: GridPoint;
-  /** Só para áreas geradas (Gruta): a entrada que o servidor criou, com a seed e os pontos de coleta. */
+  /** Só para áreas geradas (Gruta, Floresta): a entrada que o servidor criou, com a seed e os pontos de coleta. */
   run?: ExplorationRun;
 }
 
@@ -52,6 +54,16 @@ interface ResourceNode {
   sprite: Phaser.GameObjects.Image;
   state: 'ready' | 'busy' | 'done';
 }
+
+interface Chest {
+  index: number;
+  cell: GridPoint;
+  sprite: Phaser.GameObjects.Image;
+  state: 'closed' | 'busy' | 'open';
+}
+
+/** O que está ao alcance da tecla E: um ponto de coleta ou um baú. */
+type Interactable = { kind: 'node'; node: ResourceNode } | { kind: 'chest'; chest: Chest };
 
 const FADE_MS = 250;
 /** Depois de cair, quanto tempo a mensagem fica na tela antes de voltar para a cidade. */
@@ -80,6 +92,10 @@ export class WorldScene extends Phaser.Scene {
   /** Saída que falhou (ex.: servidor fora do ar): só volta a valer depois que o jogador sai dela. */
   private heldExit: MapExit | null = null;
   private monsters: Monster[] = [];
+  private monsterCells: GridPoint[] = [];
+  /** bichos só de enfeite (Esquilos): fogem, mas não são alvo */
+  private critters: Monster[] = [];
+  private chests: Chest[] = [];
   private bolts!: Phaser.Physics.Arcade.Group;
   private stats!: CharacterStats;
   private vitals!: Vitals;
@@ -140,7 +156,7 @@ export class WorldScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     if (this.leaving) {
-      for (const m of this.monsters) if (m.state === 'alive') m.setVelocity(0, 0);
+      for (const m of [...this.monsters, ...this.critters]) if (m.state === 'alive') m.setVelocity(0, 0);
       return;
     }
     this.player.move(this.keys.read());
@@ -187,30 +203,89 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  private nearestNode(): ResourceNode | undefined {
+  /** Baús da entrada atual: quantos há veio do servidor; a posição sai da seed, no fundo da área. */
+  private addChests(): void {
+    this.chests = [];
+    const area = content.procedural.areas.find((a) => a.id === this.map.id);
+    if (!this.run || !area?.chests || this.seed === null || this.run.chests === 0) return;
+    const T = this.map.tileSize;
+    const avoid = [...this.nodes.map((n) => n.cell), ...this.monsterCells];
+    const cells = placeChests(this.map, this.seed, this.run.chests, area.chests, avoid);
+    this.chests = cells.map((cell, index) => ({
+      index,
+      cell,
+      sprite: this.add.image(cell.x * T + T / 2, cell.y * T + T / 2, TextureKeys.effect('chest')).setDepth(cell.y * T + T - 4),
+      state: 'closed' as const,
+    }));
+  }
+
+  /** O ponto de coleta ou baú mais perto, dentro do alcance. */
+  private nearestInteractable(): Interactable | undefined {
     const c = this.player.body.center;
-    let best: ResourceNode | undefined;
+    let best: Interactable | undefined;
     let bestDist = COLLECT_RANGE;
-    for (const n of this.nodes) {
-      if (n.state === 'done') continue;
-      const d = Phaser.Math.Distance.Between(c.x, c.y, n.sprite.x, n.sprite.y);
+    const consider = (target: Interactable, sprite: Phaser.GameObjects.Image) => {
+      const d = Phaser.Math.Distance.Between(c.x, c.y, sprite.x, sprite.y);
       if (d <= bestDist) {
-        best = n;
+        best = target;
         bestDist = d;
       }
-    }
+    };
+    for (const node of this.nodes) if (node.state !== 'done') consider({ kind: 'node', node }, node.sprite);
+    for (const chest of this.chests) if (chest.state !== 'open') consider({ kind: 'chest', chest }, chest.sprite);
     return best;
   }
 
   private updateCollectPrompt(): void {
     const pressed = this.collectPressed;
     this.collectPressed = false;
-    const node = this.nearestNode();
-    this.promptText.setVisible(Boolean(node));
-    if (!node) return;
+    const target = this.nearestInteractable();
+    this.promptText.setVisible(Boolean(target));
+    if (!target) return;
+    if (target.kind === 'chest') {
+      const { chest } = target;
+      this.promptText.setText(chest.state === 'busy' ? 'Abrindo...' : 'E: abrir o baú');
+      if (chest.state === 'closed' && pressed) this.openChest(chest);
+      return;
+    }
+    const { node } = target;
     const name = content.items.items.find((i) => i.id === node.content.itemId)?.name ?? node.content.itemId;
     this.promptText.setText(node.state === 'busy' ? 'Coletando...' : `E: coletar ${name}`);
-    if (node?.state === 'ready' && pressed) this.collect(node);
+    if (node.state === 'ready' && pressed) this.collect(node);
+  }
+
+  /** O servidor sorteia o conteúdo; o baú só aparece aberto depois da resposta. */
+  private openChest(chest: Chest): void {
+    chest.state = 'busy';
+    const run = this.run!;
+    getBackend(this)
+      .openChest(run, chest.index)
+      .then((result) => {
+        if (this.run !== run) return;
+        chest.state = 'open';
+        chest.sprite.setTexture(TextureKeys.effect('chest-open'));
+        this.applyChest(chest, result);
+      })
+      .catch((err: unknown) => {
+        if (this.run !== run) return;
+        chest.state = 'closed';
+        this.showNotice(friendlyError(err));
+      });
+  }
+
+  private applyChest(chest: Chest, r: ChestResult): void {
+    getProgress(this).set({ ...getProgress(this).state, copper: r.copper, gold: r.gold });
+    for (const d of r.drops) getInventory(this)!.set(d.itemId, d.total);
+    if (!r.opened) return;
+    const { x, y } = chest.sprite;
+    const gains = [`+${r.copperGained} cobre`, ...(r.goldGained > 0 ? [`+${r.goldGained} ouro`] : [])];
+    this.floatText(x, y - 14, gains.join('  '), r.goldGained > 0 ? '#fde047' : '#fde68a');
+    r.drops.forEach((d, i) => {
+      const def = content.items.items.find((it) => it.id === d.itemId);
+      const color = content.rarities.rarities.find((rr) => rr.id === def?.rarity)?.color ?? '#e5e7eb';
+      this.floatText(x, y - 26 - i * 12, `+${d.quantity} ${def?.name ?? d.itemId}`, color);
+    });
+    if (r.goldGained > 0) this.showNotice('Uma moeda de ouro!', '#fde047');
   }
 
   /** O servidor confere e grava; o ponto só some depois da resposta. */
@@ -252,6 +327,7 @@ export class WorldScene extends Phaser.Scene {
   /**
    * Vida e mana não são gravadas no servidor: na cidade enchem; entre mapas, seguem iguais.
    * Monstros só existem nas áreas geradas; a posição sai da seed e o tipo veio do servidor.
+   * Os bichos de enfeite (Esquilos) saem só da seed e não entram no combate.
    */
   private setupCombat(ground: NonNullable<ReturnType<Phaser.Tilemaps.Tilemap['createLayer']>>, solids: Phaser.Physics.Arcade.StaticGroup): void {
     this.dead = false;
@@ -272,11 +348,22 @@ export class WorldScene extends Phaser.Scene {
     this.physics.add.collider(this.bolts, solids, (bolt) => (bolt as Phaser.GameObjects.Image).destroy());
 
     this.monsters = [];
+    this.monsterCells = [];
+    this.critters = [];
+    this.chests = [];
     const area = content.procedural.areas.find((a) => a.id === this.map.id);
-    if (this.run && area?.creatures && this.seed !== null && this.run.monsters.length > 0) {
+    const defOf = (id: string) => content.creatures.creatures.find((c) => c.id === id)!;
+    if (this.run && area?.creatures && this.seed !== null) {
       const avoid = this.nodes.map((n) => n.cell);
-      const cells = placeMonsters(this.map, this.seed, this.run.monsters.length, area.creatures, avoid);
-      this.monsters = this.run.monsters.map((m, i) => new Monster(this, m.index, content.creatures.creatures.find((c) => c.id === m.creatureId)!, cells[i]!));
+      const spawns = this.run.monsters;
+      this.monsterCells = placeMonsters(this.map, this.seed, spawns.length, area.creatures, avoid, (i) => defOf(spawns[i]!.creatureId).placement === 'deep');
+      this.monsters = spawns.map((m, i) => new Monster(this, m.index, defOf(m.creatureId), this.monsterCells[i]!));
+      this.addChests();
+      const taken = [...avoid, ...this.monsterCells, ...this.chests.map((ch) => ch.cell)];
+      this.critters = placeDecor(this.map, this.seed, area.creatures, taken).map((d) => new Monster(this, -1, defOf(d.creatureId), d.cell));
+      const critters = this.physics.add.group(this.critters);
+      this.physics.add.collider(critters, ground);
+      this.physics.add.collider(critters, solids);
       const group = this.physics.add.group(this.monsters);
       this.physics.add.collider(group, ground);
       this.physics.add.collider(group, solids);
@@ -334,6 +421,7 @@ export class WorldScene extends Phaser.Scene {
 
     const c = this.player.body.center;
     const noCrit = { critChance: 0, critDamage: 1 };
+    for (const m of this.critters) m.think(time, { x: c.x, y: c.y });
     for (const m of this.monsters) {
       if (!m.think(time, { x: c.x, y: c.y })) continue;
       const { attack, damageType } = m.def.stats;
@@ -414,7 +502,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private applyKill(m: Monster, r: KillResult): void {
-    getProgress(this).set({ level: r.level, xp: r.xp, copper: r.copper });
+    getProgress(this).set({ ...getProgress(this).state, level: r.level, xp: r.xp, copper: r.copper });
     for (const d of r.drops) getInventory(this)!.set(d.itemId, d.total);
     if (!r.killed) return;
     const gains = [`+${r.xpGained} XP`, ...(r.copperGained > 0 ? [`+${r.copperGained} cobre`] : [])];
@@ -527,7 +615,7 @@ export class WorldScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontSize: '10px', color: '#e5e7eb', backgroundColor: '#000000aa', padding: { x: 3, y: 2 } };
     this.add
-      .text(width - 4, 4, 'Setas/WASD: mover   Espaço: atacar   E: coletar   I: inventário   F3: depuração', style)
+      .text(width - 4, 4, 'Setas/WASD: mover   Espaço: atacar   E: coletar/abrir   I: inventário   F3: depuração', style)
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(10000);
@@ -603,7 +691,10 @@ export class WorldScene extends Phaser.Scene {
           hp: m.hp,
           state: m.state,
           intent: m.intent,
+          alpha: m.alpha,
         })),
+      critters: () => this.critters.map((m) => ({ creatureId: m.def.id, x: m.body.center.x, y: m.body.center.y, intent: m.intent })),
+      chests: () => this.chests.map((ch) => ({ index: ch.index, x: ch.cell.x, y: ch.cell.y, state: ch.state })),
       vitals: () => ({ ...this.vitals }),
       stats: () => ({ ...this.stats }),
       progress: () => ({ ...getProgress(this).state }),

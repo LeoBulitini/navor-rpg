@@ -6,42 +6,300 @@
       "name": "Gruta",
       "width": 32,
       "height": 32,
-      "rooms": { "min": 5, "max": 7 },
-      "roomSize": { "min": 4, "max": 8 },
+      "rooms": {
+        "min": 5,
+        "max": 7
+      },
+      "roomSize": {
+        "min": 4,
+        "max": 8
+      },
       "corridorWidth": 2,
-      "extraCorridors": { "min": 1, "max": 2 },
-      "rocks": { "min": 4, "max": 10 },
+      "extraCorridors": {
+        "min": 1,
+        "max": 2
+      },
+      "rocks": {
+        "min": 4,
+        "max": 10
+      },
       "spawnChar": "P",
       "spawnTile": "cave-floor",
-      "chars": { "floor": ":", "wall": "%", "rock": "o", "entrance": "^", "exit": "v" },
-      "returnTo": { "map": "city", "arriveAt": { "x": 19, "y": 27 } },
+      "chars": {
+        "floor": ":",
+        "wall": "%",
+        "rock": "o",
+        "entrance": "^",
+        "exit": "v"
+      },
+      "returnTo": {
+        "map": "city",
+        "arriveAt": {
+          "x": 19,
+          "y": 27
+        }
+      },
       "resources": {
         "$comment": "Pontos de coleta (Fase 5). Valores PROVISÓRIOS aprovados em 2026-10-27. O servidor sorteia o item de cada ponto: primeiro a raridade pelo 'weight', depois um item dessa raridade em 'items', e a quantidade pela faixa da raridade.",
-        "nodes": { "min": 8, "max": 12 },
+        "nodes": {
+          "min": 8,
+          "max": 12
+        },
         "minDistance": 3,
         "clearance": 3,
         "rarities": [
-          { "rarity": "common", "weight": 70, "quantity": { "min": 1, "max": 3 } },
-          { "rarity": "uncommon", "weight": 25, "quantity": { "min": 1, "max": 2 } },
-          { "rarity": "rare", "weight": 5, "quantity": { "min": 1, "max": 1 } }
+          {
+            "rarity": "common",
+            "weight": 70,
+            "quantity": {
+              "min": 1,
+              "max": 3
+            }
+          },
+          {
+            "rarity": "uncommon",
+            "weight": 25,
+            "quantity": {
+              "min": 1,
+              "max": 2
+            }
+          },
+          {
+            "rarity": "rare",
+            "weight": 5,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          }
         ],
         "items": [
-          "mushroom-common", "bones", "iron", "copper", "coal",
-          "mushroom-medicinal", "silver", "aluminum",
-          "crystal-blue", "ancient-bone", "gold-ore", "quartz"
+          "mushroom-common",
+          "bones",
+          "iron",
+          "copper",
+          "coal",
+          "mushroom-medicinal",
+          "silver",
+          "aluminum",
+          "crystal-blue",
+          "ancient-bone",
+          "gold-ore",
+          "quartz"
         ],
         "expiresMinutes": 30,
         "collectCooldownMs": 500,
         "maxStartsPerMinute": 10
       },
       "creatures": {
-        "$comment": "Monstros por entrada (Fase 6). PROVISÓRIO. O servidor sorteia o tipo de cada um pelo 'weight'; o navegador posiciona a partir da seed, longe da entrada e da saída ('clearance' em tiles).",
-        "count": { "min": 4, "max": 6 },
+        "$comment": "Monstros por entrada (Fases 6 e 9). PROVISÓRIO. O servidor sorteia o tipo de cada um pelo 'weight'; o navegador posiciona a partir da seed, longe da entrada e da saída ('clearance' em tiles). Monstros com placement 'deep' ficam no fundo da Gruta.",
+        "count": {
+          "min": 4,
+          "max": 6
+        },
         "clearance": 6,
         "spawn": [
-          { "creature": "cave-rat", "weight": 70 },
-          { "creature": "goblin-raider", "weight": 30 }
+          {
+            "creature": "cave-rat",
+            "weight": 45
+          },
+          {
+            "creature": "cave-bat",
+            "weight": 25
+          },
+          {
+            "creature": "goblin-raider",
+            "weight": 20
+          },
+          {
+            "creature": "ancient-skeleton",
+            "weight": 10
+          }
         ]
+      },
+      "chests": {
+        "$comment": "Baús (Fase 9). PROVISÓRIO, decidido por Claude em 2026-10-27. O servidor decide quantos há na entrada e sorteia o conteúdo ao abrir: cobre, às vezes itens e, raramente, 1 moeda de ouro. O navegador posiciona a partir da seed, sempre no fundo da área.",
+        "count": {
+          "min": 1,
+          "max": 2
+        },
+        "clearance": 6,
+        "copper": {
+          "min": 3,
+          "max": 15
+        },
+        "goldChance": 0.02,
+        "items": [
+          {
+            "item": "scroll-simple",
+            "chance": 0.25,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          },
+          {
+            "item": "scroll-improved",
+            "chance": 0.06,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          }
+        ],
+        "minSecondsAfterStart": 10
+      }
+    },
+    {
+      "id": "forest",
+      "name": "Floresta",
+      "width": 32,
+      "height": 32,
+      "rooms": {
+        "min": 5,
+        "max": 7
+      },
+      "roomSize": {
+        "min": 5,
+        "max": 8
+      },
+      "corridorWidth": 2,
+      "extraCorridors": {
+        "min": 1,
+        "max": 3
+      },
+      "rocks": {
+        "min": 6,
+        "max": 14
+      },
+      "spawnChar": "P",
+      "spawnTile": "forest-floor",
+      "chars": {
+        "floor": ";",
+        "wall": "Y",
+        "rock": "b",
+        "entrance": "n",
+        "exit": "u"
+      },
+      "returnTo": {
+        "map": "city",
+        "arriveAt": {
+          "x": 37,
+          "y": 23
+        }
+      },
+      "resources": {
+        "$comment": "Pontos de coleta da Floresta (Fase 9, GDD 9.5). PROVISÓRIO. Couro, presas e peles vêm dos animais, não dos pontos.",
+        "nodes": {
+          "min": 8,
+          "max": 12
+        },
+        "minDistance": 3,
+        "clearance": 3,
+        "rarities": [
+          {
+            "rarity": "common",
+            "weight": 70,
+            "quantity": {
+              "min": 1,
+              "max": 3
+            }
+          },
+          {
+            "rarity": "uncommon",
+            "weight": 25,
+            "quantity": {
+              "min": 1,
+              "max": 2
+            }
+          },
+          {
+            "rarity": "rare",
+            "weight": 5,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          }
+        ],
+        "items": [
+          "wood-common",
+          "wild-berries",
+          "medicinal-herbs",
+          "wood-sturdy",
+          "blue-flower",
+          "wood-ancient"
+        ],
+        "expiresMinutes": 30,
+        "collectCooldownMs": 500,
+        "maxStartsPerMinute": 10
+      },
+      "creatures": {
+        "$comment": "Animais da Floresta (Fase 9, GDD 8.1). PROVISÓRIO. Cervo e Coelho fogem; Lobo, Javali, Aranha e Urso (raro) atacam. Esquilos são só enfeite ('decor'): o servidor não sabe deles.",
+        "count": {
+          "min": 5,
+          "max": 8
+        },
+        "clearance": 6,
+        "spawn": [
+          {
+            "creature": "deer",
+            "weight": 22
+          },
+          {
+            "creature": "rabbit",
+            "weight": 22
+          },
+          {
+            "creature": "wolf",
+            "weight": 18
+          },
+          {
+            "creature": "wild-boar",
+            "weight": 15
+          },
+          {
+            "creature": "giant-spider",
+            "weight": 13
+          },
+          {
+            "creature": "bear",
+            "weight": 5
+          }
+        ],
+        "decor": [
+          {
+            "creature": "squirrel",
+            "count": {
+              "min": 2,
+              "max": 4
+            }
+          }
+        ]
+      },
+      "chests": {
+        "$comment": "Baús (Fase 9). PROVISÓRIO, decidido por Claude em 2026-10-27. O servidor decide quantos há na entrada e sorteia o conteúdo ao abrir: cobre, às vezes itens e, raramente, 1 moeda de ouro. O navegador posiciona a partir da seed, sempre no fundo da área.",
+        "count": {
+          "min": 0,
+          "max": 1
+        },
+        "clearance": 6,
+        "copper": {
+          "min": 2,
+          "max": 10
+        },
+        "goldChance": 0.01,
+        "items": [
+          {
+            "item": "scroll-simple",
+            "chance": 0.2,
+            "quantity": {
+              "min": 1,
+              "max": 1
+            }
+          }
+        ],
+        "minSecondsAfterStart": 10
       }
     }
   ]

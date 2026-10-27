@@ -44,6 +44,11 @@ export function effectSpritePath(sprite: string): string {
   return `${manifest.effects.path}/${sprite}.png`;
 }
 
+/** Efeitos que o jogo carrega: os ataques básicos de combat.json e os do manifesto (ex.: baú). */
+export function effectSprites(): string[] {
+  return [...new Set([...Object.values(content.combat.basicAttacks).map((a) => a.sprite), ...manifest.effects.always])];
+}
+
 export function hasCharacterArt(classId: string): boolean {
   return characterArt.classIds.includes(classId);
 }

@@ -1,5 +1,5 @@
 {
-  "$comment": "Monstros (GDD 8.2). Vida, dano, XP, detecção e recompensas eram A DEFINIR; valores PROVISÓRIOS decididos por Claude em 2026-10-27 (autorização de Leonardo). 'drops' e 'copper' são sorteados pelo servidor no abate. 'damageType' diz se o golpe do monstro usa a Defesa Física ou a Mágica do jogador.",
+  "$comment": "Monstros e animais (GDD 8.1 e 8.2). Vida, dano, XP, detecção e recompensas eram A DEFINIR; valores PROVISÓRIOS decididos por Claude em 2026-10-27 (autorização de Leonardo). 'drops' e 'copper' são sorteados pelo servidor no abate. 'damageType' diz se o golpe usa a Defesa Física ou a Mágica do jogador. 'behavior': hostile (persegue e ataca) ou flee (dócil, foge). 'placement': deep = só no fundo da área. 'hidden': quase invisível até o jogador chegar perto. 'decorative': só enfeite, não pode ser atacado e não existe no servidor.",
   "creatures": [
     {
       "id": "cave-rat",
@@ -56,6 +56,370 @@
         {
           "item": "goblin-fangs",
           "chance": 0.4,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "cave-bat",
+      "name": "Morcego",
+      "sprite": "cave-bat",
+      "stats": {
+        "hp": 14,
+        "attack": 4,
+        "damageType": "physical",
+        "physDefense": 0,
+        "magDefense": 0
+      },
+      "moveSpeedTilesPerSecond": 4.8,
+      "detectTiles": 6,
+      "attackRangeTiles": 0.9,
+      "attackCooldownMs": 600,
+      "xp": 9,
+      "copper": {
+        "min": 0,
+        "max": 1
+      },
+      "drops": [
+        {
+          "item": "bat-chitin",
+          "chance": 0.35,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "ancient-skeleton",
+      "name": "Esqueleto Antigo",
+      "sprite": "ancient-skeleton",
+      "stats": {
+        "hp": 85,
+        "attack": 13,
+        "damageType": "physical",
+        "physDefense": 5,
+        "magDefense": 1
+      },
+      "moveSpeedTilesPerSecond": 2.0,
+      "detectTiles": 6,
+      "attackRangeTiles": 1,
+      "attackCooldownMs": 1400,
+      "placement": "deep",
+      "xp": 45,
+      "copper": {
+        "min": 4,
+        "max": 10
+      },
+      "drops": [
+        {
+          "item": "bones",
+          "chance": 0.7,
+          "quantity": {
+            "min": 1,
+            "max": 3
+          }
+        },
+        {
+          "item": "ancient-bone",
+          "chance": 0.2,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "deer",
+      "name": "Cervo",
+      "sprite": "deer",
+      "stats": {
+        "hp": 30,
+        "attack": 0,
+        "damageType": "physical",
+        "physDefense": 1,
+        "magDefense": 1
+      },
+      "moveSpeedTilesPerSecond": 3.6,
+      "detectTiles": 4,
+      "attackRangeTiles": 0.8,
+      "attackCooldownMs": 1000,
+      "behavior": "flee",
+      "xp": 10,
+      "copper": {
+        "min": 0,
+        "max": 1
+      },
+      "drops": [
+        {
+          "item": "meat",
+          "chance": 0.8,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item": "leather-simple",
+          "chance": 0.6,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "rabbit",
+      "name": "Coelho",
+      "sprite": "rabbit",
+      "stats": {
+        "hp": 10,
+        "attack": 0,
+        "damageType": "physical",
+        "physDefense": 0,
+        "magDefense": 0
+      },
+      "moveSpeedTilesPerSecond": 4.5,
+      "detectTiles": 3.5,
+      "attackRangeTiles": 0.8,
+      "attackCooldownMs": 1000,
+      "behavior": "flee",
+      "xp": 4,
+      "copper": {
+        "min": 0,
+        "max": 0
+      },
+      "drops": [
+        {
+          "item": "meat",
+          "chance": 0.6,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "rabbit-pelt",
+          "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "squirrel",
+      "name": "Esquilo",
+      "sprite": "squirrel",
+      "stats": {
+        "hp": 1,
+        "attack": 0,
+        "damageType": "physical",
+        "physDefense": 0,
+        "magDefense": 0
+      },
+      "moveSpeedTilesPerSecond": 4.5,
+      "detectTiles": 3,
+      "attackRangeTiles": 0.8,
+      "attackCooldownMs": 1000,
+      "behavior": "flee",
+      "decorative": true,
+      "xp": 0,
+      "copper": {
+        "min": 0,
+        "max": 0
+      },
+      "drops": []
+    },
+    {
+      "id": "wolf",
+      "name": "Lobo",
+      "sprite": "wolf",
+      "stats": {
+        "hp": 40,
+        "attack": 9,
+        "damageType": "physical",
+        "physDefense": 2,
+        "magDefense": 1
+      },
+      "moveSpeedTilesPerSecond": 3.4,
+      "detectTiles": 4,
+      "attackRangeTiles": 1,
+      "attackCooldownMs": 1000,
+      "xp": 20,
+      "copper": {
+        "min": 1,
+        "max": 4
+      },
+      "drops": [
+        {
+          "item": "meat",
+          "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "leather-simple",
+          "chance": 0.4,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "wolf-fangs",
+          "chance": 0.35,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item": "wolf-pelt",
+          "chance": 0.08,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "wild-boar",
+      "name": "Javali Selvagem",
+      "sprite": "wild-boar",
+      "stats": {
+        "hp": 55,
+        "attack": 11,
+        "damageType": "physical",
+        "physDefense": 3,
+        "magDefense": 1
+      },
+      "moveSpeedTilesPerSecond": 4.0,
+      "detectTiles": 5,
+      "attackRangeTiles": 1,
+      "attackCooldownMs": 1400,
+      "xp": 24,
+      "copper": {
+        "min": 1,
+        "max": 4
+      },
+      "drops": [
+        {
+          "item": "meat",
+          "chance": 0.7,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item": "leather-simple",
+          "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "boar-tusks",
+          "chance": 0.3,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "bear",
+      "name": "Urso",
+      "sprite": "bear",
+      "stats": {
+        "hp": 140,
+        "attack": 18,
+        "damageType": "physical",
+        "physDefense": 6,
+        "magDefense": 3
+      },
+      "moveSpeedTilesPerSecond": 2.6,
+      "detectTiles": 5,
+      "attackRangeTiles": 1.1,
+      "attackCooldownMs": 1600,
+      "xp": 70,
+      "copper": {
+        "min": 5,
+        "max": 12
+      },
+      "drops": [
+        {
+          "item": "meat",
+          "chance": 0.9,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item": "bear-pelt",
+          "chance": 0.5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "bear-fangs",
+          "chance": 0.4,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "giant-spider",
+      "name": "Aranha Gigante",
+      "sprite": "giant-spider",
+      "stats": {
+        "hp": 45,
+        "attack": 10,
+        "damageType": "physical",
+        "physDefense": 2,
+        "magDefense": 2
+      },
+      "moveSpeedTilesPerSecond": 3.0,
+      "detectTiles": 3,
+      "attackRangeTiles": 1,
+      "attackCooldownMs": 1100,
+      "hidden": true,
+      "xp": 26,
+      "copper": {
+        "min": 0,
+        "max": 3
+      },
+      "drops": [
+        {
+          "item": "spider-venom",
+          "chance": 0.4,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item": "spider-silk",
+          "chance": 0.5,
           "quantity": {
             "min": 1,
             "max": 2
