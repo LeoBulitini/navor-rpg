@@ -5,6 +5,7 @@ import { TextureKeys, usesPlaceholderArt } from '../../assets/index.ts';
 import { Player } from '../entities/Player.ts';
 import { DirectionKeys } from '../systems/input.ts';
 import { DebugOverlay } from '../ui/DebugOverlay.ts';
+import type { PlaySession } from '../../menu/menu.ts';
 
 const MAP_ID = 'test-map';
 
@@ -65,6 +66,12 @@ export class TestScene extends Phaser.Scene {
       .setOrigin(1, 1)
       .setScrollFactor(0)
       .setDepth(1000);
+    const session = this.registry.get('session') as PlaySession | undefined;
+    const who =
+      session?.mode === 'online'
+        ? `${session.character.name} · nível ${session.character.level}`
+        : 'Modo offline (nada é salvo)';
+    this.add.text(4, height - 4, who, style).setOrigin(0, 1).setScrollFactor(0).setDepth(1000);
     if (usesPlaceholderArt) {
       this.add
         .text(width - 4, 4, 'ARTE PLACEHOLDER (PH)', { ...style, color: '#ff66ff' })
@@ -91,6 +98,7 @@ export class TestScene extends Phaser.Scene {
         this.map.tiles[Math.floor(py / T)]?.[Math.floor(px / T)]?.solid ?? true,
       zoom: () => this.scale.zoom,
       debugEnabled: () => this.debug.isEnabled(),
+      session: () => this.registry.get('session'),
     };
   }
 }

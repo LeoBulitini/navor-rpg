@@ -3,8 +3,8 @@
 RPG medieval online 2D em pixel art 32×32, para navegador e, no futuro, Windows, usando o mesmo backend.
 O documento de requisitos é o GDD (`GDD_Navor_RPG.docx`); a arquitetura aprovada está em [docs/architecture.md](docs/architecture.md).
 
-**Estado atual: Fase 1, cena de teste local.** Um Mago (arte placeholder) anda por um mapa 32×32 com colisão.
-Ainda não há backend, login nem salvamento.
+**Estado atual: Fase 2, fundação online.** Login por e-mail e senha (Supabase), criação e seleção de personagem Mago
+protegidas por RLS, e a cena de teste da Fase 1 (movimento e colisão). Sem backend configurado, o jogo abre em modo offline.
 
 ## Requisitos
 
@@ -20,6 +20,9 @@ npm run dev
 
 Abra http://localhost:5173.
 
+Para entrar com conta, copie `apps/web/.env.example` para `apps/web/.env.local` e preencha com a URL e a chave publishable
+do projeto Supabase ([docs/setup-supabase.md](docs/setup-supabase.md)). Sem isso, use "Jogar offline" no menu.
+
 | Tecla | Ação |
 | --- | --- |
 | Setas ou WASD | Mover (8 direções) |
@@ -31,6 +34,7 @@ Abra http://localhost:5173.
 | --- | --- |
 | `npm run dev` | Servidor de desenvolvimento com recarga automática |
 | `npm test` | Testes automatizados (Vitest): dados de conteúdo, leitura de mapas, alcance, movimento |
+| `npm run test:db` | Testes de acesso do banco (pgTAP) num Postgres local, sem Docker; ver docs/setup-supabase.md |
 | `npm run content:check` | Valida os JSON de `content/` (também roda antes do build) |
 | `npm run typecheck` | Checagem de tipos do TypeScript |
 | `npm run build` | Build de produção em `apps/web/dist` |
@@ -47,8 +51,11 @@ apps/web/            cliente Phaser 4 + Vite
   public/assets/     placeholder/ (arte temporária) e final/ (arte real)
 packages/shared/     lógica pura em TypeScript, sem Phaser (será usada também pelo backend)
 content/             dados configuráveis: raridades, classes, tiles, valores de protótipo, mapas
-scripts/             validação de conteúdo, gerador de placeholders, teste de fumaça
-docs/                arquitetura e registro de decisões
+  src/menu/          menu HTML: login, lista e criação de personagem
+  src/services/      cliente Supabase, autenticação, personagens
+supabase/            migrations (schema + RLS), testes pgTAP, config da CLI
+scripts/             validação de conteúdo, gerador de placeholders, testes de fumaça e de banco
+docs/                arquitetura, decisões, setup do Supabase e da Vercel
 ```
 
 ## Editar o mapa de teste
